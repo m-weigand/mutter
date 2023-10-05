@@ -1,6 +1,6 @@
-Test-Command: echo "ok"
+Tests: build
 Depends: @builddeps@
-Restrictions: build-needed
+Restrictions: allow-stderr
 
 Tests: libmutter-13-dev
 Depends: build-essential,
