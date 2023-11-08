@@ -1,8 +1,12 @@
-mutter (45.0-4) UNRELEASED; urgency=medium
+mutter (45.1-1) UNRELEASED; urgency=medium
 
+  * New upstream release (LP: #2043000)
+    - Fix capital accent letters (LP: #2035076)
+    - Fix crash when screen locked or heavy load with some Ryzen systems
+      (LP: #2034619)
   * Update build autopkgtest to not run dh_auto_test (LP: #2038564)
 
- -- Jeremy Bícha <jbicha@ubuntu.com>  Wed, 08 Nov 2023 09:52:54 +0200
+ -- Jeremy Bícha <jbicha@ubuntu.com>  Wed, 08 Nov 2023 09:53:43 +0200
 
 mutter (45.0-3) experimental; urgency=medium
 
