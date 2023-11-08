@@ -90,6 +90,7 @@ struct _MetaRendererNative
 
   gboolean use_modifiers;
   gboolean send_modifiers;
+  gboolean has_addfb2;
 
   GHashTable *gpu_datas;
 
@@ -236,6 +237,12 @@ gboolean
 meta_renderer_native_use_modifiers (MetaRendererNative *renderer_native)
 {
   return renderer_native->use_modifiers;
+}
+
+gboolean
+meta_renderer_native_has_addfb2 (MetaRendererNative *renderer_native)
+{
+  return renderer_native->has_addfb2;
 }
 
 MetaGles3 *
@@ -895,39 +902,6 @@ meta_renderer_native_queue_mode_set_update (MetaRendererNative *renderer_native,
 
   meta_kms_update_merge_from (kms_update, new_kms_update);
   meta_kms_update_free (new_kms_update);
-}
-
-static void
-unset_disabled_crtcs (MetaRendererNative *renderer_native)
-{
-  MetaRenderer *renderer = META_RENDERER (renderer_native);
-  MetaBackend *backend = meta_renderer_get_backend (renderer);
-  GList *l;
-
-  meta_topic (META_DEBUG_KMS, "Disabling all disabled CRTCs");
-
-  for (l = meta_backend_get_gpus (backend); l; l = l->next)
-    {
-      MetaGpu *gpu = l->data;
-      MetaKmsDevice *kms_device =
-        meta_gpu_kms_get_kms_device (META_GPU_KMS (gpu));
-      GList *k;
-      g_autoptr (MetaKmsFeedback) kms_feedback = NULL;
-      MetaKmsUpdate *kms_update = NULL;
-
-      for (k = meta_gpu_get_crtcs (gpu); k; k = k->next)
-        {
-          MetaCrtc *crtc = k->data;
-
-          if (meta_crtc_get_config (crtc))
-            continue;
-
-          kms_update = ensure_mode_set_update (renderer_native, kms_device);
-          meta_crtc_kms_set_mode (META_CRTC_KMS (crtc), kms_update);
-        }
-    }
-
-  post_mode_set_updates (renderer_native);
 }
 
 static CoglDmaBufHandle *
@@ -2032,9 +2006,37 @@ on_power_save_mode_changed (MetaMonitorManager        *monitor_manager,
 }
 
 void
-meta_renderer_native_reset_modes (MetaRendererNative *renderer_native)
+meta_renderer_native_unset_modes (MetaRendererNative *renderer_native)
 {
-  unset_disabled_crtcs (renderer_native);
+  MetaRenderer *renderer = META_RENDERER (renderer_native);
+  MetaBackend *backend = meta_renderer_get_backend (renderer);
+  GList *l;
+
+  meta_topic (META_DEBUG_KMS, "Unsetting all CRTC modes");
+
+  g_hash_table_remove_all (renderer_native->mode_set_updates);
+
+  for (l = meta_backend_get_gpus (backend); l; l = l->next)
+    {
+      MetaGpu *gpu = l->data;
+      MetaKmsDevice *kms_device =
+        meta_gpu_kms_get_kms_device (META_GPU_KMS (gpu));
+      GList *k;
+      g_autoptr (MetaKmsFeedback) kms_feedback = NULL;
+      MetaKmsUpdate *kms_update = NULL;
+
+      for (k = meta_gpu_get_crtcs (gpu); k; k = k->next)
+        {
+          MetaCrtc *crtc = k->data;
+
+          g_warn_if_fail (!meta_crtc_get_config (crtc));
+
+          kms_update = ensure_mode_set_update (renderer_native, kms_device);
+          meta_crtc_kms_set_mode (META_CRTC_KMS (crtc), kms_update);
+        }
+    }
+
+  post_mode_set_updates (renderer_native);
 }
 
 static MetaGpuKms *
@@ -2173,6 +2175,7 @@ meta_renderer_native_initable_init (GInitable     *initable,
 
       kms_device = meta_gpu_kms_get_kms_device (renderer_native->primary_gpu_kms);
       flags = meta_kms_device_get_flags (kms_device);
+      renderer_native->has_addfb2 = !!(flags & META_KMS_DEVICE_FLAG_HAS_ADDFB2);
 
       kms_modifiers_debug_env = g_getenv ("MUTTER_DEBUG_USE_KMS_MODIFIERS");
       if (kms_modifiers_debug_env)
@@ -2184,7 +2187,7 @@ meta_renderer_native_initable_init (GInitable     *initable,
         {
           renderer_native->use_modifiers =
             !(flags & META_KMS_DEVICE_FLAG_DISABLE_MODIFIERS) &&
-            flags & META_KMS_DEVICE_FLAG_HAS_ADDFB2;
+            renderer_native->has_addfb2;
         }
 
       meta_topic (META_DEBUG_KMS, "Usage of KMS modifiers is %s",
@@ -2199,8 +2202,7 @@ meta_renderer_native_initable_init (GInitable     *initable,
       else
         {
           renderer_native->send_modifiers =
-            !(flags & META_KMS_DEVICE_FLAG_DISABLE_CLIENT_MODIFIERS) &&
-            flags & META_KMS_DEVICE_FLAG_HAS_ADDFB2;
+            !(flags & META_KMS_DEVICE_FLAG_DISABLE_CLIENT_MODIFIERS);
         }
 
       meta_topic (META_DEBUG_KMS, "Sending KMS modifiers to clients is %s",

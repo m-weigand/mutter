@@ -82,6 +82,7 @@ enum
   PROP_0,
 
   PROP_SCANOUT_CANDIDATE,
+  PROP_WINDOW,
 
   N_PROPS
 };
@@ -1776,6 +1777,9 @@ meta_wayland_surface_get_property (GObject    *object,
     case PROP_SCANOUT_CANDIDATE:
       g_value_set_object (value, surface->scanout_candidate);
       break;
+    case PROP_WINDOW:
+      g_value_set_object (value, meta_wayland_surface_get_window (surface));
+      break;
     default:
       G_OBJECT_WARN_INVALID_PROPERTY_ID (object, prop_id, pspec);
       break;
@@ -1793,6 +1797,12 @@ meta_wayland_surface_class_init (MetaWaylandSurfaceClass *klass)
   obj_props[PROP_SCANOUT_CANDIDATE] =
     g_param_spec_object ("scanout-candidate", NULL, NULL,
                          META_TYPE_CRTC,
+                         G_PARAM_READABLE |
+                         G_PARAM_STATIC_STRINGS);
+
+  obj_props[PROP_WINDOW] =
+    g_param_spec_object ("window", NULL, NULL,
+                         META_TYPE_WINDOW,
                          G_PARAM_READABLE |
                          G_PARAM_STATIC_STRINGS);
   g_object_class_install_properties (object_class, N_PROPS, obj_props);
@@ -2291,8 +2301,8 @@ meta_wayland_surface_can_scanout_untransformed (MetaWaylandSurface *surface,
           untransformed_layout_height = view_layout.height * view_scale;
         }
 
-      if (view_layout.width != surface->viewport.dst_width ||
-          view_layout.height != surface->viewport.dst_height ||
+      if ((view_layout.width / geometry_scale) != surface->viewport.dst_width ||
+          (view_layout.height / geometry_scale) != surface->viewport.dst_height ||
           !G_APPROX_VALUE (untransformed_layout_width,
                            meta_wayland_surface_get_buffer_width (surface),
                            FLT_EPSILON) ||
@@ -2303,9 +2313,9 @@ meta_wayland_surface_can_scanout_untransformed (MetaWaylandSurface *surface,
           meta_topic (META_DEBUG_RENDER,
                       "Surface can not be scanned out untransformed: viewport "
                       "destination or buffer size does not match stage-view "
-                      "layout. (%d != %d || %d != %d || %f != %d %f != %d)",
-                      view_layout.width, surface->viewport.dst_width,
-                      view_layout.height, surface->viewport.dst_height,
+                      "layout. (%d/%d != %d || %d/%d != %d || %f != %d %f != %d)",
+                      view_layout.width, geometry_scale, surface->viewport.dst_width,
+                      view_layout.height, geometry_scale, surface->viewport.dst_height,
                       untransformed_layout_width,
                       meta_wayland_surface_get_buffer_width (surface),
                       untransformed_layout_height,

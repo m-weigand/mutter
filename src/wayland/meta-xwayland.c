@@ -910,6 +910,13 @@ meta_xwayland_start_xserver (MetaXWaylandManager *manager,
       g_warning ("autoclose-xwayland disabled, not supported");
     }
 #endif
+#ifdef HAVE_XWAYLAND_ENABLE_EI_PORTAL
+    if (manager->should_enable_ei_portal)
+      {
+        /* Enable portal support */
+        args[i++] = "-enable-ei-portal";
+      }
+#endif
   for (j = 0; j <  G_N_ELEMENTS (x11_extension_names); j++)
     {
       /* Make sure we don't go past the array size - We need room for
@@ -1294,4 +1301,11 @@ meta_xwayland_signal (MetaXWaylandManager  *manager,
 
   g_subprocess_send_signal (manager->proc, signum);
   return TRUE;
+}
+
+void
+meta_xwayland_set_should_enable_ei_portal (MetaXWaylandManager  *manager,
+                                           gboolean              should_enable_ei_portal)
+{
+  manager->should_enable_ei_portal = should_enable_ei_portal;
 }

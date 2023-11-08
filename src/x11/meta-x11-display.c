@@ -1092,25 +1092,6 @@ open_x_display (MetaDisplay  *display,
 }
 
 static void
-on_window_visibility_updated (MetaDisplay    *display,
-                              GList          *placed_windows,
-                              GList          *shown_windows,
-                              GList          *hidden_windows,
-                              MetaX11Display *x11_display)
-{
-  GList *l;
-
-  if (meta_prefs_get_focus_mode () == G_DESKTOP_FOCUS_MODE_CLICK)
-    return;
-
-  if (display->mouse_mode)
-    return;
-
-  for (l = shown_windows; l; l = l->next)
-    meta_x11_display_increment_focus_sentinel (x11_display);
-}
-
-static void
 on_frames_client_died (GObject      *source,
                        GAsyncResult *result,
                        gpointer      user_data)
@@ -1285,10 +1266,6 @@ meta_x11_display_new (MetaDisplay  *display,
                            G_CALLBACK (update_cursor_theme),
                            x11_display,
                            G_CONNECT_SWAPPED);
-  g_signal_connect_object (display,
-                           "window-visibility-updated",
-                           G_CALLBACK (on_window_visibility_updated),
-                           x11_display, 0);
 
   g_signal_connect_object (display,
                            "x11-display-opened",
@@ -1316,13 +1293,6 @@ meta_x11_display_new (MetaDisplay  *display,
   x11_display->focus_serial = 0;
   x11_display->server_focus_window = None;
   x11_display->server_focus_serial = 0;
-
-  i = 0;
-  while (i < N_IGNORED_CROSSING_SERIALS)
-    {
-      x11_display->ignored_crossing_serials[i] = 0;
-      ++i;
-    }
 
   x11_display->prop_hooks = NULL;
   meta_x11_display_init_window_prop_hooks (x11_display);
@@ -2357,61 +2327,6 @@ prefs_changed_callback (MetaPreference pref,
 }
 
 void
-meta_x11_display_increment_focus_sentinel (MetaX11Display *x11_display)
-{
-  unsigned long data[1];
-
-  data[0] = meta_display_get_current_time (x11_display->display);
-
-  XChangeProperty (x11_display->xdisplay,
-                   x11_display->xroot,
-                   x11_display->atom__MUTTER_SENTINEL,
-                   XA_CARDINAL,
-                   32, PropModeReplace, (guchar*) data, 1);
-
-  x11_display->sentinel_counter += 1;
-}
-
-void
-meta_x11_display_decrement_focus_sentinel (MetaX11Display *x11_display)
-{
-  x11_display->sentinel_counter -= 1;
-
-  if (x11_display->sentinel_counter < 0)
-    x11_display->sentinel_counter = 0;
-}
-
-gboolean
-meta_x11_display_focus_sentinel_clear (MetaX11Display *x11_display)
-{
-  return (x11_display->sentinel_counter == 0);
-}
-
-
-static void
-meta_x11_display_add_ignored_crossing_serial (MetaX11Display *x11_display,
-                                              unsigned long   serial)
-{
-  int i;
-
-  /* don't add the same serial more than once */
-  if (serial ==
-      x11_display->ignored_crossing_serials[N_IGNORED_CROSSING_SERIALS - 1])
-    return;
-
-  /* shift serials to the left */
-  i = 0;
-  while (i < (N_IGNORED_CROSSING_SERIALS - 1))
-    {
-      x11_display->ignored_crossing_serials[i] =
-        x11_display->ignored_crossing_serials[i + 1];
-      ++i;
-    }
-  /* put new one on the end */
-  x11_display->ignored_crossing_serials[i] = serial;
-}
-
-void
 meta_x11_display_set_stage_input_region (MetaX11Display *x11_display,
                                          XserverRegion   region)
 {
@@ -2425,15 +2340,6 @@ meta_x11_display_set_stage_input_region (MetaX11Display *x11_display,
   stage_xwindow = meta_x11_get_stage_window (stage);
   XFixesSetWindowShapeRegion (xdisplay, stage_xwindow,
                               ShapeInput, 0, 0, region);
-
-  /*
-   * It's generally a good heuristic that when a crossing event is generated
-   * because we reshape the overlay, we don't want it to affect
-   * focus-follows-mouse focus - it's not the user doing something, it's the
-   * environment changing under the user.
-   */
-  meta_x11_display_add_ignored_crossing_serial (x11_display,
-                                                XNextRequest (xdisplay));
   XFixesSetWindowShapeRegion (xdisplay,
                               x11_display->composite_overlay_window,
                               ShapeInput, 0, 0, region);

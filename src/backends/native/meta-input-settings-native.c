@@ -376,26 +376,7 @@ meta_input_settings_native_set_scroll_button (MetaInputSettings  *settings,
     }
   else
     {
-      switch (button)
-        {
-        case 1:
-          evcode = BTN_LEFT;
-          break;
-        case 2:
-          evcode = BTN_MIDDLE;
-          break;
-        case 3:
-          evcode = BTN_RIGHT;
-          break;
-        default:
-          /* Compensate for X11 scroll buttons */
-          if (button > 7)
-            button -= 4;
-
-          /* Button is 1-indexed */
-          evcode = (BTN_LEFT - 1) + button;
-        }
-
+      evcode = meta_clutter_button_to_evdev (button);
       method = LIBINPUT_CONFIG_SCROLL_ON_BUTTON_DOWN;
     }
 
@@ -572,6 +553,52 @@ meta_input_settings_native_set_trackball_accel_profile (MetaInputSettings       
     return;
 
   set_device_accel_profile (device, profile);
+}
+
+static void
+meta_input_settings_native_set_pointing_stick_accel_profile (MetaInputSettings           *settings,
+                                                             ClutterInputDevice          *device,
+                                                             GDesktopPointerAccelProfile  profile)
+{
+  ClutterInputCapabilities caps = clutter_input_device_get_capabilities (device);
+
+  if ((caps & CLUTTER_INPUT_CAPABILITY_TRACKPOINT) == 0)
+    return;
+
+  set_device_accel_profile (device, profile);
+}
+
+static void
+meta_input_settings_native_set_pointing_stick_scroll_method (MetaInputSettings                 *settings,
+                                                             ClutterInputDevice                *device,
+                                                             GDesktopPointingStickScrollMethod  method)
+{
+  ClutterInputCapabilities caps = clutter_input_device_get_capabilities (device);
+  struct libinput_device *libinput_device;
+  enum libinput_config_scroll_method libinput_method;
+
+  if ((caps & CLUTTER_INPUT_CAPABILITY_TRACKPOINT) == 0)
+    return;
+
+  libinput_device = meta_input_device_native_get_libinput_device (device);
+
+  switch (method)
+    {
+    case G_DESKTOP_POINTING_STICK_SCROLL_METHOD_DEFAULT:
+      libinput_method = libinput_device_config_scroll_get_default_method (libinput_device);
+      break;
+    case G_DESKTOP_POINTING_STICK_SCROLL_METHOD_NONE:
+      libinput_method = LIBINPUT_CONFIG_SCROLL_NO_SCROLL;
+      break;
+    case G_DESKTOP_POINTING_STICK_SCROLL_METHOD_ON_BUTTON_DOWN:
+      libinput_method = LIBINPUT_CONFIG_SCROLL_ON_BUTTON_DOWN;
+      break;
+    default:
+      g_assert_not_reached ();
+      return;
+    }
+
+  device_set_scroll_method (libinput_device, libinput_method);
 }
 
 static void
@@ -803,6 +830,8 @@ meta_input_settings_native_class_init (MetaInputSettingsNativeClass *klass)
   input_settings_class->set_mouse_accel_profile = meta_input_settings_native_set_mouse_accel_profile;
   input_settings_class->set_touchpad_accel_profile = meta_input_settings_native_set_touchpad_accel_profile;
   input_settings_class->set_trackball_accel_profile = meta_input_settings_native_set_trackball_accel_profile;
+  input_settings_class->set_pointing_stick_accel_profile = meta_input_settings_native_set_pointing_stick_accel_profile;
+  input_settings_class->set_pointing_stick_scroll_method = meta_input_settings_native_set_pointing_stick_scroll_method;
 
   input_settings_class->set_stylus_pressure = meta_input_settings_native_set_stylus_pressure;
   input_settings_class->set_stylus_button_map = meta_input_settings_native_set_stylus_button_map;

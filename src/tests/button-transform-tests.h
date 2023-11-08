@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2022 Red Hat Inc.
+ * Copyright (C) 2023 Red Hat Inc.
  *
  * This program is free software; you can redistribute it and/or
  * modify it under the terms of the GNU General Public License as
@@ -13,20 +13,9 @@
  *
  * You should have received a copy of the GNU General Public License
  * along with this program; if not, see <http://www.gnu.org/licenses/>.
+ *
  */
 
 #pragma once
 
-#include "clutter/clutter-mutter.h"
-
-#define META_TYPE_STAGE_VIEW (meta_stage_view_get_type ())
-G_DECLARE_DERIVABLE_TYPE (MetaStageView,
-                          meta_stage_view,
-                          META, STAGE_VIEW,
-                          ClutterStageView)
-
-void meta_stage_view_inhibit_cursor_overlay (MetaStageView *view);
-
-void meta_stage_view_uninhibit_cursor_overlay (MetaStageView *view);
-
-gboolean meta_stage_view_is_cursor_overlay_inhibited (MetaStageView *view);
+void init_button_transform_tests (void);

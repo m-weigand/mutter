@@ -511,48 +511,29 @@ calculate_next_update_time_us (ClutterFrameClock *frame_clock,
    */
   if (next_presentation_time_us < now_us)
     {
-      int64_t presentation_phase_us;
       int64_t current_phase_us;
-      int64_t current_refresh_interval_start_us;
 
       /*
        * Let's say we're just past next_presentation_time_us.
        *
-       * First, we compute presentation_phase_us. Real presentation times don't
-       * have to be exact multiples of refresh_interval_us and
-       * presentation_phase_us represents this difference. Next, we compute
-       * current phase and the refresh interval start corresponding to now_us.
-       * Finally, add presentation_phase_us and a refresh interval to get the
-       * next presentation after now_us.
+       * First, we calculate current_phase_us, corresponding to the time since
+       * the last integer multiple of the refresh interval passed after the last
+       * presentation time. Subtracting this phase from now_us and adding a
+       * refresh interval gets us the next possible presentation time after
+       * now_us.
        *
-       *        last_presentation_time_us
-       *       /       next_presentation_time_us
-       *      /       /   now_us
-       *     /       /   /   new next_presentation_time_us
-       * |--|-------|---o---|-------|--> presentation times
-       * |        __|
-       * |       |presentation_phase_us
-       * |       |
-       * |       |     now_us - presentation_phase_us
-       * |       |    /
-       * |-------|---o---|-------|-----> integer multiples of refresh_interval_us
-       * |       \__/
-       * |       |current_phase_us
-       * |       \
-       * |        current_refresh_interval_start_us
-       * 0
-       *
+       *     last_presentation_time_us
+       *    /       next_presentation_time_us
+       *   /       /   now_us
+       *  /       /   /    new next_presentation_time_us
+       * |-------|---o---|-------|--> possible presentation times
+       *          \_/     \_____/
+       *          /           \
+       * current_phase_us      refresh_interval_us
        */
 
-      presentation_phase_us = last_presentation_time_us % refresh_interval_us;
-      current_phase_us = (now_us - presentation_phase_us) % refresh_interval_us;
-      current_refresh_interval_start_us =
-        now_us - presentation_phase_us - current_phase_us;
-
-      next_presentation_time_us =
-        current_refresh_interval_start_us +
-        presentation_phase_us +
-        refresh_interval_us;
+      current_phase_us = (now_us - last_presentation_time_us) % refresh_interval_us;
+      next_presentation_time_us = now_us - current_phase_us + refresh_interval_us;
     }
 
   if (frame_clock->is_next_presentation_time_valid)
@@ -585,12 +566,25 @@ calculate_next_update_time_us (ClutterFrameClock *frame_clock,
         }
     }
 
-  while (next_presentation_time_us < now_us + min_render_time_allowed_us)
-    next_presentation_time_us += refresh_interval_us;
+  if (next_presentation_time_us != last_presentation_time_us + refresh_interval_us)
+    {
+      /* There was an idle period since the last presentation, so there seems
+       * be no constantly updating actor. In this case it's best to start
+       * working on the next update ASAP, this results in lowest average latency
+       * for sporadic user input.
+       */
+      next_update_time_us = now_us;
+      min_render_time_allowed_us = 0;
+    }
+  else
+    {
+      while (next_presentation_time_us < now_us + min_render_time_allowed_us)
+        next_presentation_time_us += refresh_interval_us;
 
-  next_update_time_us = next_presentation_time_us - max_render_time_allowed_us;
-  if (next_update_time_us < now_us)
-    next_update_time_us = now_us;
+      next_update_time_us = next_presentation_time_us - max_render_time_allowed_us;
+      if (next_update_time_us < now_us)
+        next_update_time_us = now_us;
+    }
 
   *out_next_update_time_us = next_update_time_us;
   *out_next_presentation_time_us = next_presentation_time_us;

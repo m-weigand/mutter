@@ -37,15 +37,6 @@
 #include "meta-x11-stack-private.h"
 #include "x11/meta-sync-counter.h"
 
-/* This is basically a bogus number, just has to be large enough
- * to handle the expected case of the alt+tab operation, where
- * we want to ignore serials from UnmapNotify on the tab popup,
- * and the LeaveNotify/EnterNotify from the pointer ungrab. It
- * also has to be big enough to hold ignored serials from the point
- * where we reshape the stage to the point where we get events back.
- */
-#define N_IGNORED_CROSSING_SERIALS  10
-
 typedef struct _MetaGroupPropHooks  MetaGroupPropHooks;
 typedef struct _MetaWindowPropHooks MetaWindowPropHooks;
 
@@ -165,17 +156,6 @@ struct _MetaX11Display
 
   guint closing : 1;
 
-  /* serials of leave/unmap events that may
-   * correspond to an enter event we should
-   * ignore
-   */
-  unsigned long ignored_crossing_serials[N_IGNORED_CROSSING_SERIALS];
-
-  /* we use property updates as sentinels for certain window focus events
-   * to avoid some race conditions on EnterNotify events
-   */
-  int sentinel_counter;
-
   int composite_event_base;
   int composite_error_base;
   int composite_major_version;
@@ -264,10 +244,6 @@ MetaLogicalMonitor *meta_x11_display_xinerama_index_to_logical_monitor (MetaX11D
 
 void meta_x11_display_update_workspace_layout (MetaX11Display *x11_display);
 void meta_x11_display_update_workspace_names  (MetaX11Display *x11_display);
-
-void meta_x11_display_increment_focus_sentinel (MetaX11Display *x11_display);
-void meta_x11_display_decrement_focus_sentinel (MetaX11Display *x11_display);
-gboolean meta_x11_display_focus_sentinel_clear (MetaX11Display *x11_display);
 
 void meta_x11_display_update_focus_window (MetaX11Display *x11_display,
                                            Window          xwindow,

@@ -66,10 +66,12 @@ void meta_renderer_native_finish_frame (MetaRendererNative *renderer_native,
                                         MetaRendererView   *view,
                                         ClutterFrame       *frame);
 
-void meta_renderer_native_reset_modes (MetaRendererNative *renderer_native);
+void meta_renderer_native_unset_modes (MetaRendererNative *renderer_native);
 
 gboolean meta_renderer_native_send_modifiers (MetaRendererNative *renderer_native);
 
 gboolean meta_renderer_native_use_modifiers (MetaRendererNative *renderer_native);
+
+gboolean meta_renderer_native_has_addfb2 (MetaRendererNative *renderer_native);
 
 MetaRendererNativeMode meta_renderer_native_get_mode (MetaRendererNative *renderer_native);
