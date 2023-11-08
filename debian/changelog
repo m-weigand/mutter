@@ -1,12 +1,19 @@
-mutter (45.1-1) UNRELEASED; urgency=medium
+mutter (45.1-1) experimental; urgency=medium
 
+  [ Jeremy Bícha ]
   * New upstream release (LP: #2043000)
     - Fix capital accent letters (LP: #2035076)
     - Fix crash when screen locked or heavy load with some Ryzen systems
       (LP: #2034619)
+  * debian/libmutter-13-0.symbols: Add new symbols
+  * debian/libmutter-13-0.symbols: Add missing Build-Depends-Package annotation
   * Update build autopkgtest to not run dh_auto_test (LP: #2038564)
+  * Drop patches applied in new release
 
- -- Jeremy Bícha <jbicha@ubuntu.com>  Wed, 08 Nov 2023 09:53:43 +0200
+  [ Daniel van Vugt ]
+  * Rebase triple buffering patch
+
+ -- Jeremy Bícha <jbicha@ubuntu.com>  Wed, 08 Nov 2023 18:49:03 +0200
 
 mutter (45.0-3) experimental; urgency=medium
 
