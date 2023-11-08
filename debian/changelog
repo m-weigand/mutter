@@ -1,3 +1,9 @@
+mutter (45.0-4) UNRELEASED; urgency=medium
+
+  * Update build autopkgtest to not run dh_auto_test (LP: #2038564)
+
+ -- Jeremy Bícha <jbicha@ubuntu.com>  Wed, 08 Nov 2023 09:52:54 +0200
+
 mutter (45.0-3) experimental; urgency=medium
 
   [ Simon McVittie ]
