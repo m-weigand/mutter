@@ -2803,6 +2803,7 @@ libmutter-cogl-pango-13.so.0 libmutter-13-0 #MINVER#
  cogl_pango_show_layout@Base 43.0
  cogl_pango_show_layout_line@Base 43.0
 libmutter-mtk-13.so.0 libmutter-13-0 #MINVER#
+* Build-Depends-Package: libmutter-13-dev
  mtk_rectangle_area@Base 45~rc
  mtk_rectangle_contains_rect@Base 45~rc
  mtk_rectangle_copy@Base 45~rc
