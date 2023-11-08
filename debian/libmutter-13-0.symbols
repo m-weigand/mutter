@@ -84,6 +84,7 @@ libmutter-13.so.0 libmutter-13-0 #MINVER#
  meta_close_dialog_response@Base 43.0
  meta_close_dialog_response_get_type@Base 43.0
  meta_close_dialog_show@Base 43.0
+ meta_clutter_button_to_evdev@Base 45.1
  meta_color_device_get_assigned_profile@Base 43.0
  meta_color_device_get_device_profile@Base 43.0
  meta_color_device_get_id@Base 43.0
@@ -223,6 +224,7 @@ libmutter-13.so.0 libmutter-13-0 #MINVER#
  meta_edge_type_get_type@Base 43.0
  meta_edid_info_new_parse@Base 43.0
  meta_enable_unredirect_for_display@Base 43.0
+ meta_evdev_button_to_clutter@Base 45.1
  meta_exit@Base 43.0
  meta_exit_code_get_type@Base 43.0
  meta_external_binding_name_for_action@Base 43.0
@@ -433,6 +435,7 @@ libmutter-13.so.0 libmutter-13-0 #MINVER#
  meta_monitor_is_active@Base 43.0
  meta_monitor_is_primary@Base 44~beta
  meta_monitor_logical_to_crtc_transform@Base 43.0
+ meta_monitor_manager_apply_monitors_config@Base 45.1
  meta_monitor_manager_can_switch_config@Base 43.0
  meta_monitor_manager_create_virtual_monitor@Base 43.0
  meta_monitor_manager_ensure_configured@Base 43.0
@@ -450,6 +453,7 @@ libmutter-13.so.0 libmutter-13-0 #MINVER#
  meta_monitor_manager_get_switch_config@Base 43.0
  meta_monitor_manager_get_type@Base 43.0
  meta_monitor_manager_lid_is_closed_changed@Base 43.0
+ meta_monitor_manager_read_current_state@Base 45.1
  meta_monitor_manager_rebuild@Base 43.0
  meta_monitor_manager_rebuild_derived@Base 43.0
  meta_monitor_manager_reconfigure@Base 43.0
