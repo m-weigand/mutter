@@ -7,3 +7,7 @@ workarounds/tests-skip-monitor-width-size-check-as-it-may-lead-to-une.patch
 workarounds/tests-Disable-restore-size-test.patch
 workarounds/tests-Skip-thread-priority-test.patch
 workarounds/cogl-onscreen-glx-Forcefully-disable-cogl_onscreen_glx_ge.patch
+backports/backends-native-Make-tablet-devices-floating.patch
+backports/clutter-Check-source-device-mode-to-figure-out-logical-de.patch
+backports/core-Manage-MetaPadActionMapper-devices-through-events.patch
+backports/core-Query-pad-devices-on-MetaPadActionMapper-initializat.patch
