@@ -1,0 +1,44 @@
+From: Sebastian Wick <sebastian.wick@redhat.com>
+Date: Mon, 30 Oct 2023 13:57:17 +0100
+Subject: core/window: Propagate focus appearance to all ancestors
+
+The loop in meta_window_propagate_focus_appearance breaks if any
+ancestor has attached_focus_window == focus_window but further ancestors
+might still have a different attached_focus_window.
+
+Continue the loop until the root ancestor instead.
+
+Closes: https://gitlab.gnome.org/GNOME/mutter/-/issues/2913
+Part-of: <https://gitlab.gnome.org/GNOME/mutter/-/merge_requests/3356>
+(cherry picked from commit 4e088cac0e64f58967cca2365287f1edf2680128)
+---
+ src/core/window.c | 10 +++-------
+ 1 file changed, 3 insertions(+), 7 deletions(-)
+
+diff --git a/src/core/window.c b/src/core/window.c
+index 3c00bfe..0926d44 100644
+--- a/src/core/window.c
++++ b/src/core/window.c
+@@ -5219,19 +5219,15 @@ meta_window_propagate_focus_appearance (MetaWindow *window,
+   parent = meta_window_get_transient_for (child);
+   while (parent && (!focused || should_propagate_focus_appearance (child)))
+     {
+-      gboolean child_focus_state_changed;
++      gboolean child_focus_state_changed = FALSE;
+ 
+-      if (focused)
++      if (focused && parent->attached_focus_window != focus_window)
+         {
+-          if (parent->attached_focus_window == focus_window)
+-            break;
+           child_focus_state_changed = (parent->attached_focus_window == NULL);
+           parent->attached_focus_window = focus_window;
+         }
+-      else
++      else if (parent->attached_focus_window == focus_window)
+         {
+-          if (parent->attached_focus_window != focus_window)
+-            break;
+           child_focus_state_changed = (parent->attached_focus_window != NULL);
+           parent->attached_focus_window = NULL;
+         }

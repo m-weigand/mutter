@@ -1,0 +1,27 @@
+From: Sebastian Keller <skeller@gnome.org>
+Date: Tue, 7 Nov 2023 01:02:55 +0100
+Subject: window: Add IS_ALIVE to get_property
+
+This was causing looking glass to wrongly claim that is_alive = false
+for all windows.
+
+Part-of: <https://gitlab.gnome.org/GNOME/mutter/-/merge_requests/3367>
+(cherry picked from commit 0807579cdd06186c119603836c828e93778e3009)
+---
+ src/core/window.c | 3 +++
+ 1 file changed, 3 insertions(+)
+
+diff --git a/src/core/window.c b/src/core/window.c
+index 0926d44..7fe0b8c 100644
+--- a/src/core/window.c
++++ b/src/core/window.c
+@@ -438,6 +438,9 @@ meta_window_get_property(GObject         *object,
+     case PROP_ON_ALL_WORKSPACES:
+       g_value_set_boolean (value, win->on_all_workspaces);
+       break;
++    case PROP_IS_ALIVE:
++      g_value_set_boolean (value, win->is_alive);
++      break;
+     case PROP_DISPLAY:
+       g_value_set_object (value, win->display);
+       break;

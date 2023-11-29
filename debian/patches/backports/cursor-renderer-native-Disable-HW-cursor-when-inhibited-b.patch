@@ -1,0 +1,31 @@
+From: Robert Mader <robert.mader@collabora.com>
+Date: Mon, 20 Nov 2023 22:28:44 +0100
+Subject: cursor-renderer/native: Disable HW cursor when inhibited by backend
+
+We need to disable the hardware cursor in some situations, notably when
+doing a screencast with clients that require an embedded cursor.
+
+While a API to do so is in place already, until now we didn't actually
+make use of it. Do so.
+
+Closes https://gitlab.gnome.org/GNOME/gnome-shell/-/issues/7007
+
+Part-of: <https://gitlab.gnome.org/GNOME/mutter/-/merge_requests/3412>
+(cherry picked from commit 9ddb0371c6052dba22a41c79ef0766941d34beef)
+---
+ src/backends/native/meta-cursor-renderer-native.c | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/src/backends/native/meta-cursor-renderer-native.c b/src/backends/native/meta-cursor-renderer-native.c
+index a98dea7..c51407d 100644
+--- a/src/backends/native/meta-cursor-renderer-native.c
++++ b/src/backends/native/meta-cursor-renderer-native.c
+@@ -340,7 +340,7 @@ meta_cursor_renderer_native_update_cursor (MetaCursorRenderer *cursor_renderer,
+           continue;
+         }
+ 
+-      if (cursor_sprite)
++      if (cursor_sprite && !meta_backend_is_hw_cursors_inhibited (backend))
+         {
+           meta_cursor_sprite_realize_texture (cursor_sprite);
+ 
