@@ -1,3 +1,10 @@
+mutter (45.1-2) experimental; urgency=medium
+
+  * Cherry-pick several commits to fix Wacom on X11 issues (LP: #2043027)
+  * Cherry-pick other commits suggested in !3414 to fix several issues
+
+ -- Jeremy Bícha <jbicha@ubuntu.com>  Wed, 29 Nov 2023 09:48:34 -0500
+
 mutter (45.1-1) experimental; urgency=medium
 
   [ Jeremy Bícha ]
