@@ -438,6 +438,9 @@ meta_window_get_property(GObject         *object,
     case PROP_ON_ALL_WORKSPACES:
       g_value_set_boolean (value, win->on_all_workspaces);
       break;
+    case PROP_IS_ALIVE:
+      g_value_set_boolean (value, win->is_alive);
+      break;
     case PROP_DISPLAY:
       g_value_set_object (value, win->display);
       break;
@@ -5219,19 +5222,15 @@ meta_window_propagate_focus_appearance (MetaWindow *window,
   parent = meta_window_get_transient_for (child);
   while (parent && (!focused || should_propagate_focus_appearance (child)))
     {
-      gboolean child_focus_state_changed;
+      gboolean child_focus_state_changed = FALSE;
 
-      if (focused)
+      if (focused && parent->attached_focus_window != focus_window)
         {
-          if (parent->attached_focus_window == focus_window)
-            break;
           child_focus_state_changed = (parent->attached_focus_window == NULL);
           parent->attached_focus_window = focus_window;
         }
-      else
+      else if (parent->attached_focus_window == focus_window)
         {
-          if (parent->attached_focus_window != focus_window)
-            break;
           child_focus_state_changed = (parent->attached_focus_window != NULL);
           parent->attached_focus_window = NULL;
         }

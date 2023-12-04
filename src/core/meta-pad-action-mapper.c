@@ -134,9 +134,8 @@ pad_mapping_info_free (PadMappingInfo *info)
 }
 
 static void
-device_added (ClutterSeat         *seat,
-              ClutterInputDevice  *device,
-              MetaPadActionMapper *mapper)
+device_added (MetaPadActionMapper *mapper,
+              ClutterInputDevice  *device)
 {
   PadMappingInfo *info;
 
@@ -149,9 +148,8 @@ device_added (ClutterSeat         *seat,
 }
 
 static void
-device_removed (ClutterSeat         *seat,
-                ClutterInputDevice  *device,
-                MetaPadActionMapper *mapper)
+device_removed (MetaPadActionMapper *mapper,
+                ClutterInputDevice  *device)
 {
   g_hash_table_remove (mapper->pads, device);
 }
@@ -159,14 +157,17 @@ device_removed (ClutterSeat         *seat,
 static void
 meta_pad_action_mapper_init (MetaPadActionMapper *mapper)
 {
+  g_autoptr (GList) devices = NULL;
+  GList *l;
+
   mapper->pads = g_hash_table_new_full (NULL, NULL, NULL,
                                         (GDestroyNotify) pad_mapping_info_free);
 
   mapper->seat = clutter_backend_get_default_seat (clutter_get_default_backend ());
-  g_signal_connect (mapper->seat, "device-added",
-                    G_CALLBACK (device_added), mapper);
-  g_signal_connect (mapper->seat, "device-removed",
-                    G_CALLBACK (device_removed), mapper);
+  devices = clutter_seat_list_devices (mapper->seat);
+
+  for (l = devices; l; l = l->next)
+    device_added (mapper, l->data);
 }
 
 MetaPadActionMapper *
@@ -727,9 +728,17 @@ meta_pad_action_mapper_handle_event (MetaPadActionMapper *mapper,
       return meta_pad_action_mapper_handle_action (mapper, pad, event,
                                                    META_PAD_FEATURE_STRIP,
                                                    number, mode);
+    case CLUTTER_DEVICE_ADDED:
+      device_added (mapper, clutter_event_get_source_device (event));
+      break;
+    case CLUTTER_DEVICE_REMOVED:
+      device_removed (mapper, clutter_event_get_source_device (event));
+      break;
     default:
-      return FALSE;
+      break;
     }
+
+  return CLUTTER_EVENT_PROPAGATE;
 }
 
 static char *
