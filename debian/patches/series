@@ -7,4 +7,3 @@ workarounds/tests-skip-monitor-width-size-check-as-it-may-lead-to-une.patch
 workarounds/tests-Disable-restore-size-test.patch
 workarounds/tests-Skip-thread-priority-test.patch
 workarounds/cogl-onscreen-glx-Forcefully-disable-cogl_onscreen_glx_ge.patch
-backports/kms-impl-device-Handle-NULL-gamma-updates.patch
