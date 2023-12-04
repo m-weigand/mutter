@@ -1,8 +1,10 @@
-mutter (45.2-1) UNRELEASED; urgency=medium
+mutter (45.2-1) experimental; urgency=medium
 
-  * New upstream release
+  * New upstream release (LP: #2043000)
+  * Drop patches applied in new release
+  * Drop unimportant patch not included in the mutter 45.2 backports
 
- -- Jeremy Bícha <jbicha@ubuntu.com>  Mon, 04 Dec 2023 08:51:17 -0500
+ -- Jeremy Bícha <jbicha@ubuntu.com>  Mon, 04 Dec 2023 08:54:20 -0500
 
 mutter (45.1-2) experimental; urgency=medium
 
