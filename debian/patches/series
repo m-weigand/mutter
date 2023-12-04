@@ -7,12 +7,4 @@ workarounds/tests-skip-monitor-width-size-check-as-it-may-lead-to-une.patch
 workarounds/tests-Disable-restore-size-test.patch
 workarounds/tests-Skip-thread-priority-test.patch
 workarounds/cogl-onscreen-glx-Forcefully-disable-cogl_onscreen_glx_ge.patch
-backports/backends-native-Make-tablet-devices-floating.patch
-backports/clutter-Check-source-device-mode-to-figure-out-logical-de.patch
-backports/core-Manage-MetaPadActionMapper-devices-through-events.patch
-backports/core-Query-pad-devices-on-MetaPadActionMapper-initializat.patch
-backports/core-window-Propagate-focus-appearance-to-all-ancestors.patch
 backports/kms-impl-device-Handle-NULL-gamma-updates.patch
-backports/delete-Don-t-wrongly-set-window-as-not-alive-when-pings-a.patch
-backports/window-Add-IS_ALIVE-to-get_property.patch
-backports/cursor-renderer-native-Disable-HW-cursor-when-inhibited-b.patch
