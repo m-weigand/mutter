@@ -1,3 +1,9 @@
+mutter (45.2-1) UNRELEASED; urgency=medium
+
+  * New upstream release
+
+ -- Jeremy Bícha <jbicha@ubuntu.com>  Mon, 04 Dec 2023 08:51:17 -0500
+
 mutter (45.1-2) experimental; urgency=medium
 
   * Cherry-pick several commits to fix Wacom on X11 issues (LP: #2043027)
