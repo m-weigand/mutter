@@ -3386,7 +3386,7 @@ clutter_stage_get_device_actor (ClutterStage         *stage,
 /**
  * clutter_stage_get_device_coords: (skip):
  */
-void
+gboolean
 clutter_stage_get_device_coords (ClutterStage         *stage,
                                  ClutterInputDevice   *device,
                                  ClutterEventSequence *sequence,
@@ -3395,16 +3395,21 @@ clutter_stage_get_device_coords (ClutterStage         *stage,
   ClutterStagePrivate *priv = stage->priv;
   PointerDeviceEntry *entry = NULL;
 
-  g_return_if_fail (CLUTTER_IS_STAGE (stage));
-  g_return_if_fail (device != NULL);
+  g_return_val_if_fail (CLUTTER_IS_STAGE (stage), FALSE);
+  g_return_val_if_fail (device != NULL, FALSE);
 
   if (sequence != NULL)
     entry = g_hash_table_lookup (priv->touch_sequences, sequence);
   else
     entry = g_hash_table_lookup (priv->pointer_devices, device);
 
-  if (entry && coords)
+  if (!entry)
+    return FALSE;
+
+  if (coords)
     *coords = entry->coords;
+
+  return TRUE;
 }
 
 static void
@@ -3791,9 +3796,11 @@ void
 clutter_stage_repick_device (ClutterStage       *stage,
                              ClutterInputDevice *device)
 {
-  graphene_point_t point;
+  graphene_point_t point = GRAPHENE_POINT_INIT_ZERO;
 
-  clutter_stage_get_device_coords (stage, device, NULL, &point);
+  if (!clutter_stage_get_device_coords (stage, device, NULL, &point))
+    return;
+
   clutter_stage_pick_and_update_device (stage,
                                         device,
                                         NULL, NULL,
@@ -3893,9 +3900,9 @@ clutter_stage_notify_grab_on_pointer_entry (ClutterStage       *stage,
                                             ClutterActor       *grab_actor,
                                             ClutterActor       *old_grab_actor)
 {
-  ClutterStagePrivate *priv = stage->priv;
   gboolean pointer_in_grab, pointer_in_old_grab;
   gboolean implicit_grab_cancelled = FALSE;
+  unsigned int implicit_grab_n_removed = 0, implicit_grab_n_remaining = 0;
   ClutterEventType event_type = CLUTTER_NOTHING;
   ClutterActor *topmost, *deepmost;
 
@@ -3916,9 +3923,6 @@ clutter_stage_notify_grab_on_pointer_entry (ClutterStage       *stage,
       ClutterInputDevice *device = entry->device;
       ClutterEventSequence *sequence = entry->sequence;
       unsigned int i;
-      unsigned int n_removed = 0;
-
-      implicit_grab_cancelled = TRUE;
 
       for (i = 0; i < entry->event_emission_chain->len; i++)
         {
@@ -3930,11 +3934,11 @@ clutter_stage_notify_grab_on_pointer_entry (ClutterStage       *stage,
               if (!clutter_actor_contains (grab_actor, receiver->actor))
                 {
                   g_clear_object (&receiver->actor);
-                  n_removed++;
+                  implicit_grab_n_removed++;
                 }
               else
                 {
-                  implicit_grab_cancelled = FALSE;
+                  implicit_grab_n_remaining++;
                 }
             }
           else if (receiver->action)
@@ -3948,23 +3952,27 @@ clutter_stage_notify_grab_on_pointer_entry (ClutterStage       *stage,
                                                      device,
                                                      sequence);
                   g_clear_object (&receiver->action);
-                  n_removed++;
+                  implicit_grab_n_removed++;
                 }
               else
                 {
-                  implicit_grab_cancelled = FALSE;
+                  implicit_grab_n_remaining++;
                 }
             }
         }
 
-      if (n_removed > 0)
-        {
-          CLUTTER_NOTE (GRABS,
-                        "[grab=%p device=%p sequence=%p implicit_grab_cancelled=%d] "
-                        "Cancelled %u actors and actions on implicit grab due to new seat grab",
-                        priv->topmost_grab, device, sequence, implicit_grab_cancelled,
-                        n_removed);
-        }
+      /* Seat grabs win over implicit grabs, so we default to cancel the ongoing
+       * implicit grab. If the seat grab contains one or more actors from
+       * the implicit grab though, the implicit grab remains in effect.
+       */
+      implicit_grab_cancelled = implicit_grab_n_remaining == 0;
+
+      CLUTTER_NOTE (GRABS,
+                    "[grab=%p device=%p sequence=%p implicit_grab_cancelled=%d] "
+                    "Cancelled %u actors and actions (%u remaining) on implicit "
+                    "grab due to new seat grab",
+                    stage->priv->topmost_grab, device, sequence, implicit_grab_cancelled,
+                    implicit_grab_n_removed, implicit_grab_n_remaining);
     }
 
   /* Equate NULL actors to the stage here, to ease calculations further down. */
@@ -3975,7 +3983,8 @@ clutter_stage_notify_grab_on_pointer_entry (ClutterStage       *stage,
 
   if (grab_actor == old_grab_actor)
     {
-      g_assert (!implicit_grab_cancelled);
+      g_assert ((implicit_grab_n_removed == 0 && implicit_grab_n_remaining == 0) ||
+                !implicit_grab_cancelled);
       return;
     }
 
@@ -4056,9 +4065,9 @@ clutter_stage_notify_grab_on_pointer_entry (ClutterStage       *stage,
       clutter_event_free (event);
     }
 
-    if ((event_type == CLUTTER_NOTHING || event_type == CLUTTER_LEAVE) &&
-        implicit_grab_cancelled)
-      cleanup_implicit_grab (entry);
+  if ((event_type == CLUTTER_NOTHING || event_type == CLUTTER_LEAVE) &&
+      implicit_grab_cancelled)
+    cleanup_implicit_grab (entry);
 }
 
 static void
