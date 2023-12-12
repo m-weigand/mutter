@@ -43,6 +43,8 @@ ifneq ($(filter i386,$(DEB_HOST_ARCH)),)
 CONFFLAGS +=-Dprofiler=false
 endif
 
+override_dh_gnome_clean:
+
 override_dh_auto_configure:
 	dh_auto_configure -- \
 		$(CONFFLAGS)
