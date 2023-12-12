@@ -1,8 +1,15 @@
-mutter (44.7-1) UNRELEASED; urgency=medium
+mutter (44.7-1) unstable; urgency=medium
 
+  * Team upload
+
+  [ Simon McVittie ]
   * New upstream release
+  * Drop patches that were included in the upstream release
 
- -- Simon McVittie <smcv@debian.org>  Tue, 12 Dec 2023 13:04:23 +0000
+  [ Chris Hofstaedtler ]
+  * Honor udev.pc's udevdir when installing udev rules (Closes: #1057319)
+
+ -- Simon McVittie <smcv@debian.org>  Tue, 12 Dec 2023 13:31:00 +0000
 
 mutter (44.5-2) unstable; urgency=medium
 
