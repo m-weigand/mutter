@@ -19,7 +19,7 @@ Applied-upstream: 45.rc
  1 file changed, 1 insertion(+), 1 deletion(-)
 
 diff --git a/meson.build b/meson.build
-index bcb190f..1f00112 100644
+index b946e58..0987ef1 100644
 --- a/meson.build
 +++ b/meson.build
 @@ -428,7 +428,7 @@ if have_profiler

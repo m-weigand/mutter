@@ -1,9 +1,3 @@
-compositor-Do-not-repick-after-effects-finish.patch
-clutter-Trigger-repick-on-animation-less-transform-change.patch
-clutter-Add-boolean-return-value-to-clutter_stage_get_dev.patch
-clutter-Check-that-pointer-has-coordinates-prior-to-repic.patch
-clutter-Update-device-on-touchpad-gesture-events.patch
-clutter-Ensure-pick-on-CLUTTER_PROXIMITY_IN.patch
 x11-events-NULL-Check-input-event-when-getting-name.patch
 workspace-Don-t-crash-on-invalid-argument-to-meta_workspa.patch
 workarounds/tests-Mark-view-verification-tests-as-incomplete-in-big-e.patch
