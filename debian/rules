@@ -62,7 +62,7 @@ TEST_COMMAND_BASE=env \
 	dh_auto_test -- -C $(BUILDDIR) --no-rebuild --verbose --timeout-multiplier 6 \
 	           --no-stdsplit --print-errorlogs
 TEST_COMMAND=$(TEST_COMMAND_BASE) --no-suite flaky
-TEST_COMMAND_FLAKY=$(TEST_COMMAND_BASE) --suite flaky
+TEST_COMMAND_FLAKY=env DEB_ALLOW_FLAKY_TESTS=1 $(TEST_COMMAND_BASE) --suite flaky
 
 # Don't run the tests on mips etc. since they either time out or fail too
 # much, blocking migration to testing.

@@ -1,0 +1,72 @@
+From: Simon McVittie <smcv@debian.org>
+Date: Wed, 13 Dec 2023 10:34:02 +0000
+Subject: Mark several additional tests as flaky
+
+Most of these have never been reliable on Debian buildds, especially
+on ARM, so having them fail is not a regression. They usually succeed
+after a few retries, but that's time-consuming and unsuitable to be a
+QA gate.
+
+Signed-off-by: Simon McVittie <smcv@debian.org>
+Forwarded: no
+---
+ src/tests/meson.build | 30 +++++++++++++++++++++++++++---
+ 1 file changed, 27 insertions(+), 3 deletions(-)
+
+diff --git a/src/tests/meson.build b/src/tests/meson.build
+index 8be1657..1ce9155 100644
+--- a/src/tests/meson.build
++++ b/src/tests/meson.build
+@@ -531,8 +531,14 @@ if have_native_tests
+       install_rpath: pkglibdir,
+     )
+ 
++    extra_suites = []
++
++    if test_case.get('flaky', false)
++      extra_suites += 'flaky'
++    endif
++
+     test(test_case['name'], test_executable,
+-      suite: ['core', 'mutter/' + test_case['suite']],
++      suite: ['core', 'mutter/' + test_case['suite']] + extra_suites,
+       env: test_env,
+       depends: test_case.get('depends', []),
+       is_parallel: false,
+@@ -581,8 +587,26 @@ stacking_tests = [
+ ]
+ 
+ foreach stacking_test: stacking_tests
++  extra_suites = []
++  flaky = false
++
++  if {
++    'closed-transient-only-take-focus-parents': true,
++    # https://gitlab.gnome.org/GNOME/mutter/-/issues/3050
++    'fullscreen-maximize': true,
++    'minimized': true,
++    # https://gitlab.gnome.org/GNOME/mutter/-/issues/2509, https://bugs.debian.org/1050022
++    'restore-size': true,
++    # https://gitlab.gnome.org/GNOME/mutter/-/issues/3051
++    'unfullscreen-strut-change': true,
++    'unmaximize-new-size': true,
++  }.get(stacking_test, false)
++    extra_suites += 'flaky'
++    flaky = true
++  endif
++
+   test(stacking_test, test_runner,
+-    suite: ['core', 'mutter/stacking'],
++    suite: ['core', 'mutter/stacking'] + extra_suites,
+     env: test_env,
+     args: [
+       files(join_paths('stacking', stacking_test + '.metatest')),
+@@ -591,7 +615,7 @@ foreach stacking_test: stacking_tests
+     timeout: 60,
+   )
+ 
+-  if have_installed_tests
++  if have_installed_tests and not flaky
+     installed_tests_cdata = configuration_data()
+     installed_tests_cdata.set('apiversion', libmutter_api_version)
+     installed_tests_cdata.set('libexecdir', libexecdir)
