@@ -1,3 +1,17 @@
+mutter (45.2-3) experimental; urgency=medium
+
+  [ Daniel van Vugt ]
+  * Update Support-Dynamic-triple-double-buffering.patch
+    with a fix to the frame clock for a regression inherited from
+    45.1 (8f27ebf8) whereby it would enter triple buffering mode
+    prematurely. And because it was premature, the clock would soon
+    notice that triple buffering isn't required and drop back to double
+    buffering. But the switch from triple to double buffering stalls the
+    client frame queue by one frame which for some clients like Firefox
+    is seen as a frame skip. (LP: #2046360)
+
+ -- Jeremy Bícha <jbicha@ubuntu.com>  Wed, 20 Dec 2023 09:29:22 -0500
+
 mutter (45.2-2) experimental; urgency=medium
 
   * Team upload
