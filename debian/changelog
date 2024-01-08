@@ -1,8 +1,10 @@
-mutter (45.3-1) UNRELEASED; urgency=medium
+mutter (45.3-1) experimental; urgency=medium
 
   * New upstream release
+  * debian/libmutter-13-0.symbols: Add new symbol
+  * Drop overrides for non-Linux since we build for Linux only
 
- -- Jeremy Bícha <jbicha@ubuntu.com>  Mon, 08 Jan 2024 14:38:23 -0500
+ -- Jeremy Bícha <jbicha@ubuntu.com>  Mon, 08 Jan 2024 15:58:29 -0500
 
 mutter (45.2-3) experimental; urgency=medium
 
