@@ -1,3 +1,9 @@
+mutter (45.3-1) UNRELEASED; urgency=medium
+
+  * New upstream release
+
+ -- Jeremy Bícha <jbicha@ubuntu.com>  Mon, 08 Jan 2024 14:38:23 -0500
+
 mutter (45.2-3) experimental; urgency=medium
 
   [ Daniel van Vugt ]
