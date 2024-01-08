@@ -35,7 +35,7 @@ libmutter-13.so.0 libmutter-13-0 #MINVER#
  meta_backend_lock_layout_group@Base 43.0
  meta_backend_native_get_device_pool@Base 43.0
  meta_backend_native_get_kms@Base 43.0
- (arch=linux-any)meta_backend_native_get_type@Base 43.0
+ meta_backend_native_get_type@Base 43.0
  meta_backend_native_get_udev@Base 44~rc
  meta_backend_set_keymap@Base 43.0
  meta_backend_x11_nested_get_type@Base 43.0
@@ -75,7 +75,7 @@ libmutter-13.so.0 libmutter-13-0 #MINVER#
  meta_barrier_release@Base 43.0
  meta_bug@Base 43.0
  meta_button_function_get_type@Base 43.0
- (arch=linux-any)meta_calculate_drm_mode_refresh_rate@Base 43.0
+ meta_calculate_drm_mode_refresh_rate@Base 43.0
  meta_calculate_drm_mode_vblank_duration_us@Base 43.0
  meta_close_dialog_focus@Base 43.0
  meta_close_dialog_get_type@Base 43.0
@@ -719,34 +719,34 @@ libmutter-13.so.0 libmutter-13-0 #MINVER#
  meta_virtual_monitor_info_new@Base 43.0
  meta_virtual_monitor_set_mode@Base 43.0
  meta_warning@Base 43.0
- (arch=linux-any)meta_wayland_actor_surface_get_actor@Base 43.0
- (arch=linux-any)meta_wayland_client_get_type@Base 43.0
- (arch=linux-any)meta_wayland_client_hide_from_window_list@Base 43.0
+ meta_wayland_actor_surface_get_actor@Base 43.0
+ meta_wayland_client_get_type@Base 43.0
+ meta_wayland_client_hide_from_window_list@Base 43.0
  meta_wayland_client_make_desktop@Base 45.3
  meta_wayland_client_matches@Base 44~beta
- (arch=linux-any)meta_wayland_client_new@Base 43.0
+ meta_wayland_client_new@Base 43.0
  meta_wayland_client_new_indirect@Base 44~beta
- (arch=linux-any)meta_wayland_client_owns_window@Base 43.0
+ meta_wayland_client_owns_window@Base 43.0
  meta_wayland_client_setup_fd@Base 44~beta
- (arch=linux-any)meta_wayland_client_show_in_window_list@Base 43.0
- (arch=linux-any)meta_wayland_client_spawn@Base 43.0
- (arch=linux-any)meta_wayland_client_spawnv@Base 43.0
+ meta_wayland_client_show_in_window_list@Base 43.0
+ meta_wayland_client_spawn@Base 43.0
+ meta_wayland_client_spawnv@Base 43.0
  meta_wayland_compositor_get_context@Base 44~beta
  meta_wayland_compositor_get_filter_manager@Base 44~beta
  meta_wayland_compositor_get_type@Base 45~beta.1
  meta_wayland_compositor_get_wayland_display@Base 44~beta
- (arch=linux-any)meta_wayland_compositor_get_xwayland_manager@Base 43.0
+ meta_wayland_compositor_get_xwayland_manager@Base 43.0
  meta_wayland_filter_manager_add_global@Base 44~beta
  meta_wayland_filter_manager_remove_global@Base 44~beta
- (arch=linux-any)meta_wayland_get_public_xwayland_display_name@Base 43.0
- (arch=linux-any)meta_wayland_get_wayland_display_name@Base 43.0
- (arch=linux-any)meta_wayland_override_display_name@Base 43.0
- (arch=linux-any)meta_wayland_surface_get_actor@Base 43.0
+ meta_wayland_get_public_xwayland_display_name@Base 43.0
+ meta_wayland_get_wayland_display_name@Base 43.0
+ meta_wayland_override_display_name@Base 43.0
+ meta_wayland_surface_get_actor@Base 43.0
  meta_wayland_surface_get_buffer_height@Base 44~rc
  meta_wayland_surface_get_buffer_width@Base 44~rc
- (arch=linux-any)meta_wayland_surface_get_height@Base 43.1
+ meta_wayland_surface_get_height@Base 43.1
  meta_wayland_surface_get_resource@Base 44~beta
- (arch=linux-any)meta_wayland_surface_get_width@Base 43.1
+ meta_wayland_surface_get_width@Base 43.1
  meta_wayland_surface_get_window@Base 43.0
  meta_window_activate@Base 43.0
  meta_window_activate_with_workspace@Base 43.0
@@ -884,8 +884,8 @@ libmutter-13.so.0 libmutter-13-0 #MINVER#
  meta_window_unset_demands_attention@Base 43.0
  meta_window_unstick@Base 43.0
  meta_window_untile@Base 43.0
- (arch=linux-any)meta_window_wayland_get_type@Base 43.1
- (arch=linux-any)meta_window_wayland_is_acked_fullscreen@Base 43.1
+ meta_window_wayland_get_type@Base 43.1
+ meta_window_wayland_is_acked_fullscreen@Base 43.1
  meta_window_x11_get_toplevel_xwindow@Base 44~beta
  meta_window_x11_get_type@Base 44~beta
  meta_workspace_activate@Base 43.0
@@ -922,8 +922,8 @@ libmutter-13.so.0 libmutter-13-0 #MINVER#
  meta_x11_error_trap_pop@Base 43.0
  meta_x11_error_trap_pop_with_return@Base 43.0
  meta_x11_error_trap_push@Base 43.0
- (arch=linux-any)meta_xwayland_override_display_number@Base 43.0
- (arch=linux-any)meta_xwayland_signal@Base 43.0
+ meta_xwayland_override_display_number@Base 43.0
+ meta_xwayland_signal@Base 43.0
  set_output_hdr_metadata@Base 44~rc
 libmutter-clutter-13.so.0 libmutter-13-0 #MINVER#
 * Build-Depends-Package: libmutter-13-dev

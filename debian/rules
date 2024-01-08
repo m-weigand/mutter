@@ -19,25 +19,11 @@ export MUTTER_SONAME
 %:
 	dh $@
 
-ifeq ($(DEB_HOST_ARCH_OS),linux)
 CONFFLAGS = \
 	-Degl_device=true \
 	-Dremote_desktop=true \
 	-Dwayland_eglstream=true
 export deb_udevdir = $(shell pkg-config --variable=udevdir udev | sed s,^/,,)
-else
-CONFFLAGS = \
-	-Dsystemd=false \
-	-Dudev=false \
-	-Dlibwacom=false \
-	-Dwayland=false \
-	-Dcore_tests=false \
-	-Dnative_backend=false \
-	-Dnative_tests=false \
-	-Dprofiler=false \
-	-Dremote_desktop=false
-export deb_udevdir =
-endif
 
 ifneq ($(filter i386,$(DEB_HOST_ARCH)),)
 CONFFLAGS +=-Dprofiler=false
