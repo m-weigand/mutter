@@ -50,6 +50,7 @@ struct _MetaWindowActorWayland
   ClutterActor *background;
   MetaSurfaceContainerActorWayland *surface_container;
   gulong highest_scale_monitor_handler_id;
+  gboolean needs_sync;
 };
 
 static void cullable_iface_init (MetaCullableInterface *iface);
@@ -524,24 +525,26 @@ maybe_configure_black_background (MetaWindowActorWayland *self,
   return TRUE;
 }
 
-static void
-meta_window_actor_wayland_sync_geometry (MetaWindowActor    *actor,
-                                         const MtkRectangle *actor_rect)
+static gboolean
+do_sync_geometry (MetaWindowActorWayland *self)
 {
-  MetaWindowActorWayland *self = META_WINDOW_ACTOR_WAYLAND (actor);
+  MetaWindowActor *actor = META_WINDOW_ACTOR (self);
   ClutterActor *surface_container = CLUTTER_ACTOR (self->surface_container);
-  MetaWindow *window;
+  MetaWindow *window = meta_window_actor_get_meta_window (actor);
   float surfaces_width, surfaces_height;
   float background_width, background_height;
 
-  window = meta_window_actor_get_meta_window (actor);
   if (window->unmanaging)
-    return;
+    return FALSE;
+
+  if (!clutter_actor_is_mapped (CLUTTER_ACTOR (actor)))
+    return FALSE;
 
   if (maybe_configure_black_background (self,
                                         &surfaces_width, &surfaces_height,
                                         &background_width, &background_height))
     {
+      MtkRectangle actor_rect;
       int geometry_scale;
       int child_actor_width, child_actor_height;
 
@@ -556,10 +559,11 @@ meta_window_actor_wayland_sync_geometry (MetaWindowActor    *actor,
                                             NULL);
         }
 
+      meta_window_get_buffer_rect (window, &actor_rect);
       geometry_scale =
         meta_window_actor_get_geometry_scale (actor);
-      child_actor_width = actor_rect->width / geometry_scale;
-      child_actor_height = actor_rect->height / geometry_scale;
+      child_actor_width = actor_rect.width / geometry_scale;
+      child_actor_height = actor_rect.height / geometry_scale;
 
       clutter_actor_set_size (self->background,
                               background_width, background_height);
@@ -571,6 +575,32 @@ meta_window_actor_wayland_sync_geometry (MetaWindowActor    *actor,
     {
       clutter_actor_set_position (surface_container, 0, 0);
       g_clear_pointer (&self->background, clutter_actor_destroy);
+    }
+
+  return TRUE;
+}
+
+static void
+meta_window_actor_wayland_sync_geometry (MetaWindowActor *actor)
+{
+  MetaWindowActorWayland *self = META_WINDOW_ACTOR_WAYLAND (actor);
+
+  self->needs_sync = !do_sync_geometry (self);
+}
+
+static void
+meta_window_actor_wayland_map (ClutterActor *actor)
+{
+  MetaWindowActorWayland *self = META_WINDOW_ACTOR_WAYLAND (actor);
+  ClutterActorClass *parent_class =
+    CLUTTER_ACTOR_CLASS (meta_window_actor_wayland_parent_class);
+
+  parent_class->map (actor);
+
+  if (self->needs_sync)
+    {
+      do_sync_geometry (self);
+      self->needs_sync = FALSE;
     }
 }
 
@@ -606,6 +636,7 @@ static void
 meta_window_actor_wayland_class_init (MetaWindowActorWaylandClass *klass)
 {
   MetaWindowActorClass *window_actor_class = META_WINDOW_ACTOR_CLASS (klass);
+  ClutterActorClass *clutter_actor_class = CLUTTER_ACTOR_CLASS (klass);
   GObjectClass *object_class = G_OBJECT_CLASS (klass);
 
   window_actor_class->get_scanout_candidate = meta_window_actor_wayland_get_scanout_candidate;
@@ -620,6 +651,8 @@ meta_window_actor_wayland_class_init (MetaWindowActorWaylandClass *klass)
   window_actor_class->can_freeze_commits = meta_window_actor_wayland_can_freeze_commits;
   window_actor_class->sync_geometry = meta_window_actor_wayland_sync_geometry;
   window_actor_class->is_single_surface_actor = meta_window_actor_wayland_is_single_surface_actor;
+
+  clutter_actor_class->map = meta_window_actor_wayland_map;
 
   object_class->constructed = meta_window_actor_wayland_constructed;
   object_class->dispose = meta_window_actor_wayland_dispose;

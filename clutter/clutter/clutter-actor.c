@@ -1006,7 +1006,7 @@ static void push_in_paint_unmapped_branch (ClutterActor *self,
 static void pop_in_paint_unmapped_branch (ClutterActor *self,
                                           guint         count);
 
-static void clutter_actor_update_pointer (ClutterActor *self);
+static void clutter_actor_update_devices (ClutterActor *self);
 
 static GQuark quark_actor_layout_info = 0;
 static GQuark quark_actor_transform_info = 0;
@@ -1048,8 +1048,13 @@ G_DEFINE_TYPE_WITH_CODE (ClutterActor,
 const char *
 _clutter_actor_get_debug_name (ClutterActor *actor)
 {
-  ClutterActorPrivate *priv = actor->priv;
+  ClutterActorPrivate *priv;
   const char *retval;
+
+  if (!actor)
+    return "<unnamed>[<ClutterActor>NULL]";
+
+  priv = actor->priv;
 
   if (G_UNLIKELY (priv->debug_name == NULL))
     {
@@ -2451,14 +2456,10 @@ transform_changed (ClutterActor *actor)
                            absolute_geometry_changed_cb,
                            NULL,
                            NULL);
-}
 
-static void
-update_pointer_if_not_animated (ClutterActor *actor)
-{
   if (!clutter_actor_has_transitions (actor) &&
       !CLUTTER_ACTOR_IN_RELAYOUT (actor))
-    clutter_actor_update_pointer (actor);
+    clutter_actor_update_devices (actor);
 }
 
 /*< private >
@@ -4332,7 +4333,6 @@ clutter_actor_set_pivot_point_internal (ClutterActor           *self,
   info->pivot = *pivot;
 
   transform_changed (self);
-  update_pointer_if_not_animated (self);
 
   g_object_notify_by_pspec (G_OBJECT (self), obj_props[PROP_PIVOT_POINT]);
 
@@ -4349,7 +4349,6 @@ clutter_actor_set_pivot_point_z_internal (ClutterActor *self,
   info->pivot_z = pivot_z;
 
   transform_changed (self);
-  update_pointer_if_not_animated (self);
 
   g_object_notify_by_pspec (G_OBJECT (self), obj_props[PROP_PIVOT_POINT_Z]);
 
@@ -4384,7 +4383,6 @@ clutter_actor_set_translation_internal (ClutterActor *self,
     g_assert_not_reached ();
 
   transform_changed (self);
-  update_pointer_if_not_animated (self);
 
   clutter_actor_queue_redraw (self);
   g_object_notify_by_pspec (obj, pspec);
@@ -4514,7 +4512,6 @@ clutter_actor_set_rotation_angle_internal (ClutterActor *self,
     g_assert_not_reached ();
 
   transform_changed (self);
-  update_pointer_if_not_animated (self);
 
   clutter_actor_queue_redraw (self);
 
@@ -4636,7 +4633,6 @@ clutter_actor_set_scale_factor_internal (ClutterActor *self,
     g_assert_not_reached ();
 
   transform_changed (self);
-  update_pointer_if_not_animated (self);
 
   clutter_actor_queue_redraw (self);
   g_object_notify_by_pspec (obj, pspec);
@@ -9527,7 +9523,9 @@ clutter_actor_get_transformed_position (ClutterActor *self,
   graphene_point3d_t v2;
 
   v1.x = v1.y = v1.z = 0;
-  clutter_actor_apply_transform_to_point (self, &v1, &v2);
+
+  if (!_clutter_actor_fully_transform_vertices (self, &v1, &v2, 1))
+    return;
 
   if (x)
     *x = v2.x;
@@ -10437,7 +10435,6 @@ clutter_actor_set_z_position_internal (ClutterActor *self,
       info->z_position = z_position;
 
       transform_changed (self);
-      update_pointer_if_not_animated (self);
 
       clutter_actor_queue_redraw (self);
 
@@ -12754,19 +12751,13 @@ clutter_actor_set_animatable_property (ClutterActor *actor,
 }
 
 static void
-clutter_actor_update_pointer (ClutterActor *self)
+clutter_actor_update_devices (ClutterActor *self)
 {
-  ClutterInputDevice *pointer;
   ClutterStage *stage;
-  ClutterSeat *seat;
 
   stage = CLUTTER_STAGE (_clutter_actor_get_stage_internal (self));
-  if (!stage)
-    return;
-
-  seat = clutter_backend_get_default_seat (clutter_get_default_backend ());
-  pointer = clutter_seat_get_pointer (seat);
-  clutter_stage_repick_device (stage, pointer);
+  if (stage)
+    clutter_stage_invalidate_devices (stage);
 }
 
 static void
@@ -12819,7 +12810,7 @@ clutter_actor_set_final_state (ClutterAnimatable *animatable,
         }
     }
 
-  clutter_actor_update_pointer (actor);
+  clutter_actor_update_devices (actor);
 
   g_free (p_name);
 }
@@ -13875,7 +13866,6 @@ clutter_actor_set_transform_internal (ClutterActor            *self,
   info->transform_set = !graphene_matrix_is_identity (&info->transform);
 
   transform_changed (self);
-  update_pointer_if_not_animated (self);
 
   clutter_actor_queue_redraw (self);
 
@@ -19024,7 +19014,6 @@ clutter_actor_invalidate_transform (ClutterActor *self)
   g_return_if_fail (CLUTTER_IS_ACTOR (self));
 
   transform_changed (self);
-  update_pointer_if_not_animated (self);
 }
 
 /**
@@ -19156,8 +19145,5 @@ clutter_actor_notify_transform_invalid (ClutterActor *self)
   g_assert (priv->transform_valid);
 
   if (!graphene_matrix_equal (&old_transform, &priv->transform))
-    {
-      update_pointer_if_not_animated (self);
-      clutter_actor_queue_redraw (self);
-    }
+    clutter_actor_queue_redraw (self);
 }

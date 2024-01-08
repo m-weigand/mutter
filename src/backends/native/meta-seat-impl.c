@@ -509,6 +509,92 @@ meta_seat_impl_notify_key_in_impl (MetaSeatImpl       *seat_impl,
 }
 
 static void
+constrain_to_barriers (MetaSeatImpl       *seat_impl,
+                       ClutterInputDevice *device,
+                       uint32_t            time,
+                       float              *new_x,
+                       float              *new_y)
+{
+  meta_barrier_manager_native_process_in_impl (seat_impl->barrier_manager,
+                                               device,
+                                               time,
+                                               new_x, new_y);
+}
+
+/*
+ * The pointer constrain code is mostly a rip-off of the XRandR code from Xorg.
+ * (from xserver/randr/rrcrtc.c, RRConstrainCursorHarder)
+ *
+ * Copyright © 2006 Keith Packard
+ * Copyright 2010 Red Hat, Inc
+ *
+ */
+
+static void
+constrain_all_screen_monitors (ClutterInputDevice *device,
+                               MetaViewportInfo   *viewports,
+                               float              *x,
+                               float              *y)
+{
+  float cx, cy;
+  int i, n_views;
+
+  meta_input_device_native_get_coords_in_impl (META_INPUT_DEVICE_NATIVE (device),
+                                               &cx, &cy);
+
+  /* if we're trying to escape, clamp to the CRTC we're coming from */
+
+  n_views = meta_viewport_info_get_num_views (viewports);
+
+  for (i = 0; i < n_views; i++)
+    {
+      int left, right, top, bottom;
+      MtkRectangle rect;
+
+      meta_viewport_info_get_view_info (viewports, i, &rect, NULL);
+
+      left = rect.x;
+      right = left + rect.width;
+      top = rect.y;
+      bottom = top + rect.height;
+
+      if ((cx >= left) && (cx < right) && (cy >= top) && (cy < bottom))
+        {
+          if (*x < left)
+            *x = left;
+          if (*x >= right)
+            *x = right - 1;
+          if (*y < top)
+            *y = top;
+          if (*y >= bottom)
+            *y = bottom - 1;
+
+          return;
+        }
+    }
+}
+
+static void
+constrain_to_viewports (MetaSeatImpl       *seat_impl,
+                        ClutterInputDevice *device,
+                        uint64_t            time_us,
+                        float              *x_inout,
+                        float              *y_inout)
+{
+  if (seat_impl->viewports)
+    {
+      /* if we're moving inside a monitor, we're fine */
+      if (meta_viewport_info_get_view_at (seat_impl->viewports,
+                                          *x_inout, *y_inout) >= 0)
+        return;
+
+      /* if we're trying to escape, clamp to the CRTC we're coming from */
+      constrain_all_screen_monitors (device, seat_impl->viewports,
+                                     x_inout, y_inout);
+    }
+}
+
+static void
 constrain_coordinates (MetaSeatImpl       *seat_impl,
                        ClutterInputDevice *input_device,
                        uint64_t            time_us,
@@ -517,16 +603,31 @@ constrain_coordinates (MetaSeatImpl       *seat_impl,
                        float              *x_out,
                        float              *y_out)
 {
+  MetaInputDeviceNative *device_evdev = META_INPUT_DEVICE_NATIVE (input_device);
+
   if (clutter_input_device_get_device_type (input_device) == CLUTTER_TABLET_DEVICE)
     {
-      /* Viewport may be unset during startup */
-      if (seat_impl->viewports)
-        {
-          meta_input_device_native_translate_coordinates_in_impl (input_device,
-                                                                  seat_impl->viewports,
-                                                                  &x,
-                                                                  &y);
-        }
+        if (device_evdev->mapping_mode == META_INPUT_DEVICE_MAPPING_RELATIVE)
+          {
+            constrain_to_barriers (seat_impl, input_device,
+                                   us2ms (time_us),
+                                   &x, &y);
+            constrain_to_viewports (seat_impl,
+                                    input_device,
+                                    time_us,
+                                    &x, &y);
+          }
+        else
+          {
+            /* Viewport may be unset during startup */
+            if (seat_impl->viewports)
+              {
+                meta_input_device_native_translate_coordinates_in_impl (input_device,
+                                                                        seat_impl->viewports,
+                                                                        &x,
+                                                                        &y);
+              }
+          }
     }
   else
     {
@@ -577,7 +678,8 @@ meta_seat_impl_notify_relative_motion_in_impl (MetaSeatImpl       *seat_impl,
                                                float               dx,
                                                float               dy,
                                                float               dx_unaccel,
-                                               float               dy_unaccel)
+                                               float               dy_unaccel,
+                                               double             *axes)
 {
   MetaInputDeviceNative *device_native =
     META_INPUT_DEVICE_NATIVE (input_device);
@@ -627,7 +729,7 @@ meta_seat_impl_notify_relative_motion_in_impl (MetaSeatImpl       *seat_impl,
     clutter_event_motion_new (CLUTTER_EVENT_FLAG_RELATIVE_MOTION,
                               time_us,
                               input_device,
-                              NULL,
+                              device_native->last_tool,
                               modifiers,
                               GRAPHENE_POINT_INIT (x, y),
                               GRAPHENE_POINT_INIT (dx, dy),
@@ -635,7 +737,7 @@ meta_seat_impl_notify_relative_motion_in_impl (MetaSeatImpl       *seat_impl,
                                                    dy_unaccel),
                               GRAPHENE_POINT_INIT (dx_constrained,
                                                    dy_constrained),
-                              NULL);
+                              axes);
 
   queue_event (seat_impl, event);
 }
@@ -1095,72 +1197,6 @@ meta_seat_impl_notify_touch_event_in_impl (MetaSeatImpl       *seat_impl,
   queue_event (seat_impl, event);
 }
 
-static void
-constrain_to_barriers (MetaSeatImpl       *seat_impl,
-                       ClutterInputDevice *device,
-                       uint32_t            time,
-                       float              *new_x,
-                       float              *new_y)
-{
-  meta_barrier_manager_native_process_in_impl (seat_impl->barrier_manager,
-                                               device,
-                                               time,
-                                               new_x, new_y);
-}
-
-/*
- * The pointer constrain code is mostly a rip-off of the XRandR code from Xorg.
- * (from xserver/randr/rrcrtc.c, RRConstrainCursorHarder)
- *
- * Copyright © 2006 Keith Packard
- * Copyright 2010 Red Hat, Inc
- *
- */
-
-static void
-constrain_all_screen_monitors (ClutterInputDevice *device,
-                               MetaViewportInfo   *viewports,
-                               float              *x,
-                               float              *y)
-{
-  float cx, cy;
-  int i, n_views;
-
-  meta_input_device_native_get_coords_in_impl (META_INPUT_DEVICE_NATIVE (device),
-                                               &cx, &cy);
-
-  /* if we're trying to escape, clamp to the CRTC we're coming from */
-
-  n_views = meta_viewport_info_get_num_views (viewports);
-
-  for (i = 0; i < n_views; i++)
-    {
-      int left, right, top, bottom;
-      MtkRectangle rect;
-
-      meta_viewport_info_get_view_info (viewports, i, &rect, NULL);
-
-      left = rect.x;
-      right = left + rect.width;
-      top = rect.y;
-      bottom = top + rect.height;
-
-      if ((cx >= left) && (cx < right) && (cy >= top) && (cy < bottom))
-        {
-          if (*x < left)
-            *x = left;
-          if (*x >= right)
-            *x = right - 1;
-          if (*y < top)
-            *y = top;
-          if (*y >= bottom)
-            *y = bottom - 1;
-
-          return;
-        }
-    }
-}
-
 void
 meta_seat_impl_constrain_pointer (MetaSeatImpl       *seat_impl,
                                   ClutterInputDevice *core_pointer,
@@ -1185,17 +1221,7 @@ meta_seat_impl_constrain_pointer (MetaSeatImpl       *seat_impl,
                                               new_x, new_y);
     }
 
-  if (seat_impl->viewports)
-    {
-      /* if we're moving inside a monitor, we're fine */
-      if (meta_viewport_info_get_view_at (seat_impl->viewports,
-                                          *new_x, *new_y) >= 0)
-        return;
-
-      /* if we're trying to escape, clamp to the CRTC we're coming from */
-      constrain_all_screen_monitors (core_pointer, seat_impl->viewports,
-                                     new_x, new_y);
-    }
+  constrain_to_viewports (seat_impl, core_pointer, time_us, new_x, new_y);
 }
 
 static void
@@ -1358,7 +1384,8 @@ notify_relative_tool_motion_in_impl (ClutterInputDevice *input_device,
                                                  time_us,
                                                  dx, dy,
                                                  /* FIXME */
-                                                 dx, dy);
+                                                 dx, dy,
+                                                 axes);
 }
 
 static void
@@ -1972,7 +1999,7 @@ notify_discrete_axis (MetaSeatImpl                  *seat_impl,
   if (libinput_event_pointer_has_axis (axis_event,
                                        LIBINPUT_POINTER_AXIS_SCROLL_HORIZONTAL))
     {
-      dx_value120 = libinput_event_pointer_get_scroll_value_v120 ( 
+      dx_value120 = libinput_event_pointer_get_scroll_value_v120 (
           axis_event, LIBINPUT_POINTER_AXIS_SCROLL_HORIZONTAL);
     }
   if (libinput_event_pointer_has_axis (axis_event,
@@ -2131,7 +2158,8 @@ process_device_event (MetaSeatImpl          *seat_impl,
                                                        device,
                                                        time_us,
                                                        dx, dy,
-                                                       dx_unaccel, dy_unaccel);
+                                                       dx_unaccel, dy_unaccel,
+                                                       NULL);
 
         break;
       }
