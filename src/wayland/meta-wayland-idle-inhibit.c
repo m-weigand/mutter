@@ -58,7 +58,7 @@ struct _MetaWaylandIdleInhibitor
 
 typedef struct _MetaWaylandIdleInhibitor MetaWaylandIdleInhibitor;
 
-static void update_inhibitation (MetaWaylandIdleInhibitor *inhibitor);
+static void update_inhibition (MetaWaylandIdleInhibitor *inhibitor);
 
 static void
 meta_wayland_inhibitor_free (MetaWaylandIdleInhibitor *inhibitor)
@@ -97,7 +97,7 @@ inhibit_completed (GObject      *source,
   g_variant_get (ret, "(u)", &inhibitor->cookie);
   inhibitor->state = IDLE_STATE_INHIBITED;
 
-  update_inhibitation (inhibitor);
+  update_inhibition (inhibitor);
 }
 
 static void
@@ -123,11 +123,11 @@ uninhibit_completed (GObject      *source,
   g_warn_if_fail (inhibitor->state == IDLE_STATE_UNINHIBITING);
   inhibitor->state = IDLE_STATE_UNINHIBITED;
 
-  update_inhibitation (inhibitor);
+  update_inhibition (inhibitor);
 }
 
 static void
-update_inhibitation (MetaWaylandIdleInhibitor *inhibitor)
+update_inhibition (MetaWaylandIdleInhibitor *inhibitor)
 {
   gboolean should_inhibit;
 
@@ -168,7 +168,7 @@ update_inhibitation (MetaWaylandIdleInhibitor *inhibitor)
       break;
     case IDLE_STATE_INHIBITING:
     case IDLE_STATE_UNINHIBITING:
-      /* Update inhibitation after current asynchronous call completes. */
+      /* Update inhibition after current asynchronous call completes. */
       return;
     }
 
@@ -203,7 +203,7 @@ is_obscured_changed (MetaSurfaceActor         *actor,
                      GParamSpec               *pspec,
                      MetaWaylandIdleInhibitor *inhibitor)
 {
-  update_inhibitation (inhibitor);
+  update_inhibition (inhibitor);
 }
 
 static void
@@ -229,7 +229,7 @@ inhibitor_proxy_completed (GObject      *source,
   inhibitor->session_proxy = proxy;
   inhibitor->state = IDLE_STATE_UNINHIBITED;
 
-  update_inhibitation (inhibitor);
+  update_inhibition (inhibitor);
 }
 
 static void
@@ -257,7 +257,7 @@ idle_inhibitor_destructor (struct wl_resource *resource)
       break;
     }
 
-  update_inhibitation (inhibitor);
+  update_inhibition (inhibitor);
 }
 
 static void
@@ -291,12 +291,16 @@ static void
 attach_actor (MetaWaylandIdleInhibitor *inhibitor)
 {
   inhibitor->actor = meta_wayland_surface_get_actor (inhibitor->surface);
-  inhibitor->is_obscured_changed_handler =
-    g_signal_connect (inhibitor->actor, "notify::is-obscured",
-                      G_CALLBACK (is_obscured_changed), inhibitor);
-  inhibitor->actor_destroyed_handler_id =
-    g_signal_connect (inhibitor->actor, "destroy",
-                      G_CALLBACK (on_actor_destroyed), inhibitor);
+
+  if (inhibitor->actor)
+    {
+      inhibitor->is_obscured_changed_handler =
+        g_signal_connect (inhibitor->actor, "notify::is-obscured",
+                          G_CALLBACK (is_obscured_changed), inhibitor);
+      inhibitor->actor_destroyed_handler_id =
+        g_signal_connect (inhibitor->actor, "destroy",
+                          G_CALLBACK (on_actor_destroyed), inhibitor);
+    }
 }
 
 static void
@@ -304,9 +308,9 @@ on_actor_changed (MetaWaylandSurface       *surface,
                   MetaWaylandIdleInhibitor *inhibitor)
 {
   g_clear_signal_handler (&inhibitor->is_obscured_changed_handler,
-                          inhibitor->surface);
+                          inhibitor->actor);
   g_clear_signal_handler (&inhibitor->actor_destroyed_handler_id,
-                          inhibitor->surface);
+                          inhibitor->actor);
   attach_actor (inhibitor);
 }
 
