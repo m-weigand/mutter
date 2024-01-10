@@ -5,5 +5,4 @@ debian/tests-Do-not-run-screencast-tests.patch
 debian/Support-Dynamic-triple-double-buffering.patch
 workarounds/tests-skip-monitor-width-size-check-as-it-may-lead-to-une.patch
 workarounds/tests-Skip-thread-priority-test.patch
-workarounds/cogl-onscreen-glx-Forcefully-disable-cogl_onscreen_glx_ge.patch
 workarounds/Mark-several-additional-tests-as-flaky.patch
