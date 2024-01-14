@@ -1,3 +1,9 @@
+mutter (44.8-1) UNRELEASED; urgency=medium
+
+  * New upstream release
+
+ -- Simon McVittie <smcv@debian.org>  Sun, 14 Jan 2024 23:47:40 +0000
+
 mutter (44.7-2) unstable; urgency=medium
 
   * Team upload
