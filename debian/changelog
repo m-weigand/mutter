@@ -1,3 +1,12 @@
+mutter (44.7-2) unstable; urgency=medium
+
+  * Team upload
+  * d/control, d/rules: Stop generating d/control from d/control.in
+  * d/control: Build-depend on systemd-dev instead of udev
+    (Closes: #1060619)
+
+ -- Simon McVittie <smcv@debian.org>  Sun, 14 Jan 2024 19:32:46 +0000
+
 mutter (44.7-1) unstable; urgency=medium
 
   * Team upload
