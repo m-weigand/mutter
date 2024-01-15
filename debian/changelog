@@ -14,6 +14,29 @@ mutter (45.3-2) UNRELEASED; urgency=medium
 
  -- Simon McVittie <smcv@debian.org>  Sun, 14 Jan 2024 21:45:36 +0000
 
+mutter (44.8-1) unstable; urgency=medium
+
+  * Team upload
+  * New upstream release
+    - Fix a crash involving the workspace indicator extension
+      (gnome-shell-extensions#469, related to gjs#591)
+    - Avoid relayout happening at the wrong time, which is a performance
+      problem and should not happen (mutter#3425)
+    - Fix a grey area at the top of fullscreen X11 windows (mutter#2937)
+    - Fix build without Wayland headers (mutter#3046, does not affect Debian)
+    - Show the configured background colour around backgrounds that do not
+      fill the screen, instead of always black (mutter#1911)
+  * d/patches: Mark several additional tests as flaky (backported from
+    experimental).
+    Most of these have never been reliable on Debian buildds, especially
+    on ARM, so having them fail is not a regression. They usually succeed
+    after a few retries, but that's time-consuming and unsuitable to be
+    a QA gate.
+    The restore-size test was previously not run at all: now it is run,
+    but marked as flaky (so its result is ignored).
+
+ -- Simon McVittie <smcv@debian.org>  Mon, 15 Jan 2024 13:49:28 +0000
+
 mutter (44.7-2) unstable; urgency=medium
 
   * Team upload
