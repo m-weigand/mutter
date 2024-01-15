@@ -1,4 +1,6 @@
-mutter (45.3-2) UNRELEASED; urgency=medium
+mutter (45.3-2) experimental; urgency=medium
+
+  * Team upload
 
   [ Daniel van Vugt ]
   * Drop cogl-onscreen-glx-Forcefully-disable-cogl_onscreen_glx_ge.patch.
@@ -13,7 +15,7 @@ mutter (45.3-2) UNRELEASED; urgency=medium
       (Closes: #1060619)
     - All other changes were included in 45.3-1
 
- -- Simon McVittie <smcv@debian.org>  Sun, 14 Jan 2024 21:45:36 +0000
+ -- Simon McVittie <smcv@debian.org>  Mon, 15 Jan 2024 17:46:16 +0000
 
 mutter (44.8-1) unstable; urgency=medium
 
