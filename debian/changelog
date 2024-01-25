@@ -17,6 +17,13 @@ mutter (45.3-2) experimental; urgency=medium
 
  -- Simon McVittie <smcv@debian.org>  Mon, 15 Jan 2024 17:46:16 +0000
 
+mutter (44.8-2) unstable; urgency=medium
+
+  * Cherry-pick patch from 45.1 to fix using caps lock to enter
+    accented characters with ibus 1.5.29 (Closes: #1054214) (LP: #2035076)
+
+ -- Jeremy Bícha <jbicha@ubuntu.com>  Thu, 25 Jan 2024 16:00:55 -0500
+
 mutter (44.8-1) unstable; urgency=medium
 
   * Team upload
