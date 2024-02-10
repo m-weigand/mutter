@@ -1,3 +1,10 @@
+mutter (45.3-3) UNRELEASED; urgency=medium
+
+  * Cherry-pick several cursor fixes to fix compatibility with latest
+    adwaita-icon-theme (Closes: #1063640)
+
+ -- Jeremy Bícha <jbicha@ubuntu.com>  Sat, 10 Feb 2024 08:02:22 -0500
+
 mutter (45.3-2) experimental; urgency=medium
 
   * Team upload
@@ -16,6 +23,13 @@ mutter (45.3-2) experimental; urgency=medium
     - All other changes were included in 45.3-1
 
  -- Simon McVittie <smcv@debian.org>  Mon, 15 Jan 2024 17:46:16 +0000
+
+mutter (44.8-3) unstable; urgency=medium
+
+  * Cherry-pick several cursor fix to fix compatibility with latest
+    adwaita-icon-theme (Closes: #1063640)
+
+ -- Jeremy Bícha <jbicha@ubuntu.com>  Sat, 10 Feb 2024 07:56:05 -0500
 
 mutter (44.8-2) unstable; urgency=medium
 
