@@ -1,9 +1,9 @@
-mutter (45.3-3) UNRELEASED; urgency=medium
+mutter (45.3-3) experimental; urgency=medium
 
   * Cherry-pick several cursor fixes to fix compatibility with latest
     adwaita-icon-theme (Closes: #1063640)
 
- -- Jeremy Bícha <jbicha@ubuntu.com>  Sat, 10 Feb 2024 08:02:22 -0500
+ -- Jeremy Bícha <jbicha@ubuntu.com>  Sat, 17 Feb 2024 09:58:59 +0100
 
 mutter (45.3-2) experimental; urgency=medium
 
