@@ -1,5 +1,5 @@
-libmutter-13.so.0 libmutter-13-0 #MINVER#
-* Build-Depends-Package: libmutter-13-dev
+libmutter-14.so.0 libmutter-14-0 #MINVER#
+* Build-Depends-Package: libmutter-14-dev
  hdr_metadata_equal@Base 44~rc
  meta_accelerator_name@Base 44~beta
  meta_add_clutter_debug_flags@Base 43.0
@@ -925,8 +925,8 @@ libmutter-13.so.0 libmutter-13-0 #MINVER#
  meta_xwayland_override_display_number@Base 43.0
  meta_xwayland_signal@Base 43.0
  set_output_hdr_metadata@Base 44~rc
-libmutter-clutter-13.so.0 libmutter-13-0 #MINVER#
-* Build-Depends-Package: libmutter-13-dev
+libmutter-clutter-14.so.0 libmutter-14-0 #MINVER#
+* Build-Depends-Package: libmutter-14-dev
  _clutter_context_is_initialized@Base 43.0
  _clutter_event_process_filters@Base 43.0
  _clutter_event_push@Base 43.0
@@ -2225,8 +2225,8 @@ libmutter-clutter-13.so.0 libmutter-13-0 #MINVER#
  clutter_zoom_action_get_transformed_focal_point@Base 43.0
  clutter_zoom_action_get_type@Base 43.0
  clutter_zoom_action_new@Base 43.0
-libmutter-cogl-13.so.0 libmutter-13-0 #MINVER#
-* Build-Depends-Package: libmutter-13-dev
+libmutter-cogl-14.so.0 libmutter-14-0 #MINVER#
+* Build-Depends-Package: libmutter-14-dev
  _cogl_atlas_add_reorganize_callback@Base 43.0
  _cogl_atlas_new@Base 43.0
  _cogl_atlas_reserve_space@Base 43.0
@@ -2786,8 +2786,8 @@ libmutter-cogl-13.so.0 libmutter-13-0 #MINVER#
  cogl_xlib_renderer_remove_filter@Base 43.0
  cogl_xlib_renderer_request_reset_on_video_memory_purge@Base 43.0
  cogl_xlib_renderer_set_foreign_display@Base 43.0
-libmutter-cogl-pango-13.so.0 libmutter-13-0 #MINVER#
-* Build-Depends-Package: libmutter-13-dev
+libmutter-cogl-pango-14.so.0 libmutter-14-0 #MINVER#
+* Build-Depends-Package: libmutter-14-dev
  cogl_pango_ensure_glyph_cache_for_layout@Base 43.0
  cogl_pango_font_map_clear_glyph_cache@Base 43.0
  cogl_pango_font_map_create_context@Base 43.0
@@ -2803,8 +2803,8 @@ libmutter-cogl-pango-13.so.0 libmutter-13-0 #MINVER#
  cogl_pango_renderer_get_type@Base 43.0
  cogl_pango_show_layout@Base 43.0
  cogl_pango_show_layout_line@Base 43.0
-libmutter-mtk-13.so.0 libmutter-13-0 #MINVER#
-* Build-Depends-Package: libmutter-13-dev
+libmutter-mtk-14.so.0 libmutter-14-0 #MINVER#
+* Build-Depends-Package: libmutter-14-dev
  mtk_rectangle_area@Base 45~rc
  mtk_rectangle_contains_rect@Base 45~rc
  mtk_rectangle_copy@Base 45~rc
