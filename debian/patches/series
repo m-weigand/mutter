@@ -1,4 +1,3 @@
-workspace-Don-t-crash-on-invalid-argument-to-meta_workspa.patch
 workarounds/tests-Mark-view-verification-tests-as-incomplete-in-big-e.patch
 debian/meson-Do-not-mark-CI-test-tools-as-required.patch
 debian/tests-Do-not-run-screencast-tests.patch
@@ -6,6 +5,3 @@ debian/Support-Dynamic-triple-double-buffering.patch
 workarounds/tests-skip-monitor-width-size-check-as-it-may-lead-to-une.patch
 workarounds/tests-Skip-thread-priority-test.patch
 workarounds/Mark-several-additional-tests-as-flaky.patch
-backends-Use-standard-cursor-names-from-the-CSS-specifica.patch
-backends-Attempt-a-fallback-to-default-cursor-on-failed-l.patch
-backends-Update-cursor-names-to-match-updated-metaphors.patch
