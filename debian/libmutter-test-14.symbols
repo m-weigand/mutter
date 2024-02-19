@@ -55,6 +55,7 @@ libmutter-test-14.so libmutter-test-14 #MINVER#
  meta_test_monitor_get_type@Base 44~beta
  meta_test_monitor_new@Base 44~beta
  meta_test_shell_get_type@Base 44.3-4~
+ meta_wait_for_monitors_changed@Base 46~beta
  meta_wait_for_orientation@Base 42~beta
  meta_wait_for_paint@Base 42~beta
  meta_wait_for_possible_orientation_change@Base 42~beta
