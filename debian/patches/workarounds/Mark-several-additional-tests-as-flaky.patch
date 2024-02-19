@@ -15,10 +15,10 @@ Forwarded: no
  2 files changed, 34 insertions(+), 3 deletions(-)
 
 diff --git a/src/tests/clutter/conform/grab.c b/src/tests/clutter/conform/grab.c
-index ce4fdeb..5f9e0f16 100644
+index 21524fc..b0e09bb 100644
 --- a/src/tests/clutter/conform/grab.c
 +++ b/src/tests/clutter/conform/grab.c
-@@ -621,6 +621,12 @@ grab_input_only (void)
+@@ -620,6 +620,12 @@ grab_input_only (void)
    ClutterSeat *seat;
    g_autoptr (ClutterVirtualInputDevice) pointer = NULL;
  
@@ -32,10 +32,10 @@ index ce4fdeb..5f9e0f16 100644
    pointer = clutter_seat_create_virtual_device (seat, CLUTTER_POINTER_DEVICE);
  
 diff --git a/src/tests/meson.build b/src/tests/meson.build
-index adc3733..c4136f8 100644
+index bb630cb..1fa993f 100644
 --- a/src/tests/meson.build
 +++ b/src/tests/meson.build
-@@ -375,6 +375,7 @@ if have_native_tests
+@@ -377,6 +377,7 @@ if have_native_tests
        'name': 'input-capture',
        'suite': 'backends/native',
        'sources': [ 'input-capture-tests.c' ],
@@ -43,7 +43,7 @@ index adc3733..c4136f8 100644
      },
      {
        'name': 'thread',
-@@ -655,8 +656,14 @@ if have_native_tests
+@@ -668,8 +669,14 @@ if have_native_tests
  
      test_depends = [ default_plugin ] + test_case.get('depends', [])
  
@@ -59,7 +59,7 @@ index adc3733..c4136f8 100644
        env: test_env,
        depends: test_depends,
        is_parallel: false,
-@@ -707,8 +714,26 @@ stacking_tests = [
+@@ -723,8 +730,26 @@ stacking_tests = [
  ]
  
  foreach stacking_test: stacking_tests
@@ -87,7 +87,7 @@ index adc3733..c4136f8 100644
      env: test_env,
      args: [
        files('stacking' / stacking_test + '.metatest'),
-@@ -717,7 +742,7 @@ foreach stacking_test: stacking_tests
+@@ -733,7 +758,7 @@ foreach stacking_test: stacking_tests
      timeout: 60,
    )
  
