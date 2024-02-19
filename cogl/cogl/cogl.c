@@ -28,13 +28,14 @@
  *
  */
 
-#include "cogl-config.h"
+#include "config.h"
 
 #include <string.h>
 #include <math.h>
 #include <stdlib.h>
 
 #include "cogl/cogl-i18n-private.h"
+#include "cogl/cogl-cpu-caps.h"
 #include "cogl/cogl-debug.h"
 #include "cogl/cogl-graphene.h"
 #include "cogl/cogl-util.h"
@@ -176,6 +177,7 @@ _cogl_init (void)
   if (initialized == FALSE)
     {
       _cogl_debug_check_environment ();
+      cogl_init_cpu_caps ();
       initialized = TRUE;
     }
 }

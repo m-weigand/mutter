@@ -32,10 +32,10 @@
 #include <stdint.h>
 #include <errno.h>
 
-#include "cogl/cogl-defines.h"
+#include "config.h"
 #include "cogl/cogl-macros.h"
 
-#ifdef COGL_HAS_TRACING
+#ifdef HAVE_PROFILER
 
 typedef struct _CoglTraceContext CoglTraceContext;
 
@@ -65,9 +65,6 @@ COGL_EXPORT
 void cogl_stop_tracing (void);
 
 COGL_EXPORT
-gboolean cogl_is_tracing (void);
-
-COGL_EXPORT
 void cogl_set_tracing_enabled_on_thread (GMainContext *main_context,
                                          const char   *group);
 
@@ -89,6 +86,10 @@ COGL_EXPORT void
 cogl_trace_describe (CoglTraceHead *head,
                      const char    *description);
 
+COGL_EXPORT void
+cogl_trace_mark (const char *name,
+                 const char *description);
+
 static inline void
 cogl_auto_trace_end_helper (CoglTraceHead **head)
 {
@@ -102,15 +103,6 @@ cogl_is_tracing_enabled (void)
   return !!g_private_get (&cogl_trace_thread_data);
 }
 
-#define COGL_TRACE_BEGIN(Name, name) \
-  CoglTraceHead CoglTrace##Name = { 0 }; \
-  if (cogl_is_tracing_enabled ()) \
-    cogl_trace_begin (&CoglTrace##Name, name); \
-
-#define COGL_TRACE_END(Name)\
-  if (cogl_is_tracing_enabled ()) \
-    cogl_trace_end (&CoglTrace##Name);
-
 #define COGL_TRACE_BEGIN_SCOPED(Name, name) \
   CoglTraceHead CoglTrace##Name = { 0 }; \
   __attribute__((cleanup (cogl_auto_trace_end_helper))) \
@@ -119,6 +111,13 @@ cogl_is_tracing_enabled (void)
     { \
       cogl_trace_begin (&CoglTrace##Name, name); \
       ScopedCoglTrace##Name = &CoglTrace##Name; \
+    }
+
+#define COGL_TRACE_END(Name)\
+  if (cogl_is_tracing_enabled ()) \
+    { \
+      cogl_trace_end (&CoglTrace##Name); \
+      ScopedCoglTrace##Name = NULL; \
     }
 
 #define COGL_TRACE_DESCRIBE(Name, description)\
@@ -137,16 +136,27 @@ cogl_is_tracing_enabled (void)
       ScopedCoglTrace##Name = &CoglTrace##Name; \
     }
 
-#else /* COGL_HAS_TRACING */
+#define COGL_TRACE_MESSAGE(name, ...) \
+  G_STMT_START \
+    { \
+      if (cogl_is_tracing_enabled ()) \
+        { \
+          g_autofree char *CoglTraceMessage = g_strdup_printf (__VA_ARGS__); \
+          cogl_trace_mark (name, CoglTraceMessage); \
+        } \
+    } \
+  G_STMT_END
+
+#else /* HAVE_PROFILER */
 
 #include <stdio.h>
 
-#define COGL_TRACE_BEGIN(Name, name) (void) 0
-#define COGL_TRACE_END(Name) (void) 0
 #define COGL_TRACE_BEGIN_SCOPED(Name, name) (void) 0
+#define COGL_TRACE_END(Name) (void) 0
 #define COGL_TRACE_DESCRIBE(Name, description) (void) 0
 #define COGL_TRACE_SCOPED_ANCHOR(Name) (void) 0
 #define COGL_TRACE_BEGIN_ANCHORED(Name, name) (void) 0
+#define COGL_TRACE_MESSAGE(name, ...) (void) 0
 
 COGL_EXPORT
 gboolean cogl_start_tracing_with_path (const char  *filename,
@@ -160,13 +170,10 @@ COGL_EXPORT
 void cogl_stop_tracing (void);
 
 COGL_EXPORT
-gboolean cogl_is_tracing (void);
-
-COGL_EXPORT
 void cogl_set_tracing_enabled_on_thread (void       *data,
                                          const char *group);
 
 COGL_EXPORT
 void cogl_set_tracing_disabled_on_thread (void *data);
 
-#endif /* COGL_HAS_TRACING */
+#endif /* HAVE_PROFILER */

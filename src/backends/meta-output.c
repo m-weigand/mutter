@@ -74,6 +74,7 @@ typedef struct _MetaOutputPrivate
 
   MetaOutputHdrMetadata hdr_metadata;
   MetaOutputColorspace color_space;
+  MetaOutputRGBRange rgb_range;
 } MetaOutputPrivate;
 
 G_DEFINE_ABSTRACT_TYPE_WITH_PRIVATE (MetaOutput, meta_output, G_TYPE_OBJECT)
@@ -267,6 +268,9 @@ meta_output_assign_crtc (MetaOutput                 *output,
   priv->is_primary = output_assignment->is_primary;
   priv->is_presentation = output_assignment->is_presentation;
   priv->is_underscanning = output_assignment->is_underscanning;
+
+  if (output_assignment->rgb_range)
+    priv->rgb_range = output_assignment->rgb_range;
 
   priv->has_max_bpc = output_assignment->has_max_bpc;
   if (priv->has_max_bpc)
@@ -640,14 +644,28 @@ meta_output_peek_hdr_metadata (MetaOutput *output)
   return &priv->hdr_metadata;
 }
 
+MetaOutputRGBRange
+meta_output_peek_rgb_range (MetaOutput *output)
+{
+  MetaOutputPrivate *priv = meta_output_get_instance_private (output);
+
+  return priv->rgb_range;
+}
+
 static void
 meta_output_init (MetaOutput *output)
 {
   MetaOutputPrivate *priv = meta_output_get_instance_private (output);
 
   priv->backlight = -1;
+  priv->is_primary = FALSE;
+  priv->is_presentation = FALSE;
+  priv->is_underscanning = FALSE;
   priv->color_space = META_OUTPUT_COLORSPACE_DEFAULT;
   priv->hdr_metadata.active = FALSE;
+  priv->has_max_bpc = FALSE;
+  priv->max_bpc = 0;
+  priv->rgb_range = META_OUTPUT_RGB_RANGE_AUTO;
 }
 
 static void

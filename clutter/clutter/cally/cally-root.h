@@ -31,38 +31,23 @@
 G_BEGIN_DECLS
 
 #define CALLY_TYPE_ROOT            (cally_root_get_type ())
-#define CALLY_ROOT(obj)            (G_TYPE_CHECK_INSTANCE_CAST ((obj), CALLY_TYPE_ROOT, CallyRoot))
-#define CALLY_ROOT_CLASS(klass)    (G_TYPE_CHECK_CLASS_CAST ((klass), CALLY_TYPE_ROOT, CallyRootClass))
-#define CALLY_IS_ROOT(obj)         (G_TYPE_CHECK_INSTANCE_TYPE ((obj), CALLY_TYPE_ROOT))
-#define CALLY_IS_ROOT_CLASS(klass) (G_TYPE_CHECK_CLASS_TYPE ((klass), CALLY_TYPE_ROOT))
-#define CALLY_ROOT_GET_CLASS(obj)  (G_TYPE_INSTANCE_GET_CLASS ((obj), CALLY_TYPE_ROOT, CallyRootClass))
 
-typedef struct _CallyRoot        CallyRoot;
-typedef struct _CallyRootClass   CallyRootClass;
-typedef struct _CallyRootPrivate CallyRootPrivate;
+CLUTTER_EXPORT
+G_DECLARE_DERIVABLE_TYPE (CallyRoot,
+                          cally_root,
+                          CALLY,
+                          ROOT,
+                          AtkGObjectAccessible)
 
-struct _CallyRoot
-{
-  /*< private >*/
-  AtkGObjectAccessible parent;
+typedef struct _CallyRoot CallyRoot;
+typedef struct _CallyRootClass CallyRootClass;
 
-  CallyRootPrivate *priv;
-};
-
-/**
- * CallyRootClass:
- *
- * The <structname>CallyRootClass</structname> structure contains only
- * private data
- */
 struct _CallyRootClass
 {
   /*< private >*/
   AtkGObjectAccessibleClass parent_class;
 };
 
-CLUTTER_EXPORT
-GType      cally_root_get_type (void) G_GNUC_CONST;
 CLUTTER_EXPORT
 AtkObject *cally_root_new      (void);
 

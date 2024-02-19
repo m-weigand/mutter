@@ -28,7 +28,6 @@
 #endif
 
 #include <cairo.h>
-#include <pango/pango.h>
 
 #include "cogl/cogl.h"
 
@@ -71,5 +70,7 @@ void                            clutter_backend_set_input_method        (Clutter
                                                                          ClutterInputMethod         *method);
 CLUTTER_EXPORT
 ClutterSeat *                   clutter_backend_get_default_seat        (ClutterBackend             *backend);
+
+G_DEFINE_AUTOPTR_CLEANUP_FUNC (ClutterBackend, g_object_unref)
 
 G_END_DECLS

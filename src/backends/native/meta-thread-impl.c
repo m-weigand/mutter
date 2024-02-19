@@ -193,7 +193,7 @@ create_impl_source (MetaThreadImpl *thread_impl)
   MetaThreadImplSource *impl_source;
 
   source = g_source_new (&impl_source_funcs, sizeof (MetaThreadImplSource));
-  source_name = g_strdup_printf ("MetaThreadImpl '%s' task source",
+  source_name = g_strdup_printf ("[mutter] MetaThreadImpl '%s' task source",
                                  meta_thread_get_name (priv->thread));
   g_source_set_name (source, source_name);
   impl_source = (MetaThreadImplSource *) source;
@@ -247,17 +247,13 @@ meta_thread_impl_class_init (MetaThreadImplClass *klass)
   object_class->finalize = meta_thread_impl_finalize;
 
   obj_props[PROP_THREAD] =
-    g_param_spec_object ("thread",
-                         "thread",
-                         "MetaThread",
+    g_param_spec_object ("thread", NULL, NULL,
                          META_TYPE_THREAD,
                          G_PARAM_READWRITE |
                          G_PARAM_CONSTRUCT_ONLY |
                          G_PARAM_STATIC_STRINGS);
   obj_props[PROP_MAIN_CONTEXT] =
-    g_param_spec_boxed ("main-context",
-                        "main-context",
-                        "GMainContext",
+    g_param_spec_boxed ("main-context", NULL, NULL,
                         G_TYPE_MAIN_CONTEXT,
                         G_PARAM_READWRITE |
                         G_PARAM_CONSTRUCT |

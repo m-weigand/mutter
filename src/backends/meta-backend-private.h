@@ -89,7 +89,8 @@ struct _MetaBackendClass
   void (* set_keymap) (MetaBackend *backend,
                        const char  *layouts,
                        const char  *variants,
-                       const char  *options);
+                       const char  *options,
+                       const char  *model);
 
   gboolean (* is_lid_closed) (MetaBackend *backend);
 
@@ -100,7 +101,7 @@ struct _MetaBackendClass
   void (* lock_layout_group) (MetaBackend *backend,
                               guint        idx);
 
-  void (* update_screen_size) (MetaBackend *backend, int width, int height);
+  void (* update_stage) (MetaBackend *backend);
   void (* select_stage_events) (MetaBackend *backend);
 
   void (* set_pointer_constraint) (MetaBackend           *backend,
@@ -167,7 +168,6 @@ xkb_layout_index_t meta_backend_get_keymap_layout_group (MetaBackend *backend);
 
 gboolean meta_backend_is_lid_closed (MetaBackend *backend);
 
-MetaPointerConstraint * meta_backend_get_client_pointer_constraint (MetaBackend *backend);
 void meta_backend_set_client_pointer_constraint (MetaBackend *backend,
                                                  MetaPointerConstraint *constraint);
 
@@ -182,8 +182,6 @@ void meta_backend_notify_keymap_changed (MetaBackend *backend);
 
 void meta_backend_notify_keymap_layout_group_changed (MetaBackend *backend,
                                                       unsigned int locked_group);
-
-void meta_backend_notify_ui_scaling_factor_changed (MetaBackend *backend);
 
 META_EXPORT_TEST
 void meta_backend_add_gpu (MetaBackend *backend,

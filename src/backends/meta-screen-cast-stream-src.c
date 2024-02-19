@@ -112,7 +112,7 @@ typedef struct _MetaScreenCastStreamSrcPrivate
   gboolean uses_dma_bufs;
   GHashTable *dmabuf_handles;
 
-  cairo_region_t *redraw_clip;
+  MtkRegion *redraw_clip;
 } MetaScreenCastStreamSrcPrivate;
 
 static const struct {
@@ -252,28 +252,31 @@ meta_screen_cast_stream_src_get_videocrop (MetaScreenCastStreamSrc *src,
 }
 
 static gboolean
-meta_screen_cast_stream_src_record_to_buffer (MetaScreenCastStreamSrc  *src,
-                                              int                       width,
-                                              int                       height,
-                                              int                       stride,
-                                              uint8_t                  *data,
-                                              GError                  **error)
+meta_screen_cast_stream_src_record_to_buffer (MetaScreenCastStreamSrc   *src,
+                                              MetaScreenCastPaintPhase   paint_phase,
+                                              int                        width,
+                                              int                        height,
+                                              int                        stride,
+                                              uint8_t                   *data,
+                                              GError                   **error)
 {
   MetaScreenCastStreamSrcClass *klass =
     META_SCREEN_CAST_STREAM_SRC_GET_CLASS (src);
 
-  return klass->record_to_buffer (src, width, height, stride, data, error);
+  return klass->record_to_buffer (src, paint_phase,
+                                  width, height, stride, data, error);
 }
 
 static gboolean
-meta_screen_cast_stream_src_record_to_framebuffer (MetaScreenCastStreamSrc  *src,
-                                                   CoglFramebuffer          *framebuffer,
-                                                   GError                  **error)
+meta_screen_cast_stream_src_record_to_framebuffer (MetaScreenCastStreamSrc   *src,
+                                                   MetaScreenCastPaintPhase   paint_phase,
+                                                   CoglFramebuffer           *framebuffer,
+                                                   GError                   **error)
 {
   MetaScreenCastStreamSrcClass *klass =
     META_SCREEN_CAST_STREAM_SRC_GET_CLASS (src);
 
-  return klass->record_to_framebuffer (src, framebuffer, error);
+  return klass->record_to_framebuffer (src, paint_phase, framebuffer, error);
 }
 
 static void
@@ -313,7 +316,7 @@ draw_cursor_sprite_via_offscreen (MetaScreenCastStreamSrc  *src,
   ClutterBackend *clutter_backend = meta_backend_get_clutter_backend (backend);
   CoglContext *cogl_context =
     clutter_backend_get_cogl_context (clutter_backend);
-  CoglTexture2D *bitmap_texture;
+  CoglTexture *bitmap_texture;
   CoglOffscreen *offscreen;
   CoglFramebuffer *fb;
   CoglPipeline *pipeline;
@@ -322,17 +325,16 @@ draw_cursor_sprite_via_offscreen (MetaScreenCastStreamSrc  *src,
 
   bitmap_texture = cogl_texture_2d_new_with_size (cogl_context,
                                                   bitmap_width, bitmap_height);
-  cogl_primitive_texture_set_auto_mipmap (COGL_PRIMITIVE_TEXTURE (bitmap_texture),
-                                          FALSE);
-  if (!cogl_texture_allocate (COGL_TEXTURE (bitmap_texture), error))
+  cogl_primitive_texture_set_auto_mipmap (bitmap_texture, FALSE);
+  if (!cogl_texture_allocate (bitmap_texture, error))
     {
-      cogl_object_unref (bitmap_texture);
+      g_object_unref (bitmap_texture);
       return FALSE;
     }
 
-  offscreen = cogl_offscreen_new_with_texture (COGL_TEXTURE (bitmap_texture));
+  offscreen = cogl_offscreen_new_with_texture (bitmap_texture);
   fb = COGL_FRAMEBUFFER (offscreen);
-  cogl_object_unref (bitmap_texture);
+  g_object_unref (bitmap_texture);
   if (!cogl_framebuffer_allocate (fb, error))
     {
       g_object_unref (fb);
@@ -354,7 +356,7 @@ draw_cursor_sprite_via_offscreen (MetaScreenCastStreamSrc  *src,
   cogl_framebuffer_clear (fb, COGL_BUFFER_BIT_COLOR, &clear_color);
   cogl_framebuffer_draw_rectangle (fb, pipeline,
                                    -1, 1, 1, -1);
-  cogl_object_unref (pipeline);
+  g_object_unref (pipeline);
 
   cogl_framebuffer_read_pixels (fb,
                                 0, 0,
@@ -583,6 +585,7 @@ meta_screen_cast_stream_src_calculate_stride (MetaScreenCastStreamSrc *src,
 static gboolean
 do_record_frame (MetaScreenCastStreamSrc   *src,
                  MetaScreenCastRecordFlag   flags,
+                 MetaScreenCastPaintPhase   paint_phase,
                  struct spa_buffer         *spa_buffer,
                  GError                   **error)
 {
@@ -596,7 +599,11 @@ do_record_frame (MetaScreenCastStreamSrc   *src,
       int height = priv->video_format.size.height;
       int stride = meta_screen_cast_stream_src_calculate_stride (src, spa_data);
 
+      COGL_TRACE_BEGIN_SCOPED (RecordToBuffer,
+                               "Meta::ScreenCastStreamSrc::record_to_buffer()");
+
       return meta_screen_cast_stream_src_record_to_buffer (src,
+                                                           paint_phase,
                                                            width,
                                                            height,
                                                            stride,
@@ -611,7 +618,11 @@ do_record_frame (MetaScreenCastStreamSrc   *src,
       CoglFramebuffer *dmabuf_fbo =
         cogl_dma_buf_handle_get_framebuffer (dmabuf_handle);
 
+      COGL_TRACE_BEGIN_SCOPED (RecordToFramebuffer,
+                               "Meta::ScreenCastStreamSrc::record_to_framebuffer()");
+
       return meta_screen_cast_stream_src_record_to_framebuffer (src,
+                                                                paint_phase,
                                                                 dmabuf_fbo,
                                                                 error);
     }
@@ -688,7 +699,7 @@ maybe_add_damaged_regions_metadata (MetaScreenCastStreamSrc *src,
       int num_buffers_available;
 
       i = 0;
-      n_rectangles = cairo_region_num_rectangles (priv->redraw_clip);
+      n_rectangles = mtk_region_num_rectangles (priv->redraw_clip);
       num_buffers_available = 0;
 
       spa_meta_for_each (meta_region, spa_meta_video_damage)
@@ -715,7 +726,7 @@ maybe_add_damaged_regions_metadata (MetaScreenCastStreamSrc *src,
           {
             MtkRectangle rect;
 
-            cairo_region_get_rectangle (priv->redraw_clip, i, &rect);
+            rect = mtk_region_get_rectangle (priv->redraw_clip, i);
             meta_region->region = SPA_REGION (rect.x, rect.y,
                                               rect.width, rect.height);
 
@@ -725,18 +736,20 @@ maybe_add_damaged_regions_metadata (MetaScreenCastStreamSrc *src,
         }
     }
 
-  g_clear_pointer (&priv->redraw_clip, cairo_region_destroy);
+  g_clear_pointer (&priv->redraw_clip, mtk_region_unref);
 }
 
 MetaScreenCastRecordResult
 meta_screen_cast_stream_src_maybe_record_frame (MetaScreenCastStreamSrc  *src,
                                                 MetaScreenCastRecordFlag  flags,
-                                                const cairo_region_t     *redraw_clip)
+                                                MetaScreenCastPaintPhase  paint_phase,
+                                                const MtkRegion          *redraw_clip)
 {
   int64_t now_us = g_get_monotonic_time ();
 
   return meta_screen_cast_stream_src_maybe_record_frame_with_timestamp (src,
                                                                         flags,
+                                                                        paint_phase,
                                                                         redraw_clip,
                                                                         now_us);
 }
@@ -744,7 +757,8 @@ meta_screen_cast_stream_src_maybe_record_frame (MetaScreenCastStreamSrc  *src,
 MetaScreenCastRecordResult
 meta_screen_cast_stream_src_maybe_record_frame_with_timestamp (MetaScreenCastStreamSrc  *src,
                                                                MetaScreenCastRecordFlag  flags,
-                                                               const cairo_region_t     *redraw_clip,
+                                                               MetaScreenCastPaintPhase  paint_phase,
+                                                               const MtkRegion          *redraw_clip,
                                                                int64_t                   frame_timestamp_us)
 {
   MetaScreenCastStreamSrcPrivate *priv =
@@ -757,15 +771,18 @@ meta_screen_cast_stream_src_maybe_record_frame_with_timestamp (MetaScreenCastStr
   struct spa_meta_header *header;
   struct spa_data *spa_data;
 
+  COGL_TRACE_BEGIN_SCOPED (MaybeRecordFrame,
+                           "Meta::ScreenCastStreamSrc::maybe_record_frame_with_timestamp()");
+
   /* Accumulate the damaged region since we might not schedule a frame capture
    * eventually but once we do, we should report all the previous damaged areas.
    */
   if (redraw_clip)
     {
       if (priv->redraw_clip)
-        cairo_region_union (priv->redraw_clip, redraw_clip);
+        mtk_region_union (priv->redraw_clip, redraw_clip);
       else
-        priv->redraw_clip = cairo_region_copy (redraw_clip);
+        priv->redraw_clip = mtk_region_copy (redraw_clip);
     }
 
   if (priv->buffer_count == 0)
@@ -843,7 +860,7 @@ meta_screen_cast_stream_src_maybe_record_frame_with_timestamp (MetaScreenCastStr
       g_autoptr (GError) error = NULL;
 
       g_clear_handle_id (&priv->follow_up_frame_source_id, g_source_remove);
-      if (do_record_frame (src, flags, spa_buffer, &error))
+      if (do_record_frame (src, flags, paint_phase, spa_buffer, &error))
         {
           maybe_add_damaged_regions_metadata (src, spa_buffer);
           struct spa_meta_region *spa_meta_video_crop;

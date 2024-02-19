@@ -41,9 +41,10 @@
 G_BEGIN_DECLS
 
 /**
- * SECTION:cogl-atlas-texture
- * @short_description: Functions for managing textures in Cogl's global
- *                     set of texture atlases
+ * CoglAtlasTexture:
+ *
+ * Functions for managing textures in Cogl's global
+ * set of texture atlases
  *
  * A texture atlas is a texture that contains many smaller images that
  * an application is interested in. These are packed together as a way
@@ -59,22 +60,25 @@ G_BEGIN_DECLS
  * shared texture atlases using a high-level #CoglAtlasTexture which
  * represents a sub-region of one of these atlases.
  *
- * <note>A #CoglAtlasTexture is a high-level meta texture which has
+ * A #CoglAtlasTexture is a high-level meta texture which has
  * some limitations to be aware of. Please see the documentation for
- * #CoglMetaTexture for more details.</note>
+ * #CoglMetaTexture for more details.
  */
+#define COGL_TYPE_ATLAS_TEXTURE            (cogl_atlas_texture_get_type ())
+#define COGL_ATLAS_TEXTURE(obj)            (G_TYPE_CHECK_INSTANCE_CAST ((obj), COGL_TYPE_ATLAS_TEXTURE, CoglAtlasTexture))
+#define COGL_ATLAS_TEXTURE_CONST(obj)      (G_TYPE_CHECK_INSTANCE_CAST ((obj), COGL_TYPE_ATLAS_TEXTURE, CoglAtlasTexture const))
+#define COGL_ATLAS_TEXTURE_CLASS(klass)    (G_TYPE_CHECK_CLASS_CAST ((klass),  COGL_TYPE_ATLAS_TEXTURE, CoglAtlasTextureClass))
+#define COGL_IS_ATLAS_TEXTURE(obj)         (G_TYPE_CHECK_INSTANCE_TYPE ((obj), COGL_TYPE_ATLAS_TEXTURE))
+#define COGL_IS_ATLAS_TEXTURE_CLASS(klass) (G_TYPE_CHECK_CLASS_TYPE ((klass),  COGL_TYPE_ATLAS_TEXTURE))
+#define COGL_ATLAS_TEXTURE_GET_CLASS(obj)  (G_TYPE_INSTANCE_GET_CLASS ((obj),  COGL_TYPE_ATLAS_TEXTURE, CoglAtlasTextureClass))
 
-
+typedef struct _CoglAtlasTextureClass CoglAtlasTextureClass;
 typedef struct _CoglAtlasTexture CoglAtlasTexture;
-#define COGL_ATLAS_TEXTURE(tex) ((CoglAtlasTexture *) tex)
 
-/**
- * cogl_atlas_texture_get_gtype:
- *
- * Returns: a #GType that can be used with the GLib type system.
- */
+G_DEFINE_AUTOPTR_CLEANUP_FUNC (CoglAtlasTexture, g_object_unref)
+
 COGL_EXPORT
-GType cogl_atlas_texture_get_gtype (void);
+GType               cogl_atlas_texture_get_type       (void) G_GNUC_CONST;
 
 /**
  * cogl_atlas_texture_new_with_size:
@@ -96,56 +100,20 @@ GType cogl_atlas_texture_get_gtype (void);
  * using cogl_texture_set_components() and
  * cogl_texture_set_premultiplied().
  *
- * <note>Allocate call can fail if Cogl considers the internal
+ * Allocate call can fail if Cogl considers the internal
  * format to be incompatible with the format of its internal
- * atlases.</note>
+ * atlases.
  *
- * <note>The returned #CoglAtlasTexture is a high-level meta-texture
+ * The returned #CoglAtlasTexture is a high-level meta-texture
  * with some limitations. See the documentation for #CoglMetaTexture
- * for more details.</note>
+ * for more details.
  *
  * Returns: (transfer full): A new #CoglAtlasTexture object.
  */
-COGL_EXPORT CoglAtlasTexture *
+COGL_EXPORT CoglTexture *
 cogl_atlas_texture_new_with_size (CoglContext *ctx,
                                   int width,
                                   int height);
-
-/**
- * cogl_atlas_texture_new_from_file:
- * @ctx: A #CoglContext
- * @filename: the file to load
- * @error: A #GError to catch exceptional errors or %NULL
- *
- * Creates a #CoglAtlasTexture from an image file. A #CoglAtlasTexture
- * represents a sub-region within one of Cogl's shared texture
- * atlases.
- *
- * The storage for the texture is not allocated before this function
- * returns. You can call cogl_texture_allocate() to explicitly
- * allocate the underlying storage or let Cogl automatically allocate
- * storage lazily.
- *
- * The texture is still configurable until it has been allocated so
- * for example you can influence the internal format of the texture
- * using cogl_texture_set_components() and
- * cogl_texture_set_premultiplied().
- *
- * <note>Allocate call can fail if Cogl considers the internal
- * format to be incompatible with the format of its internal
- * atlases.</note>
- *
- * <note>The returned #CoglAtlasTexture is a high-level meta-texture
- * with some limitations. See the documentation for #CoglMetaTexture
- * for more details.</note>
- *
- * Return value: (transfer full): A new #CoglAtlasTexture object or
- *          %NULL on failure and @error will be updated.
- */
-COGL_EXPORT CoglAtlasTexture *
-cogl_atlas_texture_new_from_file (CoglContext *ctx,
-                                  const char *filename,
-                                  GError **error);
 
 /**
  * cogl_atlas_texture_new_from_data:
@@ -163,7 +131,7 @@ cogl_atlas_texture_new_from_file (CoglContext *ctx,
  * memory. A #CoglAtlasTexture represents a sub-region within one of
  * Cogl's shared texture atlases.
  *
- * <note>This api will always immediately allocate GPU memory for the
+ * This api will always immediately allocate GPU memory for the
  * texture and upload the given data so that the @data pointer does
  * not need to remain valid once this function returns. This means it
  * is not possible to configure the texture before it is allocated. If
@@ -172,20 +140,20 @@ cogl_atlas_texture_new_from_file (CoglContext *ctx,
  * instead create a #CoglBitmap for your data and use
  * cogl_atlas_texture_new_from_bitmap() or use
  * cogl_atlas_texture_new_with_size() and then upload data using
- * cogl_texture_set_data()</note>
+ * cogl_texture_set_data()
  *
- * <note>Allocate call can fail if Cogl considers the internal
+ * Allocate call can fail if Cogl considers the internal
  * format to be incompatible with the format of its internal
- * atlases.</note>
+ * atlases.
  *
- * <note>The returned #CoglAtlasTexture is a high-level
+ * The returned #CoglAtlasTexture is a high-level
  * meta-texture with some limitations. See the documentation for
- * #CoglMetaTexture for more details.</note>
+ * #CoglMetaTexture for more details.
  *
  * Return value: (transfer full): A new #CoglAtlasTexture object or
  *          %NULL on failure and @error will be updated.
  */
-COGL_EXPORT CoglAtlasTexture *
+COGL_EXPORT CoglTexture *
 cogl_atlas_texture_new_from_data (CoglContext *ctx,
                                   int width,
                                   int height,
@@ -213,29 +181,17 @@ cogl_atlas_texture_new_from_data (CoglContext *ctx,
  * using cogl_texture_set_components() and
  * cogl_texture_set_premultiplied().
  *
- * <note>Allocate call can fail if Cogl considers the internal
+ * Allocate call can fail if Cogl considers the internal
  * format to be incompatible with the format of its internal
- * atlases.</note>
+ * atlases.
  *
- * <note>The returned #CoglAtlasTexture is a high-level meta-texture
+ * The returned #CoglAtlasTexture is a high-level meta-texture
  * with some limitations. See the documentation for #CoglMetaTexture
- * for more details.</note>
+ * for more details.
  *
  * Returns: (transfer full): A new #CoglAtlasTexture object.
  */
-COGL_EXPORT CoglAtlasTexture *
+COGL_EXPORT CoglTexture *
 cogl_atlas_texture_new_from_bitmap (CoglBitmap *bmp);
-
-/**
- * cogl_is_atlas_texture:
- * @object: a #CoglObject
- *
- * Checks whether the given object references a #CoglAtlasTexture
- *
- * Return value: %TRUE if the passed object represents an atlas
- *   texture and %FALSE otherwise
- */
-COGL_EXPORT gboolean
-cogl_is_atlas_texture (void *object);
 
 G_END_DECLS

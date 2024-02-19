@@ -56,6 +56,8 @@
 #include "backends/native/meta-device-pool.h"
 #include "backends/native/meta-kms-cursor-manager.h"
 #include "backends/native/meta-kms-device.h"
+#include "backends/native/meta-kms-plane.h"
+#include "backends/native/meta-kms-utils.h"
 #include "backends/native/meta-kms.h"
 #include "backends/native/meta-onscreen-native.h"
 #include "backends/native/meta-output-kms.h"
@@ -73,11 +75,6 @@
 
 #ifndef EGL_DRM_MASTER_FD_EXT
 #define EGL_DRM_MASTER_FD_EXT 0x333C
-#endif
-
-/* added in libdrm 2.4.95 */
-#ifndef DRM_FORMAT_INVALID
-#define DRM_FORMAT_INVALID 0
 #endif
 
 struct _MetaRendererNative
@@ -410,6 +407,52 @@ choose_egl_config_from_gbm_format (MetaEgl       *egl,
   return FALSE;
 }
 
+gboolean
+meta_renderer_native_choose_gbm_format (MetaKmsPlane    *kms_plane,
+                                        MetaEgl         *egl,
+                                        EGLDisplay       egl_display,
+                                        EGLint          *attributes,
+                                        const uint32_t  *formats,
+                                        size_t           num_formats,
+                                        const char      *purpose,
+                                        EGLConfig       *out_config,
+                                        GError         **error)
+{
+  int i;
+
+  for (i = 0; i < num_formats; i++)
+    {
+      g_clear_error (error);
+
+      if (kms_plane &&
+          !meta_kms_plane_is_format_supported (kms_plane, formats[i]))
+        {
+          g_set_error (error, G_IO_ERROR, G_IO_ERROR_FAILED,
+                       "KMS CRTC doesn't support format");
+          continue;
+        }
+
+      if (choose_egl_config_from_gbm_format (egl,
+                                             egl_display,
+                                             attributes,
+                                             formats[i],
+                                             out_config,
+                                             error))
+        {
+          MetaDrmFormatBuf format_string;
+
+          meta_drm_format_to_string (&format_string, formats[i]);
+          meta_topic (META_DEBUG_KMS,
+                      "Using GBM format %s for primary GPU EGL %s",
+                      format_string.s, purpose);
+
+          return TRUE;
+        }
+    }
+
+  return FALSE;
+}
+
 static gboolean
 meta_renderer_native_choose_egl_config (CoglDisplay  *cogl_display,
                                         EGLint       *attributes,
@@ -432,22 +475,16 @@ meta_renderer_native_choose_egl_config (CoglDisplay  *cogl_display,
           GBM_FORMAT_XRGB8888,
           GBM_FORMAT_ARGB8888,
         };
-        int i;
 
-        for (i = 0; i < G_N_ELEMENTS (formats); i++)
-          {
-            g_clear_error (error);
-
-            if (choose_egl_config_from_gbm_format (egl,
-                                                   egl_display,
-                                                   attributes,
-                                                   formats[i],
-                                                   out_config,
-                                                   error))
-              return TRUE;
-          }
-
-        return FALSE;
+        return meta_renderer_native_choose_gbm_format (NULL,
+                                                       egl,
+                                                       egl_display,
+                                                       attributes,
+                                                       formats,
+                                                       G_N_ELEMENTS (formats),
+                                                       "fallback",
+                                                       out_config,
+                                                       error);
       }
     case META_RENDERER_NATIVE_MODE_SURFACELESS:
       *out_config = EGL_NO_CONFIG_KHR;
@@ -613,12 +650,13 @@ meta_renderer_native_create_dma_buf_framebuffer (MetaRendererNative  *renderer_n
   uint64_t modifiers[1];
   CoglPixelFormat cogl_format;
   CoglEglImageFlags flags;
-  CoglTexture2D *cogl_tex;
+  CoglTexture *cogl_tex;
   CoglOffscreen *cogl_fbo;
-  int ret;
+  const MetaFormatInfo *format_info;
 
-  ret = meta_cogl_pixel_format_from_drm_format (drm_format, &cogl_format, NULL);
-  g_assert (ret);
+  format_info = meta_format_info_from_drm_format (drm_format);
+  g_assert (format_info);
+  cogl_format = format_info->cogl_format;
 
   strides[0] = stride;
   offsets[0] = offset;
@@ -651,8 +689,8 @@ meta_renderer_native_create_dma_buf_framebuffer (MetaRendererNative  *renderer_n
   if (!cogl_tex)
     return NULL;
 
-  cogl_fbo = cogl_offscreen_new_with_texture (COGL_TEXTURE (cogl_tex));
-  cogl_object_unref (cogl_tex);
+  cogl_fbo = cogl_offscreen_new_with_texture (cogl_tex);
+  g_object_unref (cogl_tex);
 
   if (!cogl_framebuffer_allocate (COGL_FRAMEBUFFER (cogl_fbo), error))
     {
@@ -930,8 +968,10 @@ meta_renderer_native_create_dma_buf (CoglRenderer     *cogl_renderer,
         uint32_t drm_format;
         CoglFramebuffer *dmabuf_fb;
         CoglDmaBufHandle *dmabuf_handle;
+        const MetaFormatInfo *format_info;
 
-        if (!meta_drm_format_from_cogl_pixel_format (format, &drm_format))
+        format_info = meta_format_info_from_cogl_format (format);
+        if (!format_info)
           {
             g_set_error (error, G_IO_ERROR, G_IO_ERROR_NOT_SUPPORTED,
                          "Native renderer doesn't support creating DMA buffer with format %s",
@@ -939,6 +979,7 @@ meta_renderer_native_create_dma_buf (CoglRenderer     *cogl_renderer,
             return NULL;
           }
 
+        drm_format = format_info->drm_format;
         render_device = renderer_gpu_data->render_device;
         flags = META_DRM_BUFFER_FLAG_NONE;
         buffer = meta_render_device_allocate_dma_buf (render_device,
@@ -1078,23 +1119,25 @@ meta_renderer_native_queue_modes_reset (MetaRendererNative *renderer_native)
           MetaOnscreenNative *onscreen_native =
             META_ONSCREEN_NATIVE (framebuffer);
           MetaCrtc *crtc;
+          MetaCrtcKms *crtc_kms;
           MetaKmsCrtc *kms_crtc;
+          MetaKmsPlane *kms_plane;
           MtkRectangle view_layout;
           float view_scale;
           MetaKmsCrtcLayout crtc_layout;
 
-          renderer_native->pending_mode_set_views =
-            g_list_prepend (renderer_native->pending_mode_set_views,
-                            stage_view);
-          meta_onscreen_native_invalidate (onscreen_native);
           crtc = meta_onscreen_native_get_crtc (onscreen_native);
-          kms_crtc = meta_crtc_kms_get_kms_crtc (META_CRTC_KMS (crtc));
+          crtc_kms = META_CRTC_KMS (crtc);
+
+          kms_plane = meta_crtc_kms_get_assigned_cursor_plane (crtc_kms);
+          kms_crtc = meta_crtc_kms_get_kms_crtc (crtc_kms);
 
           clutter_stage_view_get_layout (stage_view, &view_layout);
           view_scale = clutter_stage_view_get_scale (stage_view);
 
           crtc_layout = (MetaKmsCrtcLayout) {
             .crtc = kms_crtc,
+            .cursor_plane = kms_plane,
             .layout = GRAPHENE_RECT_INIT (view_layout.x,
                                           view_layout.y,
                                           view_layout.width,
@@ -1102,6 +1145,11 @@ meta_renderer_native_queue_modes_reset (MetaRendererNative *renderer_native)
             .scale = view_scale,
           };
           g_array_append_val (crtc_layouts, crtc_layout);
+
+          meta_onscreen_native_invalidate (onscreen_native);
+          renderer_native->pending_mode_set_views =
+            g_list_prepend (renderer_native->pending_mode_set_views,
+                            stage_view);
         }
     }
   renderer_native->pending_mode_set = TRUE;
@@ -1144,26 +1192,27 @@ meta_renderer_native_pop_pending_mode_set (MetaRendererNative *renderer_native,
 }
 
 static CoglOffscreen *
-meta_renderer_native_create_offscreen (MetaRendererNative    *renderer,
-                                       CoglContext           *context,
+meta_renderer_native_create_offscreen (MetaRendererNative    *renderer_native,
                                        gint                   view_width,
                                        gint                   view_height,
                                        GError               **error)
 {
+  CoglContext *cogl_context =
+    cogl_context_from_renderer_native (renderer_native);
   CoglOffscreen *fb;
-  CoglTexture2D *tex;
+  CoglTexture *tex;
 
-  tex = cogl_texture_2d_new_with_size (context, view_width, view_height);
-  cogl_primitive_texture_set_auto_mipmap (COGL_PRIMITIVE_TEXTURE (tex), FALSE);
+  tex = cogl_texture_2d_new_with_size (cogl_context, view_width, view_height);
+  cogl_primitive_texture_set_auto_mipmap (tex, FALSE);
 
-  if (!cogl_texture_allocate (COGL_TEXTURE (tex), error))
+  if (!cogl_texture_allocate (tex, error))
     {
-      cogl_object_unref (tex);
+      g_object_unref (tex);
       return FALSE;
     }
 
-  fb = cogl_offscreen_new_with_texture (COGL_TEXTURE (tex));
-  cogl_object_unref (tex);
+  fb = cogl_offscreen_new_with_texture (tex);
+  g_object_unref (tex);
   if (!cogl_framebuffer_allocate (COGL_FRAMEBUFFER (fb), error))
     {
       g_object_unref (fb);
@@ -1225,9 +1274,8 @@ calculate_view_transform (MetaMonitorManager *monitor_manager,
   crtc_transform =
     meta_output_logical_to_crtc_transform (output, logical_monitor->transform);
 
-  if (meta_monitor_manager_is_transform_handled (monitor_manager,
-                                                 crtc,
-                                                 crtc_transform))
+  if (meta_crtc_native_is_transform_handled (META_CRTC_NATIVE (crtc),
+                                             crtc_transform))
     return META_MONITOR_TRANSFORM_NORMAL;
   else
     return crtc_transform;
@@ -1253,7 +1301,6 @@ should_force_shadow_fb (MetaRendererNative *renderer_native,
 
 static CoglFramebuffer *
 create_fallback_offscreen (MetaRendererNative *renderer_native,
-                           CoglContext        *cogl_context,
                            int                 width,
                            int                 height)
 {
@@ -1261,7 +1308,6 @@ create_fallback_offscreen (MetaRendererNative *renderer_native,
   GError *error = NULL;
 
   fallback_offscreen = meta_renderer_native_create_offscreen (renderer_native,
-                                                              cogl_context,
                                                               width,
                                                               height,
                                                               &error);
@@ -1320,7 +1366,6 @@ meta_renderer_native_create_view (MetaRenderer       *renderer,
                       error->message);
           use_shadowfb = FALSE;
           framebuffer = create_fallback_offscreen (renderer_native,
-                                                   cogl_context,
                                                    onscreen_width,
                                                    onscreen_height);
         }
@@ -1343,7 +1388,6 @@ meta_renderer_native_create_view (MetaRenderer       *renderer,
                          error->message);
               use_shadowfb = FALSE;
               framebuffer = create_fallback_offscreen (renderer_native,
-                                                       cogl_context,
                                                        onscreen_width,
                                                        onscreen_height);
             }
@@ -1363,7 +1407,6 @@ meta_renderer_native_create_view (MetaRenderer       *renderer,
       g_assert (META_IS_CRTC_VIRTUAL (crtc));
 
       virtual_onscreen = meta_renderer_native_create_offscreen (renderer_native,
-                                                                cogl_context,
                                                                 onscreen_width,
                                                                 onscreen_height,
                                                                 &error);
@@ -1394,7 +1437,6 @@ meta_renderer_native_create_view (MetaRenderer       *renderer,
         }
 
       offscreen = meta_renderer_native_create_offscreen (renderer_native,
-                                                         cogl_context,
                                                          offscreen_width,
                                                          offscreen_height,
                                                          &error);
@@ -1566,11 +1608,41 @@ meta_renderer_native_finish_frame (MetaRendererNative *renderer_native,
 }
 
 static gboolean
-create_secondary_egl_config (MetaEgl               *egl,
-                             MetaRendererNativeMode mode,
-                             EGLDisplay             egl_display,
-                             EGLConfig             *egl_config,
-                             GError               **error)
+all_primary_planes_support_format (MetaCrtcKms *crtc_kms,
+                                   uint32_t     drm_format)
+{
+  MetaKmsCrtc *kms_crtc = meta_crtc_kms_get_kms_crtc (crtc_kms);
+  MetaKmsDevice *kms_device = meta_kms_crtc_get_device (kms_crtc);
+  gboolean supported = FALSE;
+  GList *l;
+
+  for (l = meta_kms_device_get_planes (kms_device); l; l = l->next)
+    {
+      MetaKmsPlane *kms_plane = l->data;
+
+      if (meta_kms_plane_get_plane_type (kms_plane) !=
+          META_KMS_PLANE_TYPE_PRIMARY)
+        continue;
+
+      if (!meta_kms_plane_is_usable_with (kms_plane, kms_crtc))
+        continue;
+
+      supported = TRUE;
+
+      if (!meta_kms_plane_is_format_supported (kms_plane, drm_format))
+        return FALSE;
+    }
+
+  return supported;
+}
+
+
+static gboolean
+create_secondary_egl_config (MetaEgl                    *egl,
+                             MetaRendererNativeGpuData  *renderer_gpu_data,
+                             EGLDisplay                  egl_display,
+                             EGLConfig                  *egl_config,
+                             GError                    **error)
 {
   EGLint attributes[] = {
     EGL_RED_SIZE, 1,
@@ -1583,16 +1655,68 @@ create_secondary_egl_config (MetaEgl               *egl,
     EGL_NONE
   };
 
-  switch (mode)
+  switch (renderer_gpu_data->mode)
     {
     case META_RENDERER_NATIVE_MODE_GBM:
     case META_RENDERER_NATIVE_MODE_SURFACELESS:
-      return choose_egl_config_from_gbm_format (egl,
-                                                egl_display,
-                                                attributes,
-                                                GBM_FORMAT_XRGB8888,
-                                                egl_config,
-                                                error);
+      {
+        MetaGpuKms *gpu_kms = renderer_gpu_data->gpu_kms;
+        static const uint32_t gles3_formats[] = {
+          GBM_FORMAT_ARGB2101010,
+          GBM_FORMAT_ABGR2101010,
+          GBM_FORMAT_RGBA1010102,
+          GBM_FORMAT_BGRA1010102,
+          GBM_FORMAT_XRGB8888,
+          GBM_FORMAT_ARGB8888,
+        };
+        int i;
+
+        for (i = 0; i < G_N_ELEMENTS (gles3_formats); i++)
+          {
+            g_clear_error (error);
+
+            if (gpu_kms)
+              {
+                GList *l;
+
+                for (l = meta_gpu_get_crtcs (META_GPU (gpu_kms)); l; l = l->next)
+                  {
+                    MetaCrtcKms *crtc_kms = META_CRTC_KMS (l->data);
+
+                    if (!all_primary_planes_support_format (crtc_kms,
+                                                            gles3_formats[i]))
+                      break;
+                  }
+
+                /* If any CRTC doesn't support the format, we can't use it */
+                if (l)
+                  {
+                    g_set_error (error, G_IO_ERROR, G_IO_ERROR_FAILED,
+                                 "KMS CRTC doesn't support GBM format");
+                    continue;
+                  }
+              }
+
+            if (choose_egl_config_from_gbm_format (egl,
+                                                   egl_display,
+                                                   attributes,
+                                                   gles3_formats[i],
+                                                   egl_config,
+                                                   error))
+              {
+                MetaDrmFormatBuf format_string;
+
+                meta_drm_format_to_string (&format_string, gles3_formats[i]);
+                meta_topic (META_DEBUG_KMS,
+                            "Using GBM format %s for secondary GPU EGL",
+                            format_string.s);
+
+                return TRUE;
+              }
+          }
+
+        return FALSE;
+      }
 #ifdef HAVE_EGL_DEVICE
     case META_RENDERER_NATIVE_MODE_EGL_DEVICE:
       return meta_egl_choose_first_config (egl,
@@ -1684,7 +1808,7 @@ init_secondary_gpu_data_gpu (MetaRendererNativeGpuData *renderer_gpu_data,
 
   meta_egl_bind_api (egl, EGL_OPENGL_ES_API, NULL);
 
-  if (!create_secondary_egl_config (egl, renderer_gpu_data->mode, egl_display,
+  if (!create_secondary_egl_config (egl, renderer_gpu_data, egl_display,
                                     &egl_config, error))
     goto out;
 

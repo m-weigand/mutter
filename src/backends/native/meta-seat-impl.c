@@ -243,10 +243,10 @@ meta_seat_impl_clear_repeat_source (MetaSeatImpl *seat_impl)
 static void
 dispatch_libinput (MetaSeatImpl *seat_impl)
 {
-  COGL_TRACE_BEGIN (MetaSeatImplDispatchLibinput,
-                    "MetaSeatImpl (dispatch libinput)");
+  COGL_TRACE_BEGIN_SCOPED (MetaSeatImplDispatchLibinput,
+                           "Meta::SeatImpl::dispatch_libinput()");
+
   libinput_dispatch (seat_impl->libinput);
-  COGL_TRACE_END (MetaSeatImplDispatchLibinput);
 
   process_events (seat_impl);
 }
@@ -822,17 +822,17 @@ meta_seat_impl_notify_button_in_impl (MetaSeatImpl       *seat_impl,
       button_nr = CLUTTER_BUTTON_PRIMARY;
       break;
 
-    case BTN_RIGHT:
-    case BTN_STYLUS:
-      button_nr = CLUTTER_BUTTON_SECONDARY;
-      break;
-
     case BTN_MIDDLE:
-    case BTN_STYLUS2:
+    case BTN_STYLUS:
       button_nr = CLUTTER_BUTTON_MIDDLE;
       break;
 
-    case 0x149: /* BTN_STYLUS3 */
+    case BTN_RIGHT:
+    case BTN_STYLUS2:
+      button_nr = CLUTTER_BUTTON_SECONDARY;
+      break;
+
+    case BTN_STYLUS3:
       button_nr = 8;
       break;
 
@@ -2679,7 +2679,7 @@ process_events (MetaSeatImpl *seat_impl)
   struct libinput_event *event;
 
   COGL_TRACE_BEGIN_SCOPED (MetaSeatImplProcessEvents,
-                           "MetaSeatImpl (process events)");
+                           "Meta::SeatImpl::process_events()");
 
   while ((event = libinput_get_event (seat_impl->libinput)))
     {

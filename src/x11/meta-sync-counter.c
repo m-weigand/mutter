@@ -21,7 +21,7 @@
 
 #include "compositor/compositor-private.h"
 #include "core/window-private.h"
-#include "meta/meta-x11-errors.h"
+#include "mtk/mtk-x11.h"
 #include "x11/meta-sync-counter.h"
 #include "x11/meta-x11-display-private.h"
 #include "x11/window-x11-private.h"
@@ -97,7 +97,7 @@ meta_sync_counter_create_sync_alarm (MetaSyncCounter *sync_counter)
       sync_counter->sync_request_alarm != None)
     return;
 
-  meta_x11_error_trap_push (x11_display);
+  mtk_x11_error_trap_push (x11_display->xdisplay);
 
   /* In the new (extended style), the counter value is initialized by
    * the client before mapping the window. In the old style, we're
@@ -109,7 +109,7 @@ meta_sync_counter_create_sync_alarm (MetaSyncCounter *sync_counter)
                               sync_counter->sync_request_counter,
                               &init))
         {
-          meta_x11_error_trap_pop_with_return (x11_display);
+          mtk_x11_error_trap_pop_with_return (x11_display->xdisplay);
           sync_counter->sync_request_counter = None;
           return;
         }
@@ -148,7 +148,7 @@ meta_sync_counter_create_sync_alarm (MetaSyncCounter *sync_counter)
                                                        XSyncCAEvents,
                                                        &values);
 
-  if (meta_x11_error_trap_pop_with_return (x11_display) == Success)
+  if (mtk_x11_error_trap_pop_with_return (x11_display->xdisplay) == Success)
     {
       meta_x11_display_register_sync_alarm (x11_display,
                                             &sync_counter->sync_request_alarm,
@@ -283,7 +283,7 @@ meta_sync_counter_update (MetaSyncCounter *sync_counter,
   gboolean needs_frame_drawn = FALSE;
   gboolean no_delay_frame = FALSE;
 
-  COGL_TRACE_BEGIN (MetaWindowSyncRequestCounter, "X11: Sync request counter");
+  COGL_TRACE_BEGIN_SCOPED (MetaWindowSyncRequestCounter, "Meta::SyncCounter::update()");
 
   if (sync_counter->extended_sync_request_counter && new_counter_value % 2 == 0)
     {
@@ -316,7 +316,7 @@ meta_sync_counter_update (MetaSyncCounter *sync_counter,
                                          no_delay_frame);
     }
 
-#ifdef COGL_HAS_TRACING
+#ifdef HAVE_PROFILER
   if (G_UNLIKELY (cogl_is_tracing_enabled ()))
     {
       g_autofree char *description = NULL;
@@ -327,7 +327,6 @@ meta_sync_counter_update (MetaSyncCounter *sync_counter,
                          new_counter_value,
                          needs_frame_drawn ? "yes" : "no");
       COGL_TRACE_DESCRIBE (MetaWindowSyncRequestCounter, description);
-      COGL_TRACE_END (MetaWindowSyncRequestCounter);
     }
 #endif
 }
@@ -361,8 +360,8 @@ do_send_frame_drawn (MetaSyncCounter *sync_counter,
   int64_t now_us;
   XClientMessageEvent ev = { 0, };
 
-  COGL_TRACE_BEGIN (MetaWindowActorX11FrameDrawn,
-                    "X11: Send _NET_WM_FRAME_DRAWN");
+  COGL_TRACE_BEGIN_SCOPED (MetaWindowActorX11FrameDrawn,
+                           "Meta::SyncCounter::do_send_frame_drawn()");
 
   now_us = g_get_monotonic_time ();
   frame->frame_drawn_time =
@@ -379,12 +378,12 @@ do_send_frame_drawn (MetaSyncCounter *sync_counter,
   ev.data.l[2] = frame->frame_drawn_time & G_GUINT64_CONSTANT (0xffffffff);
   ev.data.l[3] = frame->frame_drawn_time >> 32;
 
-  meta_x11_error_trap_push (display->x11_display);
+  mtk_x11_error_trap_push (xdisplay);
   XSendEvent (xdisplay, ev.window, False, 0, (XEvent *) &ev);
   XFlush (xdisplay);
-  meta_x11_error_trap_pop (display->x11_display);
+  mtk_x11_error_trap_pop (xdisplay);
 
-#ifdef COGL_HAS_TRACING
+#ifdef HAVE_PROFILER
   if (G_UNLIKELY (cogl_is_tracing_enabled ()))
     {
       g_autofree char *description = NULL;
@@ -395,7 +394,6 @@ do_send_frame_drawn (MetaSyncCounter *sync_counter,
                                      frame->sync_request_serial);
       COGL_TRACE_DESCRIBE (MetaWindowActorX11FrameDrawn,
                            description);
-      COGL_TRACE_END (MetaWindowActorX11FrameDrawn);
     }
 #endif
 }
@@ -411,8 +409,8 @@ do_send_frame_timings (MetaSyncCounter *sync_counter,
   Display *xdisplay = meta_x11_display_get_xdisplay (display->x11_display);
   XClientMessageEvent ev = { 0, };
 
-  COGL_TRACE_BEGIN (MetaWindowActorX11FrameTimings,
-                    "X11: Send _NET_WM_FRAME_TIMINGS");
+  COGL_TRACE_BEGIN_SCOPED (MetaWindowActorX11FrameTimings,
+                           "Meta::SyncCounter::do_send_frame_timings()");
 
   ev.type = ClientMessage;
   ev.window = sync_counter->xwindow;
@@ -440,12 +438,12 @@ do_send_frame_timings (MetaSyncCounter *sync_counter,
   ev.data.l[3] = refresh_interval;
   ev.data.l[4] = 1000 * META_SYNC_DELAY;
 
-  meta_x11_error_trap_push (display->x11_display);
+  mtk_x11_error_trap_push (xdisplay);
   XSendEvent (xdisplay, ev.window, False, 0, (XEvent *) &ev);
   XFlush (xdisplay);
-  meta_x11_error_trap_pop (display->x11_display);
+  mtk_x11_error_trap_pop (xdisplay);
 
-#ifdef COGL_HAS_TRACING
+#ifdef HAVE_PROFILER
   if (G_UNLIKELY (cogl_is_tracing_enabled ()))
     {
       g_autofree char *description = NULL;
@@ -458,7 +456,6 @@ do_send_frame_timings (MetaSyncCounter *sync_counter,
                          frame->sync_request_serial,
                          presentation_time);
       COGL_TRACE_DESCRIBE (MetaWindowActorX11FrameTimings, description);
-      COGL_TRACE_END (MetaWindowActorX11FrameTimings);
     }
 #endif
 }

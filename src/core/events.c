@@ -253,7 +253,9 @@ meta_display_handle_event (MetaDisplay        *display,
 #endif
 
   COGL_TRACE_BEGIN_SCOPED (MetaDisplayHandleEvent,
-                           "MetaDisplay (handle event)");
+                           "Meta::Display::handle_event()");
+  COGL_TRACE_DESCRIBE (MetaDisplayHandleEvent,
+                       clutter_event_get_name (event));
 
   has_grab = stage_has_grab (display);
 

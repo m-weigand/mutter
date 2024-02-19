@@ -1,4 +1,4 @@
-#include "cogl-config.h"
+#include "config.h"
 
 #include "cogl/cogl.h"
 #include "cogl/driver/gl/cogl-pipeline-vertend-glsl-private.h"
@@ -61,7 +61,7 @@ test_pipeline_vertend_glsl_point_size_shader (void)
   g_assert (shader_states[0] == shader_states[3]);
 
   for (i = 0; i < G_N_ELEMENTS (pipelines); i++)
-    cogl_object_unref (pipelines[i]);
+    g_object_unref (pipelines[i]);
 }
 
 COGL_TEST_SUITE (

@@ -26,13 +26,7 @@
  * SOFTWARE.
  */
 
-#include "cogl-config.h"
-
-/* This is needed to get the Pango headers to export stuff needed to
-   subclass */
-#ifndef PANGO_ENABLE_BACKEND
-#define PANGO_ENABLE_BACKEND 1
-#endif
+#include "config.h"
 
 #include <pango/pango-fontmap.h>
 #include <pango/pangocairo.h>
@@ -56,7 +50,7 @@ free_priv (gpointer data)
 {
   CoglPangoFontMapPriv *priv = data;
 
-  cogl_object_unref (priv->ctx);
+  g_object_unref (priv->ctx);
   g_object_unref (priv->renderer);
 
   g_free (priv);
@@ -70,7 +64,7 @@ cogl_pango_font_map_new (void)
 
   _COGL_GET_CONTEXT (context, NULL);
 
-  priv->ctx = cogl_object_ref (context);
+  priv->ctx = g_object_ref (context);
 
   /* XXX: The public pango api doesn't let us sub-class
    * PangoCairoFontMap so we attach our own private data using qdata
@@ -88,13 +82,7 @@ cogl_pango_font_map_create_context (CoglPangoFontMap *fm)
 {
   g_return_val_if_fail (COGL_PANGO_IS_FONT_MAP (fm), NULL);
 
-#if PANGO_VERSION_CHECK (1, 22, 0)
-  /* We can just directly use the pango context from the Cairo font
-     map */
   return pango_font_map_create_context (PANGO_FONT_MAP (fm));
-#else
-  return pango_cairo_font_map_create_context (PANGO_CAIRO_FONT_MAP (fm));
-#endif
 }
 
 static CoglPangoFontMapPriv *

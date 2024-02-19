@@ -39,12 +39,8 @@ typedef enum _MetaKmsAssignPlaneFlag
   META_KMS_ASSIGN_PLANE_FLAG_NONE = 0,
   META_KMS_ASSIGN_PLANE_FLAG_FB_UNCHANGED = 1 << 0,
   META_KMS_ASSIGN_PLANE_FLAG_ALLOW_FAIL = 1 << 1,
+  META_KMS_ASSIGN_PLANE_FLAG_DIRECT_SCANOUT = 1 << 2,
 } MetaKmsAssignPlaneFlag;
-
-enum _MetaKmsPageFlipListenerFlag
-{
-  META_KMS_PAGE_FLIP_LISTENER_FLAG_NONE = 0,
-};
 
 struct _MetaKmsPageFlipListenerVtable
 {
@@ -138,6 +134,10 @@ void meta_kms_update_set_hdr_metadata (MetaKmsUpdate         *update,
                                        MetaKmsConnector      *connector,
                                        MetaOutputHdrMetadata *metadata);
 
+void meta_kms_update_set_broadcast_rgb (MetaKmsUpdate      *update,
+                                        MetaKmsConnector   *connector,
+                                        MetaOutputRGBRange  rgb_range);
+
 META_EXPORT_TEST
 void meta_kms_update_set_power_save (MetaKmsUpdate *update);
 
@@ -173,7 +173,6 @@ META_EXPORT_TEST
 void meta_kms_update_add_page_flip_listener (MetaKmsUpdate                       *update,
                                              MetaKmsCrtc                         *crtc,
                                              const MetaKmsPageFlipListenerVtable *vtable,
-                                             MetaKmsPageFlipListenerFlag          flags,
                                              GMainContext                        *main_context,
                                              gpointer                             user_data,
                                              GDestroyNotify                       destroy_notify);
@@ -201,19 +200,25 @@ void meta_kms_update_merge_from (MetaKmsUpdate *update,
 static inline MetaFixed16
 meta_fixed_16_from_int (int16_t d)
 {
-  return d * 65536;
+  return d * (1 << 16);
 }
 
 static inline int16_t
 meta_fixed_16_to_int (MetaFixed16 fixed)
 {
-  return fixed / 65536;
+  return fixed / (1 << 16);
+}
+
+static inline MetaFixed16
+meta_fixed_16_from_double (double d)
+{
+  return d * (1 << 16);
 }
 
 static inline double
 meta_fixed_16_to_double (MetaFixed16 fixed)
 {
-  return fixed / 65536.0;
+  return fixed / (double) (1 << 16);
 }
 
 static inline MtkRectangle

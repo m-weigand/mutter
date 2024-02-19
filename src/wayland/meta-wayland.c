@@ -97,8 +97,10 @@ typedef struct
 
   MetaWaylandCompositor *compositor;
   ClutterStageView *stage_view;
-  int64_t target_presentation_time_us;
 } FrameCallbackSource;
+
+static void meta_wayland_compositor_update_focus (MetaWaylandCompositor *compositor,
+                                                  MetaWindow            *window);
 
 static gboolean
 wayland_event_source_prepare (GSource *base,
@@ -189,6 +191,7 @@ emit_frame_callbacks_for_stage_view (MetaWaylandCompositor *compositor,
     }
 }
 
+#ifdef HAVE_NATIVE_BACKEND
 static gboolean
 frame_callback_source_dispatch (GSource     *source,
                                 GSourceFunc  callback,
@@ -279,6 +282,7 @@ ensure_source_for_stage_view (MetaWaylandCompositor *compositor,
 
   return source;
 }
+#endif /* HAVE_NATIVE_BACKEND */
 
 static void
 on_after_update (ClutterStage          *stage,
@@ -289,10 +293,8 @@ on_after_update (ClutterStage          *stage,
 #if defined(HAVE_NATIVE_BACKEND)
   MetaContext *context = meta_wayland_compositor_get_context (compositor);
   MetaBackend *backend = meta_context_get_backend (context);
-  MetaFrameNative *frame_native;
-  FrameCallbackSource *frame_callback_source;
   GSource *source;
-  int64_t min_render_time_allowed_us;
+  int64_t frame_deadline_us;
 
   if (!META_IS_BACKEND_NATIVE (backend))
     {
@@ -300,47 +302,29 @@ on_after_update (ClutterStage          *stage,
       return;
     }
 
-  frame_native = meta_frame_native_from_frame (frame);
-
   source = ensure_source_for_stage_view (compositor, stage_view);
-  frame_callback_source = (FrameCallbackSource *) source;
 
-  if (meta_frame_native_had_kms_update (frame_native) ||
-      !clutter_frame_get_min_render_time_allowed (frame,
-                                                  &min_render_time_allowed_us))
+  if (clutter_frame_get_result (frame) ==
+      CLUTTER_FRAME_RESULT_PENDING_PRESENTED ||
+      !clutter_frame_get_frame_deadline (frame,
+                                         &frame_deadline_us))
     {
       g_source_set_ready_time (source, -1);
       emit_frame_callbacks_for_stage_view (compositor, stage_view);
+      return;
     }
-  else
+
+  if (frame_deadline_us <= g_get_monotonic_time ())
     {
-      int64_t target_presentation_time_us;
-      int64_t source_ready_time_us;
-
-      if (!clutter_frame_get_target_presentation_time (frame,
-                                                       &target_presentation_time_us))
-        target_presentation_time_us = 0;
-
-      if (g_source_get_ready_time (source) != -1 &&
-          frame_callback_source->target_presentation_time_us <
-          target_presentation_time_us)
-        emit_frame_callbacks_for_stage_view (compositor, stage_view);
-
-      source_ready_time_us = target_presentation_time_us -
-                             min_render_time_allowed_us;
-
-      if (source_ready_time_us <= g_get_monotonic_time ())
-        {
-          g_source_set_ready_time (source, -1);
-          emit_frame_callbacks_for_stage_view (compositor, stage_view);
-        }
-      else
-        {
-          frame_callback_source->target_presentation_time_us =
-            target_presentation_time_us;
-          g_source_set_ready_time (source, source_ready_time_us);
-        }
+      g_source_set_ready_time (source, -1);
+      emit_frame_callbacks_for_stage_view (compositor, stage_view);
+      return;
     }
+
+  if (g_source_get_ready_time (source) != -1)
+    return;
+
+  g_source_set_ready_time (source, frame_deadline_us);
 #else
   emit_frame_callbacks_for_stage_view (compositor, stage_view);
 #endif
@@ -461,6 +445,18 @@ on_presented (ClutterStage          *stage,
                                                   frame_info,
                                                   output);
     }
+}
+
+static void
+on_started (MetaContext           *context,
+            MetaWaylandCompositor *compositor)
+{
+  MetaDisplay *display = meta_context_get_display (context);
+
+  g_signal_connect_object (display, "focus-window",
+                           G_CALLBACK (meta_wayland_compositor_update_focus),
+                           compositor,
+                           G_CONNECT_SWAPPED);
 }
 
 /**
@@ -778,6 +774,9 @@ meta_wayland_compositor_new (MetaContext *context)
   g_signal_connect (stage, "presented",
                     G_CALLBACK (on_presented), compositor);
 
+  g_signal_connect (context, "started",
+                    G_CALLBACK (on_started), compositor);
+
   if (!wl_global_create (compositor->wayland_display,
                          &wl_compositor_interface,
                          META_WL_COMPOSITOR_VERSION,
@@ -1069,4 +1068,38 @@ MetaWaylandTextInput *
 meta_wayland_compositor_get_text_input (MetaWaylandCompositor *compositor)
 {
   return compositor->seat->text_input;
+}
+
+static void
+meta_wayland_compositor_update_focus (MetaWaylandCompositor *compositor,
+                                      MetaWindow            *window)
+{
+  MetaContext *context = meta_wayland_compositor_get_context (compositor);
+  MetaDisplay *display = meta_context_get_display (context);
+  MetaWindow *focus_window = NULL;
+
+  /* Compositor not ready yet */
+  if (!compositor->seat)
+    return;
+
+  if (!display || !meta_display_windows_are_interactable (display))
+    focus_window = NULL;
+  else if (!window)
+    focus_window = NULL;
+  else if (window && meta_window_get_wayland_surface (window))
+    focus_window = window;
+  else
+    meta_topic (META_DEBUG_FOCUS, "Focus change has no effect, because there is no matching wayland surface");
+
+  meta_wayland_compositor_set_input_focus (compositor, focus_window);
+}
+
+void
+meta_wayland_compositor_sync_focus (MetaWaylandCompositor *compositor)
+{
+  MetaContext *context = meta_wayland_compositor_get_context (compositor);
+  MetaDisplay *display = meta_context_get_display (context);
+
+  meta_wayland_compositor_update_focus (compositor,
+                                        display ? display->focus_window : NULL);
 }

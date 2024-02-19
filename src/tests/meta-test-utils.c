@@ -766,18 +766,43 @@ meta_set_custom_monitor_config_full (MetaBackend            *backend,
   MetaMonitorConfigManager *config_manager = monitor_manager->config_manager;
   MetaMonitorConfigStore *config_store;
   GError *error = NULL;
-  const char *path;
+  g_autofree char *path = NULL;
 
   g_assert_nonnull (config_manager);
 
   config_store = meta_monitor_config_manager_get_store (config_manager);
 
-  path = g_test_get_filename (G_TEST_DIST, "tests", "monitor-configs",
-                              filename, NULL);
+  path = g_test_build_filename (G_TEST_DIST, "tests", "monitor-configs",
+                                filename, NULL);
   if (!meta_monitor_config_store_set_custom (config_store, path, NULL,
                                              configs_flags,
                                              &error))
     g_warning ("Failed to set custom config: %s", error->message);
+}
+
+static void
+set_true_cb (gpointer user_data)
+{
+  gboolean *value = user_data;
+
+  *value = TRUE;
+}
+
+void
+meta_wait_for_monitors_changed (MetaContext *context)
+{
+  MetaBackend *backend = meta_context_get_backend (context);
+  MetaMonitorManager *monitor_manager = meta_backend_get_monitor_manager (backend);
+  gulong monitors_changed_handler_id;
+  gboolean monitors_changed = FALSE;
+
+  monitors_changed_handler_id =
+    g_signal_connect_swapped (monitor_manager, "monitors-changed",
+                              G_CALLBACK (set_true_cb), &monitors_changed);
+  while (!monitors_changed)
+    g_main_context_iteration (NULL, TRUE);
+
+  g_signal_handler_disconnect (monitor_manager, monitors_changed_handler_id);
 }
 
 static void
@@ -789,23 +814,37 @@ on_view_presented (ClutterStage      *stage,
   *presented_views = g_list_remove (*presented_views, view);
 }
 
+static void
+raise_error (const char *message)
+{
+  g_error ("%s", message);
+}
+
 void
 meta_wait_for_paint (MetaContext *context)
 {
   MetaBackend *backend = meta_context_get_backend (context);
   ClutterActor *stage = meta_backend_get_stage (backend);
   MetaRenderer *renderer = meta_backend_get_renderer (backend);
+  MetaMonitorManager *monitor_manager = meta_backend_get_monitor_manager (backend);
   GList *views;
-  gulong handler_id;
+  gulong presented_handler_id;
+  gulong monitors_changed_handler_id;
+
+  monitors_changed_handler_id =
+    g_signal_connect_swapped (monitor_manager, "monitors-changed",
+                              G_CALLBACK (raise_error),
+                              (char *) "Monitors changed while waiting for paint");
 
   clutter_actor_queue_redraw (stage);
 
   views = g_list_copy (meta_renderer_get_views (renderer));
-  handler_id = g_signal_connect (stage, "presented",
-                                 G_CALLBACK (on_view_presented), &views);
+  presented_handler_id = g_signal_connect (stage, "presented",
+                                           G_CALLBACK (on_view_presented), &views);
   while (views)
     g_main_context_iteration (NULL, TRUE);
-  g_signal_handler_disconnect (stage, handler_id);
+  g_signal_handler_disconnect (stage, presented_handler_id);
+  g_signal_handler_disconnect (monitor_manager, monitors_changed_handler_id);
 }
 
 MetaVirtualMonitor *

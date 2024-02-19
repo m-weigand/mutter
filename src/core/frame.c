@@ -29,8 +29,9 @@
 #include "compositor/compositor-private.h"
 #include "core/bell.h"
 #include "core/keybindings-private.h"
-#include "meta/meta-x11-errors.h"
+#include "mtk/mtk-x11.h"
 #include "x11/meta-x11-display-private.h"
+#include "x11/window-x11.h"
 #include "x11/window-props.h"
 
 #include <X11/Xatom.h>
@@ -46,15 +47,15 @@ meta_window_ensure_frame (MetaWindow *window)
   MetaX11Display *x11_display = window->display->x11_display;
   unsigned long data[1] = { 1 };
 
-  meta_x11_error_trap_push (x11_display);
+  mtk_x11_error_trap_push (x11_display->xdisplay);
 
   XChangeProperty (x11_display->xdisplay,
-                   window->xwindow,
+                   meta_window_x11_get_xwindow (window),
                    x11_display->atom__MUTTER_NEEDS_FRAME,
                    XA_CARDINAL,
                    32, PropModeReplace, (guchar*) data, 1);
 
-  meta_x11_error_trap_pop (x11_display);
+  mtk_x11_error_trap_pop (x11_display->xdisplay);
 }
 
 void
@@ -102,7 +103,7 @@ meta_window_set_frame_xwindow (MetaWindow *window,
 
   meta_verbose ("Frame for %s is 0x%lx", frame->window->desc, frame->xwindow);
 
-  meta_x11_error_trap_push (x11_display);
+  mtk_x11_error_trap_push (x11_display->xdisplay);
 
   attrs.event_mask = EVENT_MASK;
   XChangeWindowAttributes (x11_display->xdisplay,
@@ -124,16 +125,16 @@ meta_window_set_frame_xwindow (MetaWindow *window,
     }
 
   meta_stack_tracker_record_remove (window->display->stack_tracker,
-                                    window->xwindow,
+                                    meta_window_x11_get_xwindow (window),
                                     XNextRequest (x11_display->xdisplay));
   XReparentWindow (x11_display->xdisplay,
-                   window->xwindow,
+                   meta_window_x11_get_xwindow (window),
                    frame->xwindow,
                    frame->child_x,
                    frame->child_y);
   window->reparents_pending += 1;
   /* FIXME handle this error */
-  meta_x11_error_trap_pop (x11_display);
+  mtk_x11_error_trap_pop (x11_display->xdisplay);
 
   /* Ensure focus is restored after the unmap/map events triggered
    * by XReparentWindow().
@@ -151,9 +152,9 @@ meta_window_set_frame_xwindow (MetaWindow *window,
                                             x11_display->atom__NET_WM_OPAQUE_REGION,
                                             TRUE);
 
-  meta_x11_error_trap_push (x11_display);
+  mtk_x11_error_trap_push (x11_display->xdisplay);
   XMapWindow (x11_display->xdisplay, frame->xwindow);
-  meta_x11_error_trap_pop (x11_display);
+  mtk_x11_error_trap_pop (x11_display->xdisplay);
 
   /* Move keybindings to frame instead of window */
   meta_window_grab_keys (window);
@@ -186,7 +187,7 @@ meta_window_destroy_frame (MetaWindow *window)
   /* Unparent the client window; it may be destroyed,
    * thus the error trap.
    */
-  meta_x11_error_trap_push (x11_display);
+  mtk_x11_error_trap_push (x11_display->xdisplay);
   if (window->mapped)
     {
       window->mapped = FALSE; /* Keep track of unmapping it, so we
@@ -203,12 +204,12 @@ meta_window_destroy_frame (MetaWindow *window)
       if (!window->unmanaging)
         {
           meta_stack_tracker_record_add (window->display->stack_tracker,
-                                         window->xwindow,
+                                         meta_window_x11_get_xwindow (window),
                                          XNextRequest (x11_display->xdisplay));
         }
 
       XReparentWindow (x11_display->xdisplay,
-                       window->xwindow,
+                       meta_window_x11_get_xwindow (window),
                        x11_display->xroot,
                        /* Using anything other than client root window coordinates
                         * coordinates here means we'll need to ensure a configure
@@ -223,10 +224,10 @@ meta_window_destroy_frame (MetaWindow *window)
     XShapeSelectInput (x11_display->xdisplay, frame->xwindow, NoEventMask);
 
   XDeleteProperty (x11_display->xdisplay,
-                   window->xwindow,
+                   meta_window_x11_get_xwindow (window),
                    x11_display->atom__MUTTER_NEEDS_FRAME);
 
-  meta_x11_error_trap_pop (x11_display);
+  mtk_x11_error_trap_pop (x11_display->xdisplay);
 
   /* Ensure focus is restored after the unmap/map events triggered
    * by XReparentWindow().
@@ -237,13 +238,8 @@ meta_window_destroy_frame (MetaWindow *window)
   meta_x11_display_unregister_x_window (x11_display, frame->xwindow);
 
   window->frame = NULL;
-  if (window->frame_bounds)
-    {
-      cairo_region_destroy (window->frame_bounds);
-      window->frame_bounds = NULL;
-    }
-
-  g_clear_pointer (&frame->opaque_region, cairo_region_destroy);
+  g_clear_pointer (&window->frame_bounds, mtk_region_unref);
+  g_clear_pointer (&frame->opaque_region, mtk_region_unref);
 
   /* Move keybindings to window instead of frame */
   meta_window_grab_keys (window);
@@ -283,7 +279,7 @@ meta_frame_query_borders (MetaFrame        *frame,
   if (!frame->xwindow)
     return;
 
-  meta_x11_error_trap_push (x11_display);
+  mtk_x11_error_trap_push (x11_display->xdisplay);
 
   res = XGetWindowProperty (x11_display->xdisplay,
                             frame->xwindow,
@@ -294,7 +290,7 @@ meta_frame_query_borders (MetaFrame        *frame,
                             &nitems, &bytes_after,
                             (unsigned char **) &data);
 
-  if (meta_x11_error_trap_pop_with_return (x11_display) != Success)
+  if (mtk_x11_error_trap_pop_with_return (x11_display->xdisplay) != Success)
     return;
 
   if (res == Success && nitems == 4)
@@ -309,7 +305,7 @@ meta_frame_query_borders (MetaFrame        *frame,
 
   g_clear_pointer (&data, XFree);
 
-  meta_x11_error_trap_push (x11_display);
+  mtk_x11_error_trap_push (x11_display->xdisplay);
 
   res = XGetWindowProperty (x11_display->xdisplay,
                             frame->xwindow,
@@ -320,7 +316,7 @@ meta_frame_query_borders (MetaFrame        *frame,
                             &nitems, &bytes_after,
                             (unsigned char **) &data);
 
-  if (meta_x11_error_trap_pop_with_return (x11_display) != Success)
+  if (mtk_x11_error_trap_pop_with_return (x11_display->xdisplay) != Success)
     return;
 
   if (res == Success && nitems == 4)
@@ -383,7 +379,7 @@ meta_frame_sync_to_window (MetaFrame *frame,
               frame->rect.x + frame->rect.width,
               frame->rect.y + frame->rect.height);
 
-  meta_x11_error_trap_push (x11_display);
+  mtk_x11_error_trap_push (x11_display->xdisplay);
 
   XMoveResizeWindow (x11_display->xdisplay,
                      frame->xwindow,
@@ -392,22 +388,22 @@ meta_frame_sync_to_window (MetaFrame *frame,
                      frame->rect.width,
                      frame->rect.height);
 
-  meta_x11_error_trap_pop (x11_display);
+  mtk_x11_error_trap_pop (x11_display->xdisplay);
 
   return need_resize;
 }
 
-cairo_region_t *
+MtkRegion *
 meta_frame_get_frame_bounds (MetaFrame *frame)
 {
   MetaFrameBorders borders;
-  cairo_region_t *bounds;
+  MtkRegion *bounds;
 
   meta_frame_calc_borders (frame, &borders);
   /* FIXME: currently just the client area, should shape closer to
    * frame border, incl. rounded corners.
    */
-  bounds = cairo_region_create_rectangle (&(MtkRectangle) {
+  bounds = mtk_region_create_rectangle (&(MtkRectangle) {
     borders.total.left,
     borders.total.top,
     frame->rect.width - borders.total.left - borders.total.right,
@@ -461,11 +457,11 @@ send_configure_notify (MetaFrame *frame)
   event.xconfigure.above = None;
   event.xconfigure.override_redirect = False;
 
-  meta_x11_error_trap_push (x11_display);
+  mtk_x11_error_trap_push (x11_display->xdisplay);
   XSendEvent (x11_display->xdisplay,
               frame->xwindow,
               False, StructureNotifyMask, &event);
-  meta_x11_error_trap_pop (x11_display);
+  mtk_x11_error_trap_pop (x11_display->xdisplay);
 }
 
 gboolean
@@ -583,18 +579,18 @@ meta_frame_get_sync_counter (MetaFrame *frame)
 }
 
 void
-meta_frame_set_opaque_region (MetaFrame      *frame,
-                              cairo_region_t *region)
+meta_frame_set_opaque_region (MetaFrame *frame,
+                              MtkRegion *region)
 {
   MetaWindow *window = frame->window;
 
-  if (cairo_region_equal (frame->opaque_region, region))
+  if (mtk_region_equal (frame->opaque_region, region))
     return;
 
-  g_clear_pointer (&frame->opaque_region, cairo_region_destroy);
+  g_clear_pointer (&frame->opaque_region, mtk_region_unref);
 
   if (region != NULL)
-    frame->opaque_region = cairo_region_reference (region);
+    frame->opaque_region = mtk_region_ref (region);
 
   meta_compositor_window_shape_changed (window->display->compositor, window);
 }

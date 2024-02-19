@@ -66,6 +66,7 @@ typedef struct _MetaKmsPlaneAssignment
   MetaKmsPlaneRotation rotation;
 
   struct {
+    gboolean has_update;
     gboolean is_valid;
     int x;
     int y;
@@ -109,6 +110,11 @@ typedef struct _MetaKmsConnectorUpdate
     gboolean has_update;
     MetaOutputHdrMetadata value;
   } hdr;
+
+  struct {
+    gboolean has_update;
+    MetaOutputRGBRange value;
+  } broadcast_rgb;
 } MetaKmsConnectorUpdate;
 
 typedef struct _MetaKmsPageFlipListener
@@ -117,7 +123,6 @@ typedef struct _MetaKmsPageFlipListener
 
   MetaKmsCrtc *crtc;
   const MetaKmsPageFlipListenerVtable *vtable;
-  MetaKmsPageFlipListenerFlag flags;
   GMainContext *main_context;
   gpointer user_data;
   GDestroyNotify destroy_notify;

@@ -22,7 +22,6 @@
 #include <string.h>
 
 #include "compositor/cogl-utils.h"
-#include "compositor/region-utils.h"
 #include "meta/meta-shadow-factory.h"
 #include "meta/util.h"
 
@@ -167,8 +166,8 @@ meta_shadow_unref (MetaShadow *shadow)
         }
 
       meta_window_shape_unref (shadow->key.shape);
-      cogl_object_unref (shadow->texture);
-      cogl_object_unref (shadow->pipeline);
+      g_object_unref (shadow->texture);
+      g_object_unref (shadow->pipeline);
 
       g_free (shadow);
     }
@@ -200,7 +199,7 @@ meta_shadow_paint (MetaShadow      *shadow,
                    int              window_width,
                    int              window_height,
                    guint8           opacity,
-                   cairo_region_t  *clip,
+                   MtkRegion       *clip,
                    gboolean         clip_strictly)
 {
   float texture_width = cogl_texture_get_width (shadow->texture);
@@ -212,7 +211,7 @@ meta_shadow_paint (MetaShadow      *shadow,
   int dest_y[4];
   int n_x, n_y;
 
-  if (clip && cairo_region_is_empty (clip))
+  if (clip && mtk_region_is_empty (clip))
     return;
 
   cogl_pipeline_set_color4ub (shadow->pipeline,
@@ -279,7 +278,7 @@ meta_shadow_paint (MetaShadow      *shadow,
 
       for (i = 0; i < n_x; i++)
         {
-          cairo_region_overlap_t overlap;
+          MtkRegionOverlap overlap;
 
           dest_rect.x = dest_x[i];
           dest_rect.width = dest_x[i + 1] - dest_x[i];
@@ -288,11 +287,11 @@ meta_shadow_paint (MetaShadow      *shadow,
             continue;
 
           if (clip)
-            overlap = cairo_region_contains_rectangle (clip, &dest_rect);
+            overlap = mtk_region_contains_rectangle (clip, &dest_rect);
           else
-            overlap = CAIRO_REGION_OVERLAP_IN;
+            overlap = MTK_REGION_OVERLAP_IN;
 
-          if (overlap == CAIRO_REGION_OVERLAP_OUT)
+          if (overlap == MTK_REGION_OVERLAP_OUT)
             continue;
 
           /* There's quite a bit of overhead from allocating a new
@@ -301,8 +300,8 @@ meta_shadow_paint (MetaShadow      *shadow,
            * unless we have to clip strictly it will be cheaper to
            * just draw the entire rectangle.
            */
-          if (overlap == CAIRO_REGION_OVERLAP_IN ||
-              (overlap == CAIRO_REGION_OVERLAP_PART && !clip_strictly))
+          if (overlap == MTK_REGION_OVERLAP_IN ||
+              (overlap == MTK_REGION_OVERLAP_PART && !clip_strictly))
             {
               cogl_framebuffer_draw_textured_rectangle (framebuffer,
                                                         shadow->pipeline,
@@ -311,21 +310,21 @@ meta_shadow_paint (MetaShadow      *shadow,
                                                         src_x[i], src_y[j],
                                                         src_x[i + 1], src_y[j + 1]);
             }
-          else if (overlap == CAIRO_REGION_OVERLAP_PART)
+          else if (overlap == MTK_REGION_OVERLAP_PART)
             {
-              cairo_region_t *intersection;
+              g_autoptr (MtkRegion) intersection = NULL;
               int n_rectangles, k;
 
-              intersection = cairo_region_create_rectangle (&dest_rect);
-              cairo_region_intersect (intersection, clip);
+              intersection = mtk_region_create_rectangle (&dest_rect);
+              mtk_region_intersect (intersection, clip);
 
-              n_rectangles = cairo_region_num_rectangles (intersection);
+              n_rectangles = mtk_region_num_rectangles (intersection);
               for (k = 0; k < n_rectangles; k++)
                 {
                   MtkRectangle rect;
                   float src_x1, src_x2, src_y1, src_y2;
 
-                  cairo_region_get_rectangle (intersection, k, &rect);
+                  rect = mtk_region_get_rectangle (intersection, k);
 
                   /* Separately linear interpolate X and Y coordinates in the source
                    * based on the destination X and Y coordinates */
@@ -346,8 +345,6 @@ meta_shadow_paint (MetaShadow      *shadow,
                                                             rect.x + rect.width, rect.y + rect.height,
                                                             src_x1, src_y1, src_x2, src_y2);
                 }
-
-              cairo_region_destroy (intersection);
             }
         }
     }
@@ -565,13 +562,13 @@ blur_xspan (guchar *row,
 }
 
 static void
-blur_rows (cairo_region_t   *convolve_region,
-           int               x_offset,
-           int               y_offset,
-           guchar           *buffer,
-           int               buffer_width,
-           int               buffer_height,
-           int               d)
+blur_rows (MtkRegion *convolve_region,
+           int        x_offset,
+           int        y_offset,
+           guchar    *buffer,
+           int        buffer_width,
+           int        buffer_height,
+           int        d)
 {
   int i, j;
   int n_rectangles;
@@ -579,12 +576,12 @@ blur_rows (cairo_region_t   *convolve_region,
 
   tmp_buffer = g_malloc (buffer_width);
 
-  n_rectangles = cairo_region_num_rectangles (convolve_region);
+  n_rectangles = mtk_region_num_rectangles (convolve_region);
   for (i = 0; i < n_rectangles; i++)
     {
       MtkRectangle rect;
 
-      cairo_region_get_rectangle (convolve_region, i, &rect);
+      rect = mtk_region_get_rectangle (convolve_region, i);
 
       for (j = y_offset + rect.y; j < y_offset + rect.y + rect.height; j++)
         {
@@ -702,8 +699,146 @@ flip_buffer (guchar *buffer,
 }
 
 static void
-make_shadow (MetaShadow     *shadow,
-             cairo_region_t *region)
+add_expanded_rect (MtkRegionBuilder *builder,
+                   int               x,
+                   int               y,
+                   int               width,
+                   int               height,
+                   int               x_amount,
+                   int               y_amount,
+                   gboolean          flip)
+{
+  if (flip)
+    mtk_region_builder_add_rectangle (builder,
+                                      y - y_amount, x - x_amount,
+                                      height + 2 * y_amount, width + 2 * x_amount);
+  else
+    mtk_region_builder_add_rectangle (builder,
+                                      x - x_amount, y - y_amount,
+                                      width + 2 * x_amount, height + 2 * y_amount);
+}
+
+static MtkRegion *
+expand_region (MtkRegion *region,
+               int        x_amount,
+               int        y_amount,
+               gboolean   flip)
+{
+  MtkRegionBuilder builder;
+  int n;
+  int i;
+
+  mtk_region_builder_init (&builder);
+
+  n = mtk_region_num_rectangles (region);
+  for (i = 0; i < n; i++)
+    {
+      MtkRectangle rect;
+
+      rect = mtk_region_get_rectangle (region, i);
+      add_expanded_rect (&builder,
+                         rect.x, rect.y, rect.width, rect.height,
+                         x_amount, y_amount, flip);
+    }
+
+  return mtk_region_builder_finish (&builder);
+}
+
+/* This computes a (clipped version) of the inverse of the region
+ * and expands it by the given amount */
+static MtkRegion *
+expand_region_inverse (MtkRegion *region,
+                       int        x_amount,
+                       int        y_amount,
+                       gboolean   flip)
+{
+  MtkRegionBuilder builder;
+  MtkRegionIterator iter;
+  MtkRectangle extents;
+  int last_x;
+
+  mtk_region_builder_init (&builder);
+
+  extents = mtk_region_get_extents (region);
+  add_expanded_rect (&builder,
+                     extents.x, extents.y - 1, extents.width, 1,
+                     x_amount, y_amount, flip);
+  add_expanded_rect (&builder,
+                     extents.x - 1, extents.y, 1, extents.height,
+                     x_amount, y_amount, flip);
+  add_expanded_rect (&builder,
+                     extents.x + extents.width, extents.y, 1, extents.height,
+                     x_amount, y_amount, flip);
+  add_expanded_rect (&builder,
+                     extents.x, extents.y + extents.height, extents.width, 1,
+                     x_amount, y_amount, flip);
+
+  last_x = extents.x;
+  for (mtk_region_iterator_init (&iter, region);
+       !mtk_region_iterator_at_end (&iter);
+       mtk_region_iterator_next (&iter))
+    {
+      if (iter.rectangle.x > last_x)
+        add_expanded_rect (&builder,
+                           last_x, iter.rectangle.y,
+                           iter.rectangle.x - last_x, iter.rectangle.height,
+                           x_amount, y_amount, flip);
+
+      if (iter.line_end)
+        {
+          if (extents.x + extents.width > iter.rectangle.x + iter.rectangle.width)
+            add_expanded_rect (&builder,
+                               iter.rectangle.x + iter.rectangle.width, iter.rectangle.y,
+                               (extents.x + extents.width) - (iter.rectangle.x + iter.rectangle.width), iter.rectangle.height,
+                               x_amount, y_amount, flip);
+          last_x = extents.x;
+        }
+      else
+        {
+          last_x = iter.rectangle.x + iter.rectangle.width;
+        }
+    }
+
+  return mtk_region_builder_finish (&builder);
+}
+
+/**
+ * make_border_region:
+ * @region: a #MtkRegion
+ * @x_amount: distance from the border to extend horizontally
+ * @y_amount: distance from the border to extend vertically
+ * @flip: if true, the result is computed with x and y interchanged
+ *
+ * Computes the "border region" of a given region, which is roughly
+ * speaking the set of points near the boundary of the region.  If we
+ * define the operation of growing a region as computing the set of
+ * points within a given manhattan distance of the region, then the
+ * border is 'grow(region) intersect grow(inverse(region))'.
+ *
+ * If we create an image by filling the region with a solid color,
+ * the border is the region affected by blurring the region.
+ *
+ * Return value: a new region which is the border of the given region
+ */
+static MtkRegion *
+make_border_region (MtkRegion *region,
+                    int        x_amount,
+                    int        y_amount,
+                    gboolean   flip)
+{
+  g_autoptr (MtkRegion) border_region = NULL;
+  g_autoptr (MtkRegion) inverse_region = NULL;
+
+  border_region = expand_region (region, x_amount, y_amount, flip);
+  inverse_region = expand_region_inverse (region, x_amount, y_amount, flip);
+  mtk_region_intersect (border_region, inverse_region);
+
+  return g_steal_pointer (&border_region);
+}
+
+static void
+make_shadow (MetaShadow *shadow,
+             MtkRegion  *region)
 {
   ClutterBackend *backend = clutter_get_default_backend ();
   CoglContext *ctx = clutter_backend_get_cogl_context (backend);
@@ -711,8 +846,8 @@ make_shadow (MetaShadow     *shadow,
   int d = get_box_filter_size (shadow->key.radius);
   int spread = get_shadow_spread (shadow->key.radius);
   MtkRectangle extents;
-  cairo_region_t *row_convolve_region;
-  cairo_region_t *column_convolve_region;
+  g_autoptr (MtkRegion) row_convolve_region = NULL;
+  g_autoptr (MtkRegion) column_convolve_region = NULL;
   guchar *buffer;
   int buffer_width;
   int buffer_height;
@@ -720,7 +855,7 @@ make_shadow (MetaShadow     *shadow,
   int y_offset;
   int n_rectangles, j, k;
 
-  cairo_region_get_extents (region, &extents);
+  extents = mtk_region_get_extents (region);
 
   /* In the case where top_fade >= 0 and the portion above the top
    * edge of the shape will be cropped, it seems like we could create
@@ -752,20 +887,20 @@ make_shadow (MetaShadow     *shadow,
    * large shadow sizes) we can improve efficiency by restricting the blur
    * to the region that actually needs to be blurred.
    */
-  row_convolve_region = meta_make_border_region (region, spread, spread, FALSE);
-  column_convolve_region = meta_make_border_region (region, 0, spread, TRUE);
+  row_convolve_region = make_border_region (region, spread, spread, FALSE);
+  column_convolve_region = make_border_region (region, 0, spread, TRUE);
 
   /* Offsets between coordinates of the regions and coordinates in the buffer */
   x_offset = spread;
   y_offset = spread;
 
   /* Step 1: unblurred image */
-  n_rectangles = cairo_region_num_rectangles (region);
+  n_rectangles = mtk_region_num_rectangles (region);
   for (k = 0; k < n_rectangles; k++)
     {
       MtkRectangle rect;
 
-      cairo_region_get_rectangle (region, k, &rect);
+      rect = mtk_region_get_rectangle (region, k);
       for (j = y_offset + rect.y; j < y_offset + rect.y + rect.height; j++)
         memset (buffer + buffer_width * j + x_offset + rect.x, 255, rect.width);
     }
@@ -797,15 +932,15 @@ make_shadow (MetaShadow     *shadow,
    * in the case of top_fade >= 0. We also account for padding at the left for symmetry
    * though that doesn't currently occur.
    */
-  shadow->texture = COGL_TEXTURE (cogl_texture_2d_new_from_data (ctx,
-                                                                 shadow->outer_border_left + extents.width + shadow->outer_border_right,
-                                                                 shadow->outer_border_top + extents.height + shadow->outer_border_bottom,
-                                                                 COGL_PIXEL_FORMAT_A_8,
-                                                                 buffer_width,
-                                                                 (buffer +
-                                                                  (y_offset - shadow->outer_border_top) * buffer_width +
-                                                                  (x_offset - shadow->outer_border_left)),
-                                                                 &error));
+  shadow->texture = cogl_texture_2d_new_from_data (ctx,
+                                                   shadow->outer_border_left + extents.width + shadow->outer_border_right,
+                                                   shadow->outer_border_top + extents.height + shadow->outer_border_bottom,
+                                                   COGL_PIXEL_FORMAT_A_8,
+                                                   buffer_width,
+                                                   (buffer +
+                                                    (y_offset - shadow->outer_border_top) * buffer_width +
+                                                    (x_offset - shadow->outer_border_left)),
+                                                   &error);
 
   if (error)
     {
@@ -813,8 +948,6 @@ make_shadow (MetaShadow     *shadow,
       g_error_free (error);
     }
 
-  cairo_region_destroy (row_convolve_region);
-  cairo_region_destroy (column_convolve_region);
   g_free (buffer);
 
   shadow->pipeline = meta_create_texture_pipeline (shadow->texture);
@@ -880,7 +1013,7 @@ meta_shadow_factory_get_shadow (MetaShadowFactory *factory,
   MetaShadowParams *params;
   MetaShadowCacheKey key;
   MetaShadow *shadow;
-  cairo_region_t *region;
+  g_autoptr (MtkRegion) region = NULL;
   int spread;
   int shape_border_top, shape_border_right, shape_border_bottom, shape_border_left;
   int inner_border_top, inner_border_right, inner_border_bottom, inner_border_left;
@@ -982,8 +1115,6 @@ meta_shadow_factory_get_shadow (MetaShadowFactory *factory,
 
   region = meta_window_shape_to_region (shape, center_width, center_height);
   make_shadow (shadow, region);
-
-  cairo_region_destroy (region);
 
   if (cacheable)
     g_hash_table_insert (factory->shadows, &shadow->key, shadow);

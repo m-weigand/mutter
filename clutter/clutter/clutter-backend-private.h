@@ -49,9 +49,6 @@ struct _ClutterBackend
 
   gchar *font_name;
 
-  gfloat units_per_em;
-  gint32 units_serial;
-
   float fallback_resource_scale;
 
   ClutterStageWindow *stage_window;
@@ -65,8 +62,6 @@ struct _ClutterBackendClass
   GObjectClass parent_class;
 
   /* vfuncs */
-  gboolean              (* finish_init)        (ClutterBackend  *backend,
-                                                GError         **error);
   ClutterStageWindow *  (* create_stage)       (ClutterBackend  *backend,
                                                 ClutterStage    *wrapper,
                                                 GError         **error);
@@ -94,15 +89,6 @@ ClutterStageWindow *    _clutter_backend_create_stage                   (Clutter
                                                                          GError                **error);
 gboolean                _clutter_backend_create_context                 (ClutterBackend         *backend,
                                                                          GError                **error);
-
-gboolean                _clutter_backend_finish_init                    (ClutterBackend         *backend,
-                                                                         GError                **error);
-
-gfloat                  _clutter_backend_get_units_per_em               (ClutterBackend         *backend,
-                                                                         PangoFontDescription   *font_desc);
-gint32                  _clutter_backend_get_units_serial               (ClutterBackend         *backend);
-
-void                    clutter_set_allowed_drivers                     (const char             *drivers);
 
 CLUTTER_EXPORT
 ClutterStageWindow *    clutter_backend_get_stage_window                (ClutterBackend         *backend);

@@ -15,6 +15,7 @@ cogl_pango_public_headers = [
 ]
 
 cogl_pango_deps = [
+  cairo_dep,
   pango_dep,
   pangocairo_dep,
   libmutter_cogl_dep,
@@ -25,7 +26,7 @@ libmutter_cogl_pango = shared_library('mutter-cogl-pango-' + libmutter_api_versi
   version: '0.0.0',
   soversion: 0,
   c_args: cogl_c_args,
-  include_directories: [cogl_includepath],
+  include_directories: [cogl_includepath, top_includepath],
   gnu_symbol_visibility: 'hidden',
   dependencies: [cogl_pango_deps],
   install_rpath: pkglibdir,
@@ -45,6 +46,7 @@ if have_introspection
     symbol_prefix: 'cogl_pango',
     header: 'cogl-pango.h',
     includes: [
+      libmutter_mtk_gir[0],
       libmutter_cogl_gir[0],
       'Pango-1.0',
       'PangoCairo-1.0'
@@ -59,9 +61,7 @@ if have_introspection
       '-UCOGL_COMPILATION',
       '-DG_LOG_DOMAIN="CoglPango"',
     ],
-    install_dir_gir: pkglibdir,
-    install_dir_typelib: pkglibdir,
-    install: true
+    kwargs: introspection_common,
   )
 endif
 

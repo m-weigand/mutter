@@ -467,44 +467,17 @@ typedef enum /*< prefix=CLUTTER_ALIGN >*/
 } ClutterAlignAxis;
 
 /**
- * ClutterBinAlignment:
- * @CLUTTER_BIN_ALIGNMENT_FIXED: Fixed position alignment; the
- *   #ClutterBinLayout will honour the fixed position provided
- *   by the actors themselves when allocating them
- * @CLUTTER_BIN_ALIGNMENT_FILL: Fill the allocation size
- * @CLUTTER_BIN_ALIGNMENT_START: Position the actors at the top
- *   or left side of the container, depending on the axis
- * @CLUTTER_BIN_ALIGNMENT_END: Position the actors at the bottom
- *   or right side of the container, depending on the axis
- * @CLUTTER_BIN_ALIGNMENT_CENTER: Position the actors at the
- *   center of the container, depending on the axis
- *
- * The alignment policies available on each axis for #ClutterBinLayout
- *
- * Deprecated: 1.12: Use #ClutterActorAlign and the #ClutterActor
- *   API instead
- */
-typedef enum
-{
-  CLUTTER_BIN_ALIGNMENT_FIXED,
-  CLUTTER_BIN_ALIGNMENT_FILL,
-  CLUTTER_BIN_ALIGNMENT_START,
-  CLUTTER_BIN_ALIGNMENT_END,
-  CLUTTER_BIN_ALIGNMENT_CENTER
-} ClutterBinAlignment;
-
-/**
  * ClutterBindCoordinate:
  * @CLUTTER_BIND_X: Bind the X coordinate
  * @CLUTTER_BIND_Y: Bind the Y coordinate
  * @CLUTTER_BIND_WIDTH: Bind the width
  * @CLUTTER_BIND_HEIGHT: Bind the height
  * @CLUTTER_BIND_POSITION: Equivalent to to %CLUTTER_BIND_X and
- *   %CLUTTER_BIND_Y (added in Clutter 1.6)
+ *   %CLUTTER_BIND_Y
  * @CLUTTER_BIND_SIZE: Equivalent to %CLUTTER_BIND_WIDTH and
- *   %CLUTTER_BIND_HEIGHT (added in Clutter 1.6)
+ *   %CLUTTER_BIND_HEIGHT
  * @CLUTTER_BIND_ALL: Equivalent to %CLUTTER_BIND_POSITION and
- *   %CLUTTER_BIND_SIZE (added in Clutter 1.10)
+ *   %CLUTTER_BIND_SIZE
  *
  * Specifies which property should be used in a binding
  */
@@ -536,22 +509,6 @@ typedef enum /*< prefix=CLUTTER_EFFECT_PAINT >*/
   CLUTTER_EFFECT_PAINT_BYPASS_EFFECT = (1 << 1)
 } ClutterEffectPaintFlags;
 
-/**
- * ClutterBoxAlignment:
- * @CLUTTER_BOX_ALIGNMENT_START: Align the child to the top or to
- *   to the left, depending on the used axis
- * @CLUTTER_BOX_ALIGNMENT_CENTER: Align the child to the center
- * @CLUTTER_BOX_ALIGNMENT_END: Align the child to the bottom or to
- *   the right, depending on the used axis
- *
- * The alignment policies available on each axis of the #ClutterBoxLayout
- */
-typedef enum
-{
-  CLUTTER_BOX_ALIGNMENT_START,
-  CLUTTER_BOX_ALIGNMENT_END,
-  CLUTTER_BOX_ALIGNMENT_CENTER
-} ClutterBoxAlignment;
 
 /**
  * ClutterLongPressState:
@@ -674,23 +631,6 @@ typedef enum /*< prefix=CLUTTER_COLOR >*/
 } ClutterStaticColor;
 
 /**
- * ClutterDragAxis:
- * @CLUTTER_DRAG_AXIS_NONE: No constraint
- * @CLUTTER_DRAG_X_AXIS: Set a constraint on the X axis
- * @CLUTTER_DRAG_Y_AXIS: Set a constraint on the Y axis
- *
- * The axis of the constraint that should be applied on the
- * dragging action
- */
-typedef enum /*< prefix=CLUTTER_DRAG >*/
-{
-  CLUTTER_DRAG_AXIS_NONE = 0,
-
-  CLUTTER_DRAG_X_AXIS,
-  CLUTTER_DRAG_Y_AXIS
-} ClutterDragAxis;
-
-/**
  * ClutterEventFlags:
  * @CLUTTER_EVENT_NONE: No flag set
  * @CLUTTER_EVENT_FLAG_SYNTHETIC: Synthetic event
@@ -721,28 +661,20 @@ typedef enum /*< flags prefix=CLUTTER_EVENT >*/
  * @CLUTTER_BUTTON_RELEASE: Pointer button release event
  * @CLUTTER_SCROLL: Pointer scroll event
  * @CLUTTER_TOUCH_BEGIN: A new touch event sequence has started;
- *   event added in 1.10
  * @CLUTTER_TOUCH_UPDATE: A touch event sequence has been updated;
- *   event added in 1.10
  * @CLUTTER_TOUCH_END: A touch event sequence has finished;
- *   event added in 1.10
  * @CLUTTER_TOUCH_CANCEL: A touch event sequence has been canceled;
- *   event added in 1.10
  * @CLUTTER_TOUCHPAD_PINCH: A pinch gesture event, the current state is
- *   determined by its phase field; event added in 1.24
+ *   determined by its phase field;
  * @CLUTTER_TOUCHPAD_SWIPE: A swipe gesture event, the current state is
- *   determined by its phase field; event added in 1.24
+ *   determined by its phase field;
  * @CLUTTER_TOUCHPAD_HOLD: A hold gesture event, the current state is
  *   determined by its phase field. A hold gesture starts when the user places a
  *   finger on the touchpad and ends when all fingers are lifted. It is
  *   cancelled when the finger(s) move past a certain threshold.
- *   Event added in 40.4
  * @CLUTTER_PROXIMITY_IN: A tool entered in proximity to a tablet;
- *   event added in 1.28
  * @CLUTTER_PROXIMITY_OUT: A tool left from the proximity area of a tablet;
- *   event added in 1.28
  * @CLUTTER_EVENT_LAST: Marks the end of the #ClutterEventType enumeration;
- *   added in 1.10
  *
  * Types of events.
  */
@@ -800,22 +732,6 @@ typedef enum /*< prefix=CLUTTER_SCROLL >*/
   CLUTTER_SCROLL_RIGHT,
   CLUTTER_SCROLL_SMOOTH
 } ClutterScrollDirection;
-
-/**
- * ClutterFlowOrientation:
- * @CLUTTER_FLOW_HORIZONTAL: Arrange the children of the flow layout
- *   horizontally first
- * @CLUTTER_FLOW_VERTICAL: Arrange the children of the flow layout
- *   vertically first
- *
- * The direction of the arrangement of the children inside
- * a #ClutterFlowLayout
- */
-typedef enum /*< prefix=CLUTTER_FLOW >*/
-{
-  CLUTTER_FLOW_HORIZONTAL,
-  CLUTTER_FLOW_VERTICAL
-} ClutterFlowOrientation;
 
 /**
  * ClutterInputDeviceCapabilities:
@@ -1028,59 +944,6 @@ typedef enum
 } ClutterTimelineDirection;
 
 /**
- * ClutterUnitType:
- * @CLUTTER_UNIT_PIXEL: Unit expressed in pixels (with subpixel precision)
- * @CLUTTER_UNIT_EM: Unit expressed in em
- * @CLUTTER_UNIT_MM: Unit expressed in millimeters
- * @CLUTTER_UNIT_POINT: Unit expressed in points
- * @CLUTTER_UNIT_CM: Unit expressed in centimeters
- *
- * The type of unit in which a value is expressed
- *
- * This enumeration might be expanded at later date
- */
-typedef enum /*< prefix=CLUTTER_UNIT >*/
-{
-  CLUTTER_UNIT_PIXEL,
-  CLUTTER_UNIT_EM,
-  CLUTTER_UNIT_MM,
-  CLUTTER_UNIT_POINT,
-  CLUTTER_UNIT_CM
-} ClutterUnitType;
-
-#define CLUTTER_PATH_RELATIVE           (32)
-
-/**
- * ClutterPathNodeType:
- * @CLUTTER_PATH_MOVE_TO: jump to the given position
- * @CLUTTER_PATH_LINE_TO: create a line from the last node to the
- *   given position
- * @CLUTTER_PATH_CURVE_TO: bezier curve using the last position and
- *   three control points.
- * @CLUTTER_PATH_CLOSE: create a line from the last node to the last
- *   %CLUTTER_PATH_MOVE_TO node.
- * @CLUTTER_PATH_REL_MOVE_TO: same as %CLUTTER_PATH_MOVE_TO but with
- *   coordinates relative to the last node.
- * @CLUTTER_PATH_REL_LINE_TO: same as %CLUTTER_PATH_LINE_TO but with
- *   coordinates relative to the last node.
- * @CLUTTER_PATH_REL_CURVE_TO: same as %CLUTTER_PATH_CURVE_TO but with
- *   coordinates relative to the last node.
- *
- * Types of nodes in a #ClutterPath.
- */
-typedef enum
-{
-  CLUTTER_PATH_MOVE_TO      = 0,
-  CLUTTER_PATH_LINE_TO      = 1,
-  CLUTTER_PATH_CURVE_TO     = 2,
-  CLUTTER_PATH_CLOSE        = 3,
-
-  CLUTTER_PATH_REL_MOVE_TO  = CLUTTER_PATH_MOVE_TO | CLUTTER_PATH_RELATIVE,
-  CLUTTER_PATH_REL_LINE_TO  = CLUTTER_PATH_LINE_TO | CLUTTER_PATH_RELATIVE,
-  CLUTTER_PATH_REL_CURVE_TO = CLUTTER_PATH_CURVE_TO | CLUTTER_PATH_RELATIVE
-} ClutterPathNodeType;
-
-/**
  * ClutterActorAlign:
  * @CLUTTER_ACTOR_ALIGN_FILL: Stretch to cover the whole allocated space
  * @CLUTTER_ACTOR_ALIGN_START: Snap to left or top side, leaving space
@@ -1095,8 +958,9 @@ typedef enum
  * assigned to it during the allocation.
  *
  * Alignment only matters if the allocated space given to an actor is
- * bigger than its natural size; for example, when the #ClutterActor:x-expand
- * or the #ClutterActor:y-expand properties of #ClutterActor are set to %TRUE.
+ * bigger than its natural size; for example, when
+ * the [property@Clutter.Actor:x-expand] or the [property@Clutter.Actor:y-expand]
+ * properties of #ClutterActor are set to %TRUE.
  */
 typedef enum
 {
@@ -1252,7 +1116,7 @@ typedef enum
 {
   CLUTTER_COLORSPACE_UNKNOWN,
   CLUTTER_COLORSPACE_SRGB,
-  CLUTTER_COLORSPACE_BT2020
+  CLUTTER_COLORSPACE_BT2020,
 } ClutterColorspace;
 
 /**

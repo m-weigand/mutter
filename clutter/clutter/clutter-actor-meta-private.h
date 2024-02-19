@@ -29,11 +29,7 @@
 G_BEGIN_DECLS
 
 #define CLUTTER_TYPE_META_GROUP         (_clutter_meta_group_get_type ())
-#define CLUTTER_META_GROUP(obj)         (G_TYPE_CHECK_INSTANCE_CAST ((obj), CLUTTER_TYPE_META_GROUP, ClutterMetaGroup))
-#define CLUTTER_IS_META_GROUP(obj)      (G_TYPE_CHECK_INSTANCE_TYPE ((obj), CLUTTER_TYPE_META_GROUP))
 
-typedef struct _ClutterMetaGroup        ClutterMetaGroup;
-typedef struct _ClutterMetaGroupClass   ClutterMetaGroupClass;
 
 struct _ClutterMetaGroup
 {
@@ -44,10 +40,10 @@ struct _ClutterMetaGroup
   GList *meta;
 };
 
-struct _ClutterMetaGroupClass
-{
-  GObjectClass parent_class;
-};
+G_DECLARE_FINAL_TYPE (ClutterMetaGroup,
+                      _clutter_meta_group,
+                      CLUTTER, META_GROUP,
+                      GObject)
 
 /* Each actor meta has a priority with zero as a default. A higher
    number means higher priority. Higher priority metas stay at the
@@ -62,8 +58,6 @@ struct _ClutterMetaGroupClass
 
 #define CLUTTER_ACTOR_META_PRIORITY_INTERNAL_HIGH (G_MAXINT / 2)
 #define CLUTTER_ACTOR_META_PRIORITY_INTERNAL_LOW (G_MININT / 2)
-
-GType _clutter_meta_group_get_type (void) G_GNUC_CONST;
 
 void                    _clutter_meta_group_add_meta    (ClutterMetaGroup *group,
                                                          ClutterActorMeta *meta);
@@ -80,15 +74,9 @@ GList *                 _clutter_meta_group_get_metas_no_internal   (ClutterMeta
 void                    _clutter_meta_group_clear_metas_no_internal (ClutterMetaGroup *group);
 
 /* ActorMeta */
-void                    _clutter_actor_meta_set_actor           (ClutterActorMeta *meta,
-                                                                 ClutterActor     *actor);
-
 const gchar *           _clutter_actor_meta_get_debug_name      (ClutterActorMeta *meta);
 
 void                    _clutter_actor_meta_set_priority        (ClutterActorMeta *meta,
                                                                  gint priority);
-int                     _clutter_actor_meta_get_priority        (ClutterActorMeta *meta);
-
-gboolean                _clutter_actor_meta_is_internal         (ClutterActorMeta *meta);
 
 G_END_DECLS

@@ -23,7 +23,7 @@
  * SOFTWARE.
  */
 
-#include "cogl-config.h"
+#include "config.h"
 
 #include "cogl/winsys/cogl-onscreen-egl.h"
 
@@ -297,7 +297,7 @@ cogl_onscreen_egl_swap_buffers_with_damage (CoglOnscreen  *onscreen,
   CoglRendererEGL *egl_renderer = renderer->winsys;
 
   COGL_TRACE_BEGIN_SCOPED (CoglOnscreenEGLSwapBuffersWithDamage,
-                           "Onscreen (eglSwapBuffers)");
+                           "Cogl::Onscreen::egl_swap_buffers_with_damage()");
 
   /* The specification for EGL (at least in 1.4) says that the surface
      needs to be bound to the current context for the swap to work

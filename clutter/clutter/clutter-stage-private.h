@@ -41,13 +41,11 @@ typedef enum
 } ClutterDeviceUpdateFlags;
 
 /* stage */
-ClutterStageWindow *_clutter_stage_get_default_window    (void);
-
 CLUTTER_EXPORT
-void                clutter_stage_paint_view             (ClutterStage          *stage,
-                                                          ClutterStageView      *view,
-                                                          const cairo_region_t  *redraw_clip,
-                                                          ClutterFrame          *frame);
+void                clutter_stage_paint_view             (ClutterStage      *stage,
+                                                          ClutterStageView  *view,
+                                                          const MtkRegion   *redraw_clip,
+                                                          ClutterFrame      *frame);
 
 void                clutter_stage_emit_before_update     (ClutterStage          *stage,
                                                           ClutterStageView      *view,
@@ -93,16 +91,7 @@ CLUTTER_EXPORT
 void     _clutter_stage_queue_event                       (ClutterStage *stage,
                                                            ClutterEvent *event,
                                                            gboolean      copy_event);
-gboolean _clutter_stage_has_queued_events                 (ClutterStage *stage);
 void     _clutter_stage_process_queued_events             (ClutterStage *stage);
-void     _clutter_stage_update_input_devices              (ClutterStage *stage);
-gboolean _clutter_stage_has_full_redraw_queued            (ClutterStage *stage);
-
-ClutterPaintVolume *_clutter_stage_paint_volume_stack_allocate (ClutterStage *stage);
-void                _clutter_stage_paint_volume_stack_free_all (ClutterStage *stage);
-
-void                    _clutter_stage_set_scale_factor (ClutterStage      *stage,
-                                                         int                factor);
 
 void            clutter_stage_presented                 (ClutterStage      *stage,
                                                          ClutterStageView  *view,
@@ -118,13 +107,6 @@ GList * clutter_stage_get_views_for_rect (ClutterStage          *stage,
                                           const graphene_rect_t *rect);
 
 void clutter_stage_set_actor_needs_immediate_relayout (ClutterStage *stage);
-
-void clutter_stage_update_device_entry (ClutterStage         *self,
-                                        ClutterInputDevice   *device,
-                                        ClutterEventSequence *sequence,
-                                        graphene_point_t      coords,
-                                        ClutterActor         *actor,
-                                        cairo_region_t       *clear_area);
 
 void clutter_stage_remove_device_entry (ClutterStage         *self,
                                         ClutterInputDevice   *device,

@@ -38,7 +38,6 @@
 #include <stdint.h>
 #include <stddef.h>
 
-#include "cogl/cogl-defines.h"
 #include "cogl/cogl-macros.h"
 #include <graphene.h>
 
@@ -46,13 +45,6 @@
 #include <glib-object.h>
 
 G_BEGIN_DECLS
-
-/**
- * SECTION:cogl-types
- * @short_description: Types used throughout the library
- *
- * General types used by various Cogl functions.
-*/
 
 /* Some structures are meant to be opaque but they have public
    definitions because we want the size to be public so they can be
@@ -64,6 +56,7 @@ G_BEGIN_DECLS
 #define COGL_PRIVATE(x) private_member_ ## x
 #endif
 
+#ifndef __GI_SCANNER__
 /* To help catch accidental changes to public structs that should
  * be stack allocated we use this macro to compile time assert that
  * a struct size is as expected.
@@ -73,28 +66,11 @@ typedef struct { \
           char compile_time_assert_ ## TYPE ## _size[ \
               (sizeof (TYPE) == (SIZE)) ? 1 : -1]; \
         } _ ## TYPE ## SizeCheck
-
-/**
- * CoglHandle:
- *
- * Type used for storing references to cogl objects, the CoglHandle is
- * a fully opaque type without any public data members.
- */
-typedef void * CoglHandle;
-
-#define COGL_TYPE_HANDLE        (cogl_handle_get_type ())
-COGL_EXPORT GType
-cogl_handle_get_type (void) G_GNUC_CONST;
+#else
+#define COGL_STRUCT_SIZE_ASSERT(TYPE, SIZE)
+#endif
 
 typedef struct _CoglFramebuffer CoglFramebuffer;
-
-/**
- * CoglAngle:
- *
- * Integer representation of an angle such that 1024 corresponds to
- * full circle (i.e., 2 * pi).
- */
-typedef int32_t CoglAngle;
 
 typedef struct _CoglColor               CoglColor;
 typedef struct _CoglTextureVertex       CoglTextureVertex;
@@ -129,17 +105,6 @@ typedef enum
   COGL_OFFSCREEN_BUFFER   = (1 << 2)
 } CoglBufferTarget;
 
-/**
- * CoglColor:
- * @red: amount of red
- * @green: amount of green
- * @blue: amount of green
- * @alpha: alpha
- *
- * A structure for holding a color definition. The contents of
- * the CoglColor structure are private and should never by accessed
- * directly.
- */
 struct _CoglColor
 {
   /*< private >*/
@@ -214,15 +179,12 @@ cogl_blend_string_error_quark (void);
  * The @COGL_SYSTEM_ERROR_UNSUPPORTED error can be thrown for a
  * variety of reasons. For example:
  *
- * <itemizedlist>
- *  <listitem><para>You've tried to use a feature that is not
- *   advertised by cogl_has_feature().</para></listitem>
- *  <listitem><para>The GPU can not handle the configuration you have
- *   requested. An example might be if you try to use too many texture
- *   layers in a single #CoglPipeline</para></listitem>
- *  <listitem><para>The driver does not support some
- *   configuration.</para></listiem>
- * </itemizedlist>
+ * - You've tried to use a feature that is not advertised by
+ *   [func@Cogl.has_feature].
+ * - The GPU can not handle the configuration you have requested.
+ *   An example might be if you try to use too many texture
+ *   layers in a single #CoglPipeline
+ * - The driver does not support some configuration.
  *
  * Currently this is only used by Cogl API marked as experimental so
  * this enum should also be considered experimental.
@@ -282,19 +244,14 @@ typedef enum
 
 /**
  * CoglVerticesMode:
- * @COGL_VERTICES_MODE_POINTS: FIXME, equivalent to
- * <constant>GL_POINTS</constant>
- * @COGL_VERTICES_MODE_LINES: FIXME, equivalent to <constant>GL_LINES</constant>
- * @COGL_VERTICES_MODE_LINE_LOOP: FIXME, equivalent to
- * <constant>GL_LINE_LOOP</constant>
- * @COGL_VERTICES_MODE_LINE_STRIP: FIXME, equivalent to
- * <constant>GL_LINE_STRIP</constant>
- * @COGL_VERTICES_MODE_TRIANGLES: FIXME, equivalent to
- * <constant>GL_TRIANGLES</constant>
- * @COGL_VERTICES_MODE_TRIANGLE_STRIP: FIXME, equivalent to
- * <constant>GL_TRIANGLE_STRIP</constant>
- * @COGL_VERTICES_MODE_TRIANGLE_FAN: FIXME, equivalent to <constant>GL_TRIANGLE_FAN</constant>
- *
+ * @COGL_VERTICES_MODE_POINTS: FIXME, equivalent to `GL_POINTS`
+ * @COGL_VERTICES_MODE_LINES: FIXME, equivalent to `GL_LINES`
+ * @COGL_VERTICES_MODE_LINE_LOOP: FIXME, equivalent to `GL_LINE_LOOP`
+ * @COGL_VERTICES_MODE_LINE_STRIP: FIXME, equivalent to `GL_LINE_STRIP`
+ * @COGL_VERTICES_MODE_TRIANGLES: FIXME, equivalent to `GL_TRIANGLES`
+ * @COGL_VERTICES_MODE_TRIANGLE_STRIP: FIXME, equivalent to `GL_TRIANGLE_STRIP`
+ * @COGL_VERTICES_MODE_TRIANGLE_FAN: FIXME, equivalent to `GL_TRIANGLE_FAN`
+ * 
  * Different ways of interpreting vertices when drawing.
  */
 typedef enum
@@ -467,5 +424,22 @@ typedef enum
   COGL_STEREO_LEFT,
   COGL_STEREO_RIGHT
 } CoglStereoMode;
+
+typedef struct _CoglScanout CoglScanout;
+typedef struct _CoglScanoutBuffer CoglScanoutBuffer;
+
+#define COGL_SCANOUT_ERROR (cogl_scanout_error_quark ())
+
+/**
+ * CoglScanoutError:
+ * @COGL_SCANOUT_ERROR_INHIBITED: Scanout inhibited
+ */
+typedef enum _CoglScanoutError
+{
+  COGL_SCANOUT_ERROR_INHIBITED,
+} CoglScanoutError;
+
+COGL_EXPORT GQuark
+cogl_scanout_error_quark (void);
 
 G_END_DECLS

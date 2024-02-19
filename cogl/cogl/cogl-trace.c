@@ -25,11 +25,11 @@
  *
  */
 
-#include "cogl-config.h"
+#include "config.h"
 
 #include "cogl/cogl-trace.h"
 
-#ifdef COGL_HAS_TRACING
+#ifdef HAVE_PROFILER
 
 #include <sysprof-capture.h>
 #include <sysprof-capture-writer.h>
@@ -339,10 +339,50 @@ cogl_trace_end (CoglTraceHead *head)
 }
 
 void
+cogl_trace_mark (const char *name,
+                 const char *description)
+{
+  SysprofTimeStamp time;
+  CoglTraceContext *trace_context;
+  CoglTraceThreadContext *trace_thread_context;
+
+  time = g_get_monotonic_time () * 1000;
+  trace_thread_context = g_private_get (&cogl_trace_thread_data);
+  trace_context = trace_thread_context->trace_context;
+
+  g_mutex_lock (&cogl_trace_mutex);
+  if (!sysprof_capture_writer_add_mark (trace_context->writer,
+                                        time,
+                                        trace_thread_context->cpu_id,
+                                        trace_thread_context->pid,
+                                        0,
+                                        trace_thread_context->group,
+                                        name,
+                                        description))
+    {
+      /* XXX: g_main_context_get_thread_default() might be wrong, it probably
+       * needs to store the GMainContext in CoglTraceThreadContext when creating
+       * and use it here.
+       */
+      if (errno == EPIPE)
+        cogl_set_tracing_disabled_on_thread (g_main_context_get_thread_default ());
+    }
+  g_mutex_unlock (&cogl_trace_mutex);
+}
+
+void
 cogl_trace_describe (CoglTraceHead *head,
                      const char    *description)
 {
-  head->description = g_strdup (description);
+  if (head->description)
+    {
+      char *old_description = head->description;
+      head->description =
+        g_strdup_printf ("%s, %s", old_description, description);
+      g_free (old_description);
+    }
+  else
+    head->description = g_strdup (description);
 }
 
 #else
@@ -387,4 +427,4 @@ cogl_set_tracing_disabled_on_thread (void *data)
   fprintf (stderr, "Tracing not enabled");
 }
 
-#endif /* COGL_HAS_TRACING */
+#endif /* HAVE_PROFILER */

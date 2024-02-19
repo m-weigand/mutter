@@ -1,10 +1,13 @@
 #pragma once
 
+#include <drm_fourcc.h>
+#include <gbm.h>
 #include <glib-object.h>
 #include <stdio.h>
 #include <wayland-client.h>
 
 #include "fractional-scale-v1-client-protocol.h"
+#include "linux-dmabuf-v1-client-protocol.h"
 #include "single-pixel-buffer-v1-client-protocol.h"
 #include "test-driver-client-protocol.h"
 #include "viewporter-client-protocol.h"
@@ -17,6 +20,13 @@ typedef enum _WaylandDisplayCapabilities
   WAYLAND_DISPLAY_CAPABILITY_XDG_SHELL_V4 = 1 << 1,
 } WaylandDisplayCapabilities;
 
+typedef struct _DmaBufFormat
+{
+  uint32_t format;
+  uint64_t *modifiers;
+  int n_modifiers;
+} DmaBufFormat;
+
 typedef struct _WaylandDisplay
 {
   GObject parent;
@@ -28,14 +38,27 @@ typedef struct _WaylandDisplay
   struct wl_compositor *compositor;
   struct wl_subcompositor *subcompositor;
   struct wl_shm *shm;
+  struct zwp_linux_dmabuf_v1 *linux_dmabuf;
   struct wp_fractional_scale_manager_v1 *fractional_scale_mgr;
   struct wp_single_pixel_buffer_manager_v1 *single_pixel_mgr;
   struct wp_viewporter *viewporter;
   struct xdg_wm_base *xdg_wm_base;
   struct test_driver *test_driver;
 
+  uint32_t sync_event_serial_next;
+
   GHashTable *properties;
+
+  struct gbm_device *gbm_device;
+
+  /* format to DmaBufFormat mapping */
+  GHashTable *formats;
 } WaylandDisplay;
+
+#define WAYLAND_TYPE_DISPLAY (wayland_display_get_type ())
+G_DECLARE_FINAL_TYPE (WaylandDisplay, wayland_display,
+                      WAYLAND, DISPLAY,
+                      GObject)
 
 typedef struct _WaylandSurface
 {
@@ -53,9 +76,15 @@ typedef struct _WaylandSurface
   uint32_t color;
 } WaylandSurface;
 
-G_DECLARE_FINAL_TYPE (WaylandDisplay, wayland_display,
-                      WAYLAND, DISPLAY,
+#define WAYLAND_TYPE_SURFACE (wayland_surface_get_type ())
+G_DECLARE_FINAL_TYPE (WaylandSurface, wayland_surface,
+                      WAYLAND, SURFACE,
                       GObject)
+
+#define WAYLAND_TYPE_BUFFER (wayland_buffer_get_type ())
+G_DECLARE_DERIVABLE_TYPE (WaylandBuffer, wayland_buffer,
+                          WAYLAND, BUFFER,
+                          GObject)
 
 int create_anonymous_file (off_t size);
 
@@ -69,15 +98,6 @@ WaylandSurface * wayland_surface_new (WaylandDisplay *display,
                                       int             default_width,
                                       int             default_height,
                                       uint32_t        color);
-
-void wayland_surface_free (WaylandSurface *surface);
-
-gboolean create_shm_buffer (WaylandDisplay    *display,
-                            int                width,
-                            int                height,
-                            struct wl_buffer **out_buffer,
-                            void             **out_data,
-                            int               *out_size);
 
 void draw_surface (WaylandDisplay    *display,
                    struct wl_surface *surface,
@@ -96,3 +116,26 @@ void wait_for_view_verified (WaylandDisplay *display,
 
 void wait_for_sync_event (WaylandDisplay *display,
                           uint32_t        serial);
+
+WaylandBuffer *wayland_buffer_create (WaylandDisplay                  *display,
+                                      const struct wl_buffer_listener *listener,
+                                      uint32_t                         width,
+                                      uint32_t                         height,
+                                      uint32_t                         format,
+                                      uint64_t                        *modifiers,
+                                      unsigned int                     n_modifiers,
+                                      uint32_t                         bo_flags);
+
+struct wl_buffer * wayland_buffer_get_wl_buffer (WaylandBuffer *buffer);
+
+void wayland_buffer_fill_color (WaylandBuffer *buffer,
+                                uint32_t       color);
+
+void wayland_buffer_draw_pixel (WaylandBuffer *buffer,
+                                size_t         x,
+                                size_t         y,
+                                uint32_t       color);
+
+void * wayland_buffer_mmap_plane (WaylandBuffer *buffer,
+                                  int            plane,
+                                  size_t        *stride_out);

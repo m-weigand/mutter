@@ -35,7 +35,7 @@
  * the logic for recognizing swipe gestures.
  */
 
-#include "clutter/clutter-build-config.h"
+#include "config.h"
 
 #include "clutter/clutter-swipe-action.h"
 
@@ -44,17 +44,16 @@
 #include "clutter/clutter-marshal.h"
 #include "clutter/clutter-private.h"
 
-struct _ClutterSwipeActionPrivate
+typedef struct _ClutterSwipeActionPrivate
 {
   ClutterSwipeDirection h_direction;
   ClutterSwipeDirection v_direction;
 
   float distance_x, distance_y;
-};
+} ClutterSwipeActionPrivate;
 
 enum
 {
-  SWEPT,
   SWIPE,
 
   LAST_SIGNAL
@@ -68,7 +67,8 @@ static gboolean
 gesture_begin (ClutterGestureAction  *action,
                ClutterActor          *actor)
 {
-  ClutterSwipeActionPrivate *priv = CLUTTER_SWIPE_ACTION (action)->priv;
+  ClutterSwipeActionPrivate *priv =
+    clutter_swipe_action_get_instance_private (CLUTTER_SWIPE_ACTION (action));
 
   /* reset the state at the beginning of a new gesture */
   priv->h_direction = 0;
@@ -86,7 +86,8 @@ static gboolean
 gesture_progress (ClutterGestureAction *action,
                   ClutterActor         *actor)
 {
-  ClutterSwipeActionPrivate *priv = CLUTTER_SWIPE_ACTION (action)->priv;
+  ClutterSwipeActionPrivate *priv =
+    clutter_swipe_action_get_instance_private (CLUTTER_SWIPE_ACTION (action));
   gfloat press_x, press_y;
   gfloat motion_x, motion_y;
   gfloat delta_x, delta_y;
@@ -135,11 +136,11 @@ static void
 gesture_end (ClutterGestureAction *action,
              ClutterActor         *actor)
 {
-  ClutterSwipeActionPrivate *priv = CLUTTER_SWIPE_ACTION (action)->priv;
+  ClutterSwipeActionPrivate *priv =
+    clutter_swipe_action_get_instance_private (CLUTTER_SWIPE_ACTION (action));
   gfloat press_x, press_y;
   gfloat release_x, release_y;
   ClutterSwipeDirection direction = 0;
-  gboolean can_emit_swipe;
   const ClutterEvent *last_event;
 
   clutter_gesture_action_get_press_coords (action,
@@ -162,11 +163,7 @@ gesture_end (ClutterGestureAction *action,
   else if (press_y - release_y > priv->distance_y)
     direction |= CLUTTER_SWIPE_DIRECTION_UP;
 
-  /* XXX:2.0 remove */
-  g_signal_emit (action, swipe_signals[SWIPE], 0, actor, direction,
-                 &can_emit_swipe);
-  if (can_emit_swipe)
-    g_signal_emit (action, swipe_signals[SWEPT], 0, actor, direction);
+  g_signal_emit (action, swipe_signals[SWIPE], 0, actor, direction);
 }
 
 static void
@@ -189,29 +186,6 @@ clutter_swipe_action_class_init (ClutterSwipeActionClass *klass)
   gesture_class->gesture_begin = gesture_begin;
   gesture_class->gesture_progress = gesture_progress;
   gesture_class->gesture_end = gesture_end;
-
-  /**
-   * ClutterSwipeAction::swept:
-   * @action: the #ClutterSwipeAction that emitted the signal
-   * @actor: the #ClutterActor attached to the @action
-   * @direction: the main direction of the swipe gesture
-   *
-   * The signal is emitted when a swipe gesture is recognized on the
-   * attached actor.
-   *
-   * Deprecated: 1.14: Use the [signal@SwipeAction::swipe] signal instead.
-   */
-  swipe_signals[SWEPT] =
-    g_signal_new (I_("swept"),
-                  G_TYPE_FROM_CLASS (klass),
-                  G_SIGNAL_RUN_LAST |
-                  G_SIGNAL_DEPRECATED,
-                  G_STRUCT_OFFSET (ClutterSwipeActionClass, swept),
-                  NULL, NULL,
-                  _clutter_marshal_VOID__OBJECT_FLAGS,
-                  G_TYPE_NONE, 2,
-                  CLUTTER_TYPE_ACTOR,
-                  CLUTTER_TYPE_SWIPE_DIRECTION);
 
   /**
    * ClutterSwipeAction::swipe:
@@ -239,7 +213,6 @@ clutter_swipe_action_class_init (ClutterSwipeActionClass *klass)
 static void
 clutter_swipe_action_init (ClutterSwipeAction *self)
 {
-  self->priv = clutter_swipe_action_get_instance_private (self);
 }
 
 /**

@@ -1,4 +1,3 @@
-#define CLUTTER_DISABLE_DEPRECATION_WARNINGS
 #include <clutter/clutter.h>
 
 #include "tests/clutter-test-utils.h"
@@ -65,7 +64,7 @@ foo_actor_paint (ClutterActor        *actor,
                                    allocation.y1,
                                    allocation.x2,
                                    allocation.y2);
-  cogl_object_unref (pipeline);
+  g_object_unref (pipeline);
 }
 
 static gboolean

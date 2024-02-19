@@ -17,8 +17,6 @@
 
 #pragma once
 
-#include <meta/types.h>
+#include "meta/types.h"
 
 MetaLaters * meta_laters_new (MetaCompositor *compositor);
-
-void meta_laters_free (MetaLaters *laters);

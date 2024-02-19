@@ -59,13 +59,13 @@ assert_region_color (int x,
  *
  *
  */
-static CoglHandle
+static CoglTexture*
 make_texture (guchar ref)
 {
   int x;
   int y;
   guchar *tex_data, *p;
-  CoglHandle tex;
+  CoglTexture *tex;
   guchar val;
 
   tex_data = g_malloc (QUAD_WIDTH * QUAD_WIDTH * 16);
@@ -103,7 +103,7 @@ on_paint (ClutterActor        *actor,
           ClutterPaintContext *paint_context,
           TestState           *state)
 {
-  CoglHandle tex0, tex1;
+  CoglTexture *tex0, *tex1;
   CoglPipeline *pipeline;
   gboolean status;
   GError *error = NULL;
@@ -151,9 +151,9 @@ on_paint (ClutterActor        *actor,
   cogl_rectangle_with_multitexture_coords (0, 0, QUAD_WIDTH, QUAD_WIDTH,
                                            tex_coords, 8);
 
-  cogl_object_unref (pipeline);
-  cogl_object_unref (tex0);
-  cogl_object_unref (tex1);
+  g_object_unref (pipeline);
+  g_object_unref (tex0);
+  g_object_unref (tex1);
 
   /* See what we got... */
 
@@ -188,7 +188,7 @@ test_multitexture (TestUtilsGTestFixture *fixture,
   clutter_actor_set_background_color (CLUTTER_ACTOR (stage), &stage_color);
 
   group = clutter_actor_new ();
-  clutter_container_add_actor (CLUTTER_CONTAINER (stage), group);
+  clutter_actor_add_child (stage, group);
 
   /* We force continuous redrawing in case someone comments out the
    * clutter_test_quit and wants visual feedback for the test since we

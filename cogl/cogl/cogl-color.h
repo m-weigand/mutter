@@ -35,8 +35,9 @@
 #endif
 
 /**
- * SECTION:cogl-color
- * @short_description: A generic color definition
+ * CoglColor:
+ *
+ * A generic color definition
  *
  * #CoglColor is a simple structure holding the definition of a color such
  * that it can be efficiently used by GL
@@ -49,13 +50,15 @@
 
 G_BEGIN_DECLS
 
+#define COGL_TYPE_COLOR (cogl_color_get_type ())
+
 /**
- * cogl_color_get_gtype:
+ * cogl_color_get_type:
  *
  * Returns: a #GType that can be used with the GLib type system.
  */
 COGL_EXPORT
-GType cogl_color_get_gtype (void);
+GType cogl_color_get_type (void);
 
 /**
  * cogl_color_new:
@@ -437,10 +440,10 @@ cogl_color_unpremultiply (CoglColor *color);
  * @v1: a #CoglColor
  * @v2: a #CoglColor
  *
- * Compares two #CoglColor<!-- -->s and checks if they are the same.
+ * Compares two `CoglColor`s and checks if they are the same.
  *
  * This function can be passed to g_hash_table_new() as the @key_equal_func
- * parameter, when using #CoglColor<!-- -->s as keys in a #GHashTable.
+ * parameter, when using `CoglColor`s as keys in a #GHashTable.
  *
  * Return value: %TRUE if the two colors are the same.
  */

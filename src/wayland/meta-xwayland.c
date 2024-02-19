@@ -49,7 +49,7 @@
 #include "backends/meta-settings-private.h"
 #include "meta/main.h"
 #include "meta/meta-backend.h"
-#include "meta/meta-x11-errors.h"
+#include "mtk/mtk-x11.h"
 #include "wayland/meta-xwayland-grab-keyboard.h"
 #include "wayland/meta-xwayland-surface.h"
 #include "x11/meta-x11-display-private.h"
@@ -87,6 +87,9 @@ meta_xwayland_associate_window_with_surface (MetaWindow          *window,
 {
   MetaDisplay *display = window->display;
   MetaXwaylandSurface *xwayland_surface;
+  MetaContext *context = meta_display_get_context (display);
+  MetaWaylandCompositor *wayland_compositor =
+    meta_context_get_wayland_compositor (context);
 
   if (!meta_wayland_surface_assign_role (surface,
                                          META_TYPE_XWAYLAND_SURFACE,
@@ -103,7 +106,7 @@ meta_xwayland_associate_window_with_surface (MetaWindow          *window,
   meta_xwayland_surface_associate_with_window (xwayland_surface, window);
 
   /* Now that we have a surface check if it should have focus. */
-  meta_display_sync_wayland_input_focus (display);
+  meta_wayland_compositor_sync_focus (wayland_compositor);
 }
 
 static gboolean
@@ -1227,7 +1230,7 @@ meta_xwayland_set_primary_output (MetaX11Display *x11_display)
   if (!resources)
     return;
 
-  meta_x11_error_trap_push (x11_display);
+  mtk_x11_error_trap_push (x11_display->xdisplay);
   for (i = 0; i < resources->noutput; i++)
     {
       RROutput output_id = resources->outputs[i];
@@ -1261,7 +1264,7 @@ meta_xwayland_set_primary_output (MetaX11Display *x11_display)
           break;
         }
     }
-  meta_x11_error_trap_pop (x11_display);
+  mtk_x11_error_trap_pop (x11_display->xdisplay);
 
   XRRFreeScreenResources (resources);
 }

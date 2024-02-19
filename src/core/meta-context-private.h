@@ -18,6 +18,7 @@
 
 #pragma once
 
+#include "core/meta-debug-control.h"
 #include "core/meta-private-enums.h"
 #include "core/meta-service-channel.h"
 #include "core/util-private.h"
@@ -61,7 +62,6 @@ const char * meta_context_get_name (MetaContext *context);
 
 const char * meta_context_get_gnome_wm_keybindings (MetaContext *context);
 
-gboolean meta_context_get_unsafe_mode (MetaContext *context);
 void meta_context_set_unsafe_mode (MetaContext *context,
                                    gboolean     enable);
 
@@ -84,3 +84,5 @@ meta_context_get_profiler (MetaContext *context);
 void meta_context_set_trace_file (MetaContext *context,
                                   const char  *trace_file);
 #endif
+
+MetaDebugControl * meta_context_get_debug_control (MetaContext *context);

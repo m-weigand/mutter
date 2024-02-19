@@ -4,16 +4,6 @@ cogl_srcdir = meson.current_source_dir()
 
 cogl_includepath = [mtk_includepath, include_directories('.', 'cogl')]
 
-cdata = configuration_data()
-cdata.set('HAVE_COGL_GL', have_gl)
-cdata.set('HAVE_COGL_GLES2', have_gles2)
-cdata.set('ENABLE_UNIT_TESTS', have_cogl_tests)
-
-cogl_config_h = configure_file(
-  input: 'cogl-config.h.meson',
-  output: 'cogl-config.h',
-  configuration: cdata)
-
 cogl_pkg_deps = [
   glib_dep,
   gio_dep,
@@ -22,11 +12,8 @@ cogl_pkg_deps = [
 ]
 
 cogl_pkg_private_deps = [
-  cairo_dep,
   gmodule_no_export_dep,
-  gdk_pixbuf_dep,
   libmutter_mtk_dep,
-  #uprof_dep,
 ]
 
 if have_profiler
@@ -96,20 +83,20 @@ if have_gles2
 endif
 
 cogl_debug_c_args = []
-buildtype = get_option('buildtype')
-if get_option('debug')
-  cogl_debug_c_args += [
-    '-DCOGL_GL_DEBUG',
-    '-DCOGL_OBJECT_DEBUG',
-    '-DCOGL_ENABLE_DEBUG',
-    '-fno-omit-frame-pointer'
-  ]
-elif buildtype != 'plain'
-  cogl_debug_c_args += [
-    '-DG_DISABLE_CAST_CHECKS'
-  ]
+if buildtype != 'plain'
+  if get_option('debug')
+    cogl_debug_c_args += [
+      '-DCOGL_GL_DEBUG',
+      '-DCOGL_OBJECT_DEBUG',
+      '-DCOGL_ENABLE_DEBUG',
+    ]
+  else
+    cogl_debug_c_args += [
+      '-DG_DISABLE_CAST_CHECKS',
+    ]
+  endif
 endif
-supported_cogl_debug_c_args = cc.get_supported_arguments(cogl_debug_c_args)
+cogl_debug_c_args = cc.get_supported_arguments(cogl_debug_c_args)
 cogl_c_args += cogl_debug_c_args
 
 subdir('cogl')

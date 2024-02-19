@@ -547,12 +547,16 @@ wrap_main_context (MetaThread   *thread,
   MetaThreadPrivate *priv = meta_thread_get_instance_private (thread);
   g_autoptr (GSource) source = NULL;
   WrapperSource *wrapper_source;
+  g_autofree char *name = NULL;
 
   if (!g_main_context_acquire (thread_main_context))
     g_return_if_reached ();
 
   source = g_source_new (&wrapper_source_funcs,
-                                sizeof (WrapperSource));
+                         sizeof (WrapperSource));
+  name = g_strdup_printf ("[mutter] MetaThread '%s' wrapper source",
+                          meta_thread_get_name (thread));
+  g_source_set_name (source, name);
   wrapper_source = (WrapperSource *) source;
   wrapper_source->thread_main_context = thread_main_context;
   g_source_set_ready_time (source, -1);
@@ -704,27 +708,21 @@ meta_thread_class_init (MetaThreadClass *klass)
   object_class->finalize = meta_thread_finalize;
 
   obj_props[PROP_BACKEND] =
-    g_param_spec_object ("backend",
-                         "backend",
-                         "MetaBackend",
+    g_param_spec_object ("backend", NULL, NULL,
                          META_TYPE_BACKEND,
                          G_PARAM_READWRITE |
                          G_PARAM_CONSTRUCT_ONLY |
                          G_PARAM_STATIC_STRINGS);
 
   obj_props[PROP_NAME] =
-    g_param_spec_string ("name",
-                         "name",
-                         "Name of thread",
+    g_param_spec_string ("name", NULL, NULL,
                          NULL,
                          G_PARAM_READWRITE |
                          G_PARAM_CONSTRUCT_ONLY |
                          G_PARAM_STATIC_STRINGS);
 
   obj_props[PROP_THREAD_TYPE] =
-    g_param_spec_enum ("thread-type",
-                       "thread-type",
-                       "Type of thread",
+    g_param_spec_enum ("thread-type", NULL, NULL,
                        META_TYPE_THREAD_TYPE,
                        META_THREAD_TYPE_KERNEL,
                        G_PARAM_READWRITE |
@@ -732,9 +730,7 @@ meta_thread_class_init (MetaThreadClass *klass)
                        G_PARAM_STATIC_STRINGS);
 
   obj_props[PROP_WANTS_REALTIME] =
-    g_param_spec_boolean ("wants-realtime",
-                          "wants-realtime",
-                          "Wants real-time thread scheduling",
+    g_param_spec_boolean ("wants-realtime", NULL, NULL,
                           FALSE,
                           G_PARAM_READWRITE |
                           G_PARAM_CONSTRUCT_ONLY |
@@ -988,9 +984,13 @@ meta_thread_register_callback_context (MetaThread   *thread,
   MetaThreadPrivate *priv = meta_thread_get_instance_private (thread);
   GSource *source;
   MetaThreadCallbackSource *callback_source;
+  g_autofree char *name = NULL;
 
   source = g_source_new (&callback_source_funcs,
                          sizeof (MetaThreadCallbackSource));
+  name = g_strdup_printf ("[mutter] MetaThread '%s' callback source",
+                          meta_thread_get_name (thread));
+  g_source_set_name (source, name);
   callback_source = (MetaThreadCallbackSource *) source;
   g_mutex_init (&callback_source->mutex);
   g_cond_init (&callback_source->cond);

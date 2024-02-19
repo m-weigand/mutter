@@ -37,7 +37,7 @@ void meta_shaped_texture_set_snippet (MetaShapedTexture *stex,
 void meta_shaped_texture_set_fallback_size (MetaShapedTexture *stex,
                                             int                fallback_width,
                                             int                fallback_height);
-cairo_region_t * meta_shaped_texture_get_opaque_region (MetaShapedTexture *stex);
+MtkRegion * meta_shaped_texture_get_opaque_region (MetaShapedTexture *stex);
 gboolean meta_shaped_texture_is_opaque (MetaShapedTexture *stex);
 gboolean meta_shaped_texture_has_alpha (MetaShapedTexture *stex);
 void meta_shaped_texture_set_transform (MetaShapedTexture    *stex,
@@ -51,7 +51,6 @@ void meta_shaped_texture_set_viewport_dst_size (MetaShapedTexture *stex,
 void meta_shaped_texture_reset_viewport_dst_size (MetaShapedTexture *stex);
 void meta_shaped_texture_set_buffer_scale (MetaShapedTexture *stex,
                                            int                buffer_scale);
-int meta_shaped_texture_get_buffer_scale (MetaShapedTexture *stex);
 
 gboolean meta_shaped_texture_update_area (MetaShapedTexture *stex,
                                           int                x,
@@ -67,9 +66,9 @@ float meta_shaped_texture_get_unscaled_width (MetaShapedTexture *stex);
 float meta_shaped_texture_get_unscaled_height (MetaShapedTexture *stex);
 
 void meta_shaped_texture_set_clip_region (MetaShapedTexture *stex,
-                                          cairo_region_t    *clip_region);
+                                          MtkRegion         *clip_region);
 void meta_shaped_texture_set_opaque_region (MetaShapedTexture *stex,
-                                            cairo_region_t    *opaque_region);
+                                            MtkRegion         *opaque_region);
 
 void meta_shaped_texture_ensure_size_valid (MetaShapedTexture *stex);
 

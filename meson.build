@@ -1,5 +1,5 @@
 project('mutter', 'c',
-  version: '45.3',
+  version: '46.beta',
   meson_version: '>= 0.60.0',
   license: 'GPLv2+'
 )
@@ -7,7 +7,7 @@ project('mutter', 'c',
 split_version = meson.project_version().split('.')
 
 # API version, bump each development cycle
-libmutter_api_version = '13'
+libmutter_api_version = '14'
 
 mutter_srcdir = meson.current_source_dir()
 mutter_builddir = meson.current_build_dir()
@@ -22,12 +22,11 @@ graphene_req = '>= 1.10.2'
 gtk3_req = '>= 3.19.8'
 gtk4_req = '>= 4.0.0'
 gdk_pixbuf_req = '>= 2.0'
-uprof_req = '>= 0.3'
 pango_req = '>= 1.46.0'
 cairo_req = '>= 1.10.0'
 pangocairo_req = '>= 1.20'
+pixman_req = '>= 0.42'
 gsettings_desktop_schemas_req = '>= 40.alpha'
-json_glib_req = '>= 0.12.0'
 x11_req = '>= 1.7.0'
 xcomposite_req = '>= 0.4'
 xkbcommon_req = '>= 0.4.3'
@@ -47,11 +46,12 @@ gudev_req = '>= 232'
 
 # wayland version requirements
 wayland_server_req = '>= 1.21'
-wayland_protocols_req = '>= 1.32'
+wayland_protocols_req = '>= 1.33'
 
 # native backend version requirements
 libinput_req = '>= 1.19.0'
 gbm_req = '>= 21.3'
+libdrm_req = '>= 2.4.95'
 
 # screen cast version requirements
 libpipewire_req = '>= 0.3.33'
@@ -106,11 +106,11 @@ mutter_installed_tests_libexecdir = libexecdir / 'installed-tests' / libmutter_n
 
 m_dep = cc.find_library('m', required: true)
 graphene_dep = dependency('graphene-gobject-1.0', version: graphene_req)
-gdk_pixbuf_dep = dependency('gdk-pixbuf-2.0')
+gdk_pixbuf_dep = dependency('gdk-pixbuf-2.0', version: gdk_pixbuf_req)
 pango_dep = dependency('pango', version: pango_req)
 cairo_dep = dependency('cairo', version: cairo_req)
-cairo_gobject_dep = dependency('cairo-gobject', version: cairo_req)
 pangocairo_dep = dependency('pangocairo', version: pangocairo_req)
+pixman_dep = dependency('pixman-1', version: pixman_req)
 fribidi_dep = dependency('fribidi', version: fribidi_req)
 gsettings_desktop_schemas_dep = dependency('gsettings-desktop-schemas',
                                            version: gsettings_desktop_schemas_req)
@@ -121,7 +121,6 @@ gobject_dep = dependency('gobject-2.0', version: glib_req)
 gthread_dep = dependency('gobject-2.0', version: glib_req)
 gmodule_no_export_dep = dependency('gmodule-no-export-2.0', version: glib_req)
 gnome_settings_daemon_dep = dependency('gnome-settings-daemon', required: false)
-json_glib_dep = dependency('json-glib-1.0', version: json_glib_req)
 xkbcommon_dep = dependency('xkbcommon', version: xkbcommon_req)
 ice_dep = dependency('ice')
 atk_dep = dependency('atk', version: atk_req)
@@ -214,6 +213,10 @@ if have_gles2
   endif
 endif
 
+if not have_gl and not have_gles2
+  error('Neither GLES2 or OpenGL was enabled')
+endif
+
 if have_wayland
   wayland_server_dep = dependency('wayland-server', version: wayland_server_req)
   wayland_client_dep = dependency('wayland-client', version: wayland_server_req)
@@ -267,7 +270,7 @@ if have_native_backend
 endif
 
 if have_wayland or have_native_backend
-  libdrm_dep = dependency('libdrm')
+  libdrm_dep = dependency('libdrm', version: libdrm_req)
 endif
 
 have_egl_device = get_option('egl_device')
@@ -314,20 +317,22 @@ endif
 
 have_introspection = get_option('introspection')
 if have_introspection
-  gobject_introspection_dep = dependency('gobject-introspection-1.0')
+  gobject_introspection_dep = dependency('gobject-introspection-1.0', version: gi_req)
 
   introspection_args = [
     '--quiet',
     '-U_GNU_SOURCE',
   ]
+
+  introspection_common = {
+    'install_dir_gir': pkglibdir,
+    'install_dir_typelib': pkglibdir,
+    'install': true,
+    'fatal_warnings': get_option('werror'),
+  }
 endif
 
 have_documentation = get_option('docs')
-if have_documentation
-  gidocgen_dep = dependency('gi-docgen', version: '>= 2021.1',
-                            fallback: ['gi-docgen', 'dummy_dep'])
-endif
-
 have_tests = get_option('tests')
 have_core_tests = false
 have_cogl_tests = false
@@ -433,6 +438,7 @@ if have_profiler
       'help=false',
     ],
     fallback: ['sysprof', 'libsysprof_capture_dep'],
+    version: sysprof_req,
   )
 
   if libsysprof_capture_dep.type_name() == 'pkgconfig'
@@ -461,7 +467,9 @@ add_project_arguments('-D_GNU_SOURCE', language: 'c')
 
 buildtype = get_option('buildtype')
 if buildtype != 'plain'
-  all_warnings = [
+  mutter_c_args = [
+    '-fno-omit-frame-pointer',
+    '-mno-omit-leaf-frame-pointer',
     '-fno-strict-aliasing',
     '-Wpointer-arith',
     '-Wmissing-declarations',
@@ -501,17 +509,15 @@ if buildtype != 'plain'
     '-Wno-missing-field-initializers',
     '-Wno-type-limits',
   ]
-  supported_warnings = cc.get_supported_arguments(all_warnings)
-  add_project_arguments(supported_warnings, language: 'c')
-endif
 
-if get_option('debug')
-  debug_c_args = [
-    '-DG_ENABLE_DEBUG',
-    '-fno-omit-frame-pointer'
-  ]
-  supported_debug_c_args = cc.get_supported_arguments(debug_c_args)
-  add_project_arguments(supported_debug_c_args, language: 'c')
+  if get_option('debug')
+    mutter_c_args += [
+      '-DG_ENABLE_DEBUG',
+    ]
+  endif
+
+  supported_mutter_c_args = cc.get_supported_arguments(mutter_c_args)
+  add_project_arguments(supported_mutter_c_args, language: 'c')
 endif
 
 cc.compiles('void main (void) { __builtin_ffsl (0); __builtin_popcountl (0); }')
@@ -523,6 +529,10 @@ cdata.set_quoted('PACKAGE_NAME', meson.project_name())
 cdata.set_quoted('PACKAGE_VERSION', meson.project_version())
 
 cdata.set('HAVE_EGL', have_egl)
+cdata.set('HAVE_GLX', have_glx)
+cdata.set('HAVE_EGL_PLATFORM_XLIB', have_egl_xlib)
+cdata.set('HAVE_GL', have_gl)
+cdata.set('HAVE_GLES2', have_gles2)
 cdata.set('HAVE_WAYLAND', have_wayland)
 cdata.set('HAVE_XWAYLAND', have_xwayland)
 cdata.set('HAVE_X11', have_x11)
@@ -541,6 +551,7 @@ cdata.set('HAVE_STARTUP_NOTIFICATION', have_startup_notification)
 cdata.set('HAVE_INTROSPECTION', have_introspection)
 cdata.set('HAVE_PROFILER', have_profiler)
 cdata.set('HAVE_LIBDISPLAY_INFO', have_libdisplay_info)
+cdata.set('HAVE_PANGO_FT2', have_pango_ft2)
 
 if have_x11_client
   xkb_base = xkeyboard_config_dep.get_variable('xkb_base')

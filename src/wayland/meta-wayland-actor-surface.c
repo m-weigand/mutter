@@ -25,9 +25,8 @@
 #include "backends/meta-logical-monitor.h"
 #include "compositor/meta-surface-actor-wayland.h"
 #include "compositor/meta-window-actor-wayland.h"
-#include "compositor/region-utils.h"
 #include "wayland/meta-wayland-buffer.h"
-#include "wayland/meta-wayland-surface.h"
+#include "wayland/meta-wayland-surface-private.h"
 #include "wayland/meta-window-wayland.h"
 
 #ifdef HAVE_XWAYLAND
@@ -199,8 +198,8 @@ meta_wayland_actor_surface_real_sync_actor_state (MetaWaylandActorSurface *actor
       meta_shaped_texture_set_texture (stex, texture);
       meta_shaped_texture_set_snippet (stex, snippet);
       meta_shaped_texture_set_is_y_inverted (stex, is_y_inverted);
-      meta_shaped_texture_set_buffer_scale (stex, surface->scale);
-      cogl_clear_object (&snippet);
+      meta_shaped_texture_set_buffer_scale (stex, surface->applied_state.scale);
+      g_clear_object (&snippet);
     }
   else
     {
@@ -215,43 +214,40 @@ meta_wayland_actor_surface_real_sync_actor_state (MetaWaylandActorSurface *actor
 #ifdef HAVE_XWAYLAND
   if (!META_IS_XWAYLAND_SURFACE (surface_role))
 #endif
-    {
-      if (surface->input_region)
-        {
-          cairo_region_t *input_region;
+  {
+    if (surface->input_region)
+      {
+        g_autoptr (MtkRegion) input_region = NULL;
 
-          input_region = cairo_region_copy (surface->input_region);
-          cairo_region_intersect_rectangle (input_region, &surface_rect);
-          meta_surface_actor_set_input_region (surface_actor, input_region);
-          cairo_region_destroy (input_region);
-        }
-      else
-        {
-          meta_surface_actor_set_input_region (surface_actor, NULL);
-        }
+        input_region = mtk_region_copy (surface->input_region);
+        mtk_region_intersect_rectangle (input_region, &surface_rect);
+        meta_surface_actor_set_input_region (surface_actor, input_region);
+      }
+    else
+      {
+        meta_surface_actor_set_input_region (surface_actor, NULL);
+      }
 
-      if (!meta_shaped_texture_has_alpha (stex))
-        {
-          cairo_region_t *opaque_region;
+    if (!meta_shaped_texture_has_alpha (stex))
+      {
+        g_autoptr (MtkRegion) opaque_region = NULL;
 
-          opaque_region = cairo_region_create_rectangle (&surface_rect);
-          meta_surface_actor_set_opaque_region (surface_actor, opaque_region);
-          cairo_region_destroy (opaque_region);
-        }
-      else if (surface->opaque_region)
-        {
-          cairo_region_t *opaque_region;
+        opaque_region = mtk_region_create_rectangle (&surface_rect);
+        meta_surface_actor_set_opaque_region (surface_actor, opaque_region);
+      }
+    else if (surface->opaque_region)
+      {
+        g_autoptr (MtkRegion) opaque_region = NULL;
 
-          opaque_region = cairo_region_copy (surface->opaque_region);
-          cairo_region_intersect_rectangle (opaque_region, &surface_rect);
-          meta_surface_actor_set_opaque_region (surface_actor, opaque_region);
-          cairo_region_destroy (opaque_region);
-        }
-      else
-        {
-          meta_surface_actor_set_opaque_region (surface_actor, NULL);
-        }
-    }
+        opaque_region = mtk_region_copy (surface->opaque_region);
+        mtk_region_intersect_rectangle (opaque_region, &surface_rect);
+        meta_surface_actor_set_opaque_region (surface_actor, opaque_region);
+      }
+    else
+      {
+        meta_surface_actor_set_opaque_region (surface_actor, NULL);
+      }
+  }
 
   meta_shaped_texture_set_transform (stex, surface->buffer_transform);
 
@@ -278,7 +274,7 @@ meta_wayland_actor_surface_real_sync_actor_state (MetaWaylandActorSurface *actor
 
   meta_shaped_texture_ensure_size_valid (stex);
 
-  META_WAYLAND_SURFACE_FOREACH_SUBSURFACE (&surface->output_state,
+  META_WAYLAND_SURFACE_FOREACH_SUBSURFACE (&surface->applied_state,
                                            subsurface_surface)
     {
       MetaWaylandActorSurface *actor_surface;
@@ -427,7 +423,7 @@ meta_wayland_actor_surface_reset_actor (MetaWaylandActorSurface *actor_surface)
     meta_wayland_surface_role_get_surface (META_WAYLAND_SURFACE_ROLE (actor_surface));
   MetaWaylandSurface *subsurface_surface;
 
-  META_WAYLAND_SURFACE_FOREACH_SUBSURFACE (&surface->output_state,
+  META_WAYLAND_SURFACE_FOREACH_SUBSURFACE (&surface->applied_state,
                                            subsurface_surface)
     {
       MetaWaylandActorSurface *actor_surface;

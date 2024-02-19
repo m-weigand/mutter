@@ -516,18 +516,33 @@ process_crtc_color_updates (MetaKmsImplDevice  *impl_device,
       int fd;
       int ret;
 
-      meta_topic (META_DEBUG_KMS,
-                  "[simple] Setting CRTC %u (%s) gamma, size: %zu",
-                  meta_kms_crtc_get_id (crtc),
-                  meta_kms_impl_device_get_path (impl_device),
-                  gamma->size);
-
       fd = meta_kms_impl_device_get_fd (impl_device);
-      ret = drmModeCrtcSetGamma (fd, meta_kms_crtc_get_id (crtc),
-                                 gamma->size,
-                                 gamma->red,
-                                 gamma->green,
-                                 gamma->blue);
+
+      if (gamma)
+        {
+          meta_topic (META_DEBUG_KMS,
+                      "[simple] Setting CRTC %u (%s) gamma, size: %zu",
+                      meta_kms_crtc_get_id (crtc),
+                      meta_kms_impl_device_get_path (impl_device),
+                      gamma->size);
+
+          ret = drmModeCrtcSetGamma (fd, meta_kms_crtc_get_id (crtc),
+                                     gamma->size,
+                                     gamma->red,
+                                     gamma->green,
+                                     gamma->blue);
+        }
+      else
+        {
+          meta_topic (META_DEBUG_KMS,
+                      "[simple] Setting CRTC (%u, %s) gamma to bypass",
+                      meta_kms_crtc_get_id (crtc),
+                      meta_kms_impl_device_get_path (impl_device));
+
+          ret = drmModeCrtcSetGamma (fd, meta_kms_crtc_get_id (crtc),
+                                     0, NULL, NULL, NULL);
+        }
+
       if (ret != 0)
         {
           g_set_error (error, G_IO_ERROR, g_io_error_from_errno (-ret),
@@ -1088,7 +1103,6 @@ generate_page_flip_datas (MetaKmsImplDevice  *impl_device,
       destroy_notify = g_steal_pointer (&listener->destroy_notify);
       meta_kms_page_flip_data_add_listener (page_flip_data,
                                             listener->vtable,
-                                            listener->flags,
                                             listener->main_context,
                                             user_data,
                                             destroy_notify);
@@ -1111,7 +1125,6 @@ generate_page_flip_datas (MetaKmsImplDevice  *impl_device,
                 g_steal_pointer (&other_listener->destroy_notify);
               meta_kms_page_flip_data_add_listener (page_flip_data,
                                                     other_listener->vtable,
-                                                    other_listener->flags,
                                                     other_listener->main_context,
                                                     other_user_data,
                                                     other_destroy_notify);
@@ -1381,6 +1394,7 @@ page_flip_handler (int           fd,
   MetaKmsImplDevice *impl_device;
   MetaKmsImplDeviceSimple *impl_device_simple;
   MetaKmsCrtc *crtc;
+  uint32_t crtc_id;
 
   meta_kms_page_flip_data_set_timings_in_impl (page_flip_data,
                                                sequence, tv_sec, tv_usec);
@@ -1388,12 +1402,16 @@ page_flip_handler (int           fd,
   impl_device = meta_kms_page_flip_data_get_impl_device (page_flip_data);
   impl_device_simple = META_KMS_IMPL_DEVICE_SIMPLE (impl_device);
   crtc = meta_kms_page_flip_data_get_crtc (page_flip_data);
+  crtc_id = meta_kms_crtc_get_id (crtc);
+
+  COGL_TRACE_MESSAGE ("page_flip_handler()",
+                      "[simple] Page flip callback for CRTC (%u, %s)",
+                      crtc_id, meta_kms_impl_device_get_path (impl_device));
 
   meta_topic (META_DEBUG_KMS,
               "[simple] Handling page flip callback from %s, data: %p, CRTC: %u",
               meta_kms_impl_device_get_path (impl_device),
-              page_flip_data,
-              meta_kms_crtc_get_id (crtc));
+              page_flip_data, crtc_id);
 
   meta_kms_impl_device_unhold_fd (impl_device);
 
@@ -1754,10 +1772,8 @@ meta_kms_impl_device_simple_initable_init (GInitable     *initable,
   for (l = meta_kms_device_get_crtcs (device); l; l = l->next)
     {
       MetaKmsCrtc *crtc = l->data;
-      MetaKmsPlane *plane;
 
-      plane = meta_kms_device_get_cursor_plane_for (device, crtc);
-      if (plane)
+      if (meta_kms_device_has_cursor_plane_for (device, crtc))
         continue;
 
       meta_topic (META_DEBUG_KMS,

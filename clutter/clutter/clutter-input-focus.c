@@ -17,13 +17,21 @@
  * Author: Carlos Garnacho <carlosg@gnome.org>
  */
 
-#include "clutter/clutter-build-config.h"
+#include "config.h"
 
 #include "clutter/clutter-input-focus.h"
 #include "clutter/clutter-input-focus-private.h"
 #include "clutter/clutter-input-method-private.h"
 
 typedef struct _ClutterInputFocusPrivate ClutterInputFocusPrivate;
+
+static void clutter_input_focus_delete_surrounding (ClutterInputFocus *focus,
+                                                    int                offset,
+                                                    guint              len);
+static void clutter_input_focus_set_preedit_text (ClutterInputFocus *focus,
+                                                  const gchar       *preedit,
+                                                  unsigned int       cursor,
+                                                  unsigned int       anchor);
 
 struct _ClutterInputFocusPrivate
 {

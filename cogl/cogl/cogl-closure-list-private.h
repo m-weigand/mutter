@@ -29,8 +29,8 @@
 
 #pragma once
 
-#include "cogl/cogl-object.h"
 #include "cogl/cogl-list.h"
+#include "cogl/cogl-macros.h"
 
 /*
  * This implements a list of callbacks that can be used a bit like
@@ -54,7 +54,7 @@ typedef struct _CoglClosure
 
   void *function;
   void *user_data;
-  CoglUserDataDestroyCallback destroy_cb;
+  GDestroyNotify destroy_cb;
 } CoglClosure;
 
 /*
@@ -64,7 +64,7 @@ typedef struct _CoglClosure
  * Removes the given closure from the callback list it is connected to
  * and destroys it. If the closure was created with a destroy function
  * then it will be invoked. */
-COGL_EXPORT void
+void
 _cogl_closure_disconnect (CoglClosure *closure);
 
 void
@@ -74,7 +74,7 @@ CoglClosure *
 _cogl_closure_list_add (CoglList *list,
                         void *function,
                         void *user_data,
-                        CoglUserDataDestroyCallback destroy_cb);
+                        GDestroyNotify destroy_cb);
 
 /*
  * _cogl_closure_list_invoke:

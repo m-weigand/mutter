@@ -17,11 +17,12 @@
  * Author: Carlos Garnacho <carlosg@gnome.org>
  */
 
-#include "clutter/clutter-build-config.h"
+#include "config.h"
 
 #include "clutter/clutter-event-private.h"
 #include "clutter/clutter-private.h"
 #include "clutter/clutter-input-device-private.h"
+#include "clutter/clutter-input-focus.h"
 #include "clutter/clutter-input-method.h"
 #include "clutter/clutter-input-method-private.h"
 #include "clutter/clutter-input-focus-private.h"
@@ -261,15 +262,6 @@ clutter_input_method_focus_out (ClutterInputMethod *im)
   klass->focus_out (im);
 }
 
-ClutterInputFocus *
-clutter_input_method_get_focus (ClutterInputMethod *im)
-{
-  ClutterInputMethodPrivate *priv;
-
-  priv = clutter_input_method_get_instance_private (im);
-  return priv->focus;
-}
-
 static void
 clutter_input_method_put_im_event (ClutterInputMethod      *im,
                                    ClutterEventType         event_type,
@@ -360,7 +352,13 @@ clutter_input_method_notify_key_event (ClutterInputMethod *im,
 {
   if (!filtered)
     {
+      ClutterModifierSet raw_modifiers;
       ClutterEvent *copy;
+
+      clutter_event_get_key_state (event,
+                                   &raw_modifiers.pressed,
+                                   &raw_modifiers.latched,
+                                   &raw_modifiers.locked);
 
       /* XXX: we rely on the IM implementation to notify back of
        * key events in the exact same order they were given.
@@ -370,6 +368,7 @@ clutter_input_method_notify_key_event (ClutterInputMethod *im,
                                     CLUTTER_EVENT_FLAG_INPUT_METHOD,
                                     clutter_event_get_time_us (event),
                                     clutter_event_get_device (event),
+                                    raw_modifiers,
                                     clutter_event_get_state (event),
                                     clutter_event_get_key_symbol (event),
                                     clutter_event_get_event_code (event),
@@ -490,6 +489,7 @@ clutter_input_method_forward_key (ClutterInputMethod *im,
                                  CLUTTER_EVENT_FLAG_INPUT_METHOD,
                                  time_,
                                  keyboard,
+                                 (ClutterModifierSet) { 0, },
                                  state,
                                  keyval,
                                  keycode - 8,

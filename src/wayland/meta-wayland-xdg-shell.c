@@ -32,7 +32,7 @@
 #include "wayland/meta-wayland-private.h"
 #include "wayland/meta-wayland-seat.h"
 #include "wayland/meta-wayland-shell-surface.h"
-#include "wayland/meta-wayland-surface.h"
+#include "wayland/meta-wayland-surface-private.h"
 #include "wayland/meta-wayland-transaction.h"
 #include "wayland/meta-wayland-versions.h"
 #include "wayland/meta-wayland-window-configuration.h"
@@ -592,11 +592,15 @@ xdg_popup_destructor (struct wl_resource *resource)
     META_WAYLAND_SURFACE_ROLE (xdg_popup);
   MetaWaylandSurface *surface =
     meta_wayland_surface_role_get_surface (surface_role);
+  MetaDisplay *display = display_from_surface (surface);
+  MetaContext *context = meta_display_get_context (display);
+  MetaWaylandCompositor *wayland_compositor =
+    meta_context_get_wayland_compositor (context);
 
   dismiss_popup (xdg_popup);
   xdg_popup->resource = NULL;
 
-  meta_display_sync_wayland_input_focus (display_from_surface (surface));
+  meta_wayland_compositor_sync_focus (wayland_compositor);
 }
 
 static void
@@ -1359,7 +1363,7 @@ meta_wayland_xdg_popup_post_apply_state (MetaWaylandSurfaceRole  *surface_role,
   meta_window_get_buffer_rect (window, &buffer_rect);
   meta_window_get_buffer_rect (parent_window, &parent_buffer_rect);
   if (!mtk_rectangle_overlap (&buffer_rect, &parent_buffer_rect) &&
-      !meta_rectangle_is_adjacent_to (&buffer_rect, &parent_buffer_rect))
+      !mtk_rectangle_is_adjacent_to (&buffer_rect, &parent_buffer_rect))
     {
       g_warning ("Buggy client caused popup to be placed outside of "
                  "parent window");

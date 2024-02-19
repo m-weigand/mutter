@@ -26,13 +26,14 @@
  * Handles monitor config, modesetting, cursor sprites, ...
  *
  * MetaBackend is the abstraction that deals with several things like:
+ *
  * - Modesetting (depending on the backend, this can be done either by X or KMS)
- * - Initializing the #MetaSettings
+ * - Initializing the [struct@Meta.Settings]
  * - Setting up Monitor configuration
  * - Input device configuration (using the #ClutterDeviceManager)
  * - Creating the #MetaRenderer
- * - Setting up the stage of the scene graph (using #MetaStage)
- * - Creating the object that deals with the cursor (using #MetaCursorTracker)
+ * - Setting up the stage of the scene graph (using [class@Meta.Stage])
+ * - Creating the object that deals with the cursor (using [class@Meta.CursorTracker])
  *     and its possible pointer constraint (using #MetaPointerConstraint)
  * - Setting the cursor sprite (using #MetaCursorRenderer)
  * - Interacting with logind (using the appropriate D-Bus interface)
@@ -40,8 +41,8 @@
  * - Setup Remote Desktop / Screencasting (#MetaRemoteDesktop)
  * - Setup the #MetaEgl object
  *
- * Note that the #MetaBackend is not a subclass of #ClutterBackend. It is
- * responsible for creating the correct one, based on the backend that is
+ * Note that the #MetaBackend is not a subclass of [class@Clutter.Backend].
+ * It is responsible for creating the correct one, based on the backend that is
  * used (#MetaBackendNative or #MetaBackendX11).
  */
 
@@ -251,7 +252,7 @@ meta_backend_dispose (GObject *object)
   g_clear_pointer (&priv->stage, clutter_actor_destroy);
   g_clear_pointer (&priv->idle_manager, meta_idle_manager_free);
   g_clear_object (&priv->renderer);
-  g_clear_pointer (&priv->clutter_context, clutter_context_free);
+  g_clear_pointer (&priv->clutter_context, clutter_context_destroy);
   g_clear_list (&priv->gpus, g_object_unref);
 
   G_OBJECT_CLASS (meta_backend_parent_class)->dispose (object);
@@ -265,14 +266,9 @@ meta_backend_destroy (MetaBackend *backend)
 }
 
 static void
-meta_backend_sync_screen_size (MetaBackend *backend)
+meta_backend_update_stage (MetaBackend *backend)
 {
-  MetaBackendPrivate *priv = meta_backend_get_instance_private (backend);
-  int width, height;
-
-  meta_monitor_manager_get_screen_size (priv->monitor_manager, &width, &height);
-
-  META_BACKEND_GET_CLASS (backend)->update_screen_size (backend, width, height);
+  META_BACKEND_GET_CLASS (backend)->update_stage (backend);
 }
 
 static void
@@ -347,7 +343,7 @@ update_cursors (MetaBackend *backend)
 void
 meta_backend_monitors_changed (MetaBackend *backend)
 {
-  meta_backend_sync_screen_size (backend);
+  meta_backend_update_stage (backend);
   update_cursors (backend);
 }
 
@@ -546,7 +542,7 @@ meta_backend_real_post_init (MetaBackend *backend)
 
   meta_monitor_manager_setup (priv->monitor_manager);
 
-  meta_backend_sync_screen_size (backend);
+  meta_backend_update_stage (backend);
 
   priv->idle_manager = meta_idle_manager_new (backend);
 
@@ -1147,6 +1143,8 @@ clutter_source_dispatch (GSource     *source,
 {
   MetaBackendSource *backend_source = (MetaBackendSource *) source;
 
+  COGL_TRACE_BEGIN_SCOPED (Dispatch, "Meta::BackendSource::dispatch()");
+
   dispatch_clutter_event (backend_source->backend);
 
   return TRUE;
@@ -1181,9 +1179,10 @@ init_clutter (MetaBackend  *backend,
   MetaBackendSource *backend_source;
   GSource *source;
 
-  priv->clutter_context = clutter_context_new (meta_clutter_backend_constructor,
-                                               backend,
-                                               error);
+  priv->clutter_context = clutter_create_context (CLUTTER_CONTEXT_FLAG_NONE,
+                                                  meta_clutter_backend_constructor,
+                                                  backend,
+                                                  error);
   if (!priv->clutter_context)
     return FALSE;
 
@@ -1547,9 +1546,10 @@ void
 meta_backend_set_keymap (MetaBackend *backend,
                          const char  *layouts,
                          const char  *variants,
-                         const char  *options)
+                         const char  *options,
+                         const char  *model)
 {
-  META_BACKEND_GET_CLASS (backend)->set_keymap (backend, layouts, variants, options);
+  META_BACKEND_GET_CLASS (backend)->set_keymap (backend, layouts, variants, options, model);
 }
 
 /**
@@ -1596,14 +1596,6 @@ meta_backend_get_default_seat (MetaBackend *backend)
   MetaBackendPrivate *priv = meta_backend_get_instance_private (backend);
 
   return priv->default_seat;
-}
-
-MetaPointerConstraint *
-meta_backend_get_client_pointer_constraint (MetaBackend *backend)
-{
-  MetaBackendPrivate *priv = meta_backend_get_instance_private (backend);
-
-  return priv->client_pointer_constraint;
 }
 
 /**

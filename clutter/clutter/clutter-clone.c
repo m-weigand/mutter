@@ -26,17 +26,16 @@
  * 
  * An actor that displays a clone of a source actor
  *
- * #ClutterClone is a #ClutterActor which draws with the paint
+ * #ClutterClone is a [class@Clutter.Actor] which draws with the paint
  * function of another actor, scaled to fit its own allocation.
  *
  * #ClutterClone can be used to efficiently clone any other actor.
  *
- * Unlike clutter_texture_new_from_actor(), #ClutterClone does not require
- * the presence of support for FBOs in the underlying GL or GLES
- * implementation.
+ * #ClutterClone does not require the presence of support for FBOs
+ * in the underlying GL or GLES implementation.
  */
 
-#include "clutter/clutter-build-config.h"
+#include "config.h"
 
 #include "clutter/clutter-actor-private.h"
 #include "clutter/clutter-clone.h"
@@ -47,13 +46,13 @@
 
 #include "cogl/cogl.h"
 
-struct _ClutterClonePrivate
+typedef struct _ClutterClonePrivate
 {
   ClutterActor *clone_source;
   float x_scale, y_scale;
 
   gulong source_destroy_id;
-};
+} ClutterClonePrivate;
 
 G_DEFINE_TYPE_WITH_PRIVATE (ClutterClone, clutter_clone, CLUTTER_TYPE_ACTOR)
 
@@ -76,7 +75,8 @@ clutter_clone_get_preferred_width (ClutterActor *self,
                                    gfloat       *min_width_p,
                                    gfloat       *natural_width_p)
 {
-  ClutterClonePrivate *priv = CLUTTER_CLONE (self)->priv;
+  ClutterClonePrivate *priv =
+    clutter_clone_get_instance_private (CLUTTER_CLONE (self));
   ClutterActor *clone_source = priv->clone_source;
 
   if (clone_source == NULL)
@@ -100,7 +100,8 @@ clutter_clone_get_preferred_height (ClutterActor *self,
                                     gfloat       *min_height_p,
                                     gfloat       *natural_height_p)
 {
-  ClutterClonePrivate *priv = CLUTTER_CLONE (self)->priv;
+  ClutterClonePrivate *priv =
+    clutter_clone_get_instance_private (CLUTTER_CLONE (self));
   ClutterActor *clone_source = priv->clone_source;
 
   if (clone_source == NULL)
@@ -122,8 +123,8 @@ static void
 clutter_clone_apply_transform (ClutterActor      *self,
                                graphene_matrix_t *matrix)
 {
-  ClutterClonePrivate *priv = CLUTTER_CLONE (self)->priv;
-
+  ClutterClonePrivate *priv =
+    clutter_clone_get_instance_private (CLUTTER_CLONE (self));
 
   if (priv->clone_source)
     graphene_matrix_scale (matrix, priv->x_scale, priv->y_scale, 1.f);
@@ -137,7 +138,7 @@ clutter_clone_paint (ClutterActor        *actor,
                      ClutterPaintContext *paint_context)
 {
   ClutterClone *self = CLUTTER_CLONE (actor);
-  ClutterClonePrivate *priv = self->priv;
+  ClutterClonePrivate *priv = clutter_clone_get_instance_private (self);
   gboolean was_unmapped = FALSE;
 
   if (priv->clone_source == NULL)
@@ -156,7 +157,7 @@ clutter_clone_paint (ClutterActor        *actor,
    */
   _clutter_actor_set_in_clone_paint (priv->clone_source, TRUE);
   clutter_actor_set_opacity_override (priv->clone_source,
-                                       clutter_actor_get_paint_opacity (actor));
+                                      clutter_actor_get_paint_opacity (actor));
   _clutter_actor_set_enable_model_view_transform (priv->clone_source, FALSE);
 
   if (!clutter_actor_is_mapped (priv->clone_source))
@@ -187,7 +188,8 @@ static gboolean
 clutter_clone_get_paint_volume (ClutterActor       *actor,
                                 ClutterPaintVolume *volume)
 {
-  ClutterClonePrivate *priv = CLUTTER_CLONE (actor)->priv;
+  ClutterClonePrivate *priv =
+    clutter_clone_get_instance_private (CLUTTER_CLONE (actor));
   const ClutterPaintVolume *source_volume;
 
   /* if the source is not set the paint volume is defined to be empty */
@@ -209,7 +211,8 @@ clutter_clone_get_paint_volume (ClutterActor       *actor,
 static gboolean
 clutter_clone_has_overlaps (ClutterActor *actor)
 {
-  ClutterClonePrivate *priv = CLUTTER_CLONE (actor)->priv;
+  ClutterClonePrivate *priv =
+    clutter_clone_get_instance_private (CLUTTER_CLONE (actor));
 
   /* The clone has overlaps iff the source has overlaps */
 
@@ -223,7 +226,8 @@ static void
 clutter_clone_allocate (ClutterActor           *self,
                         const ClutterActorBox  *box)
 {
-  ClutterClonePrivate *priv = CLUTTER_CLONE (self)->priv;
+  ClutterClonePrivate *priv =
+    clutter_clone_get_instance_private (CLUTTER_CLONE (self));
   ClutterActorClass *parent_class;
   ClutterActorBox source_box;
   float x_scale, y_scale;
@@ -309,7 +313,8 @@ clutter_clone_get_property (GObject    *gobject,
                             GValue     *value,
                             GParamSpec *pspec)
 {
-  ClutterClonePrivate *priv = CLUTTER_CLONE (gobject)->priv;
+  ClutterClonePrivate *priv =
+    clutter_clone_get_instance_private (CLUTTER_CLONE (gobject));
 
   switch (prop_id)
     {
@@ -358,7 +363,8 @@ clutter_clone_class_init (ClutterCloneClass *klass)
     g_param_spec_object ("source", NULL, NULL,
                          CLUTTER_TYPE_ACTOR,
                          G_PARAM_CONSTRUCT |
-                         CLUTTER_PARAM_READWRITE);
+                         G_PARAM_READWRITE |
+                         G_PARAM_STATIC_STRINGS);
 
   g_object_class_install_properties (gobject_class, PROP_LAST, obj_props);
 }
@@ -366,10 +372,10 @@ clutter_clone_class_init (ClutterCloneClass *klass)
 static void
 clutter_clone_init (ClutterClone *self)
 {
-  self->priv = clutter_clone_get_instance_private (self);
+  ClutterClonePrivate *priv = clutter_clone_get_instance_private (self);
 
-  self->priv->x_scale = 1.f;
-  self->priv->y_scale = 1.f;
+  priv->x_scale = 1.f;
+  priv->y_scale = 1.f;
 }
 
 /**
@@ -397,7 +403,7 @@ static void
 clutter_clone_set_source_internal (ClutterClone *self,
 				   ClutterActor *source)
 {
-  ClutterClonePrivate *priv = self->priv;
+  ClutterClonePrivate *priv = clutter_clone_get_instance_private (self);
 
   if (priv->clone_source == source)
     return;
@@ -452,7 +458,10 @@ clutter_clone_set_source (ClutterClone *self,
 ClutterActor *
 clutter_clone_get_source (ClutterClone *self)
 {
+  ClutterClonePrivate *priv;
+
   g_return_val_if_fail (CLUTTER_IS_CLONE (self), NULL);
 
-  return self->priv->clone_source;
+  priv = clutter_clone_get_instance_private (self);
+  return priv->clone_source;
 }

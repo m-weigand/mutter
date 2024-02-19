@@ -192,15 +192,6 @@ MetaX11Display *meta_x11_display_new (MetaDisplay *display, GError **error);
 
 void meta_x11_display_restore_active_workspace (MetaX11Display *x11_display);
 
-Window meta_x11_display_create_offscreen_window (MetaX11Display *x11_display,
-                                                 Window          parent,
-                                                 long            valuemask);
-
-Cursor meta_x11_display_create_x_cursor (MetaX11Display *x11_display,
-                                         MetaCursor      cursor);
-
-void meta_x11_display_reload_cursor (MetaX11Display *x11_display);
-
 MetaWindow *meta_x11_display_lookup_x_window     (MetaX11Display *x11_display,
                                                   Window          xwindow);
 void        meta_x11_display_register_x_window   (MetaX11Display *x11_display,
@@ -232,10 +223,6 @@ void meta_x11_display_create_guard_window (MetaX11Display *x11_display);
 
 guint32 meta_x11_display_get_current_time_roundtrip (MetaX11Display *x11_display);
 
-void meta_x11_display_set_input_focus_xwindow (MetaX11Display *x11_display,
-                                               Window          window,
-                                               guint32         timestamp);
-
 int meta_x11_display_logical_monitor_to_xinerama_index (MetaX11Display     *x11_display,
                                                         MetaLogicalMonitor *logical_monitor);
 
@@ -249,10 +236,6 @@ void meta_x11_display_update_focus_window (MetaX11Display *x11_display,
                                            Window          xwindow,
                                            gulong          serial,
                                            gboolean        focused_by_us);
-void meta_x11_display_set_input_focus (MetaX11Display *x11_display,
-                                       MetaWindow     *window,
-                                       gboolean        focus_frame,
-                                       uint32_t        timestamp);
 
 MetaDisplay * meta_x11_display_get_display (MetaX11Display *x11_display);
 
@@ -267,7 +250,3 @@ gboolean meta_x11_display_xwindow_is_a_no_focus_window (MetaX11Display *x11_disp
                                                         Window xwindow);
 
 void meta_x11_display_clear_stage_input_region (MetaX11Display *x11_display);
-
-void meta_x11_display_init_error_traps (MetaX11Display *x11_display);
-
-void meta_x11_display_destroy_error_traps (MetaX11Display *x11_display);

@@ -24,9 +24,10 @@
 #include "compositor/meta-cullable.h"
 #include "compositor/meta-surface-actor-wayland.h"
 #include "compositor/meta-window-actor-wayland.h"
-#include "compositor/region-utils.h"
 #include "meta/meta-window-actor.h"
-#include "wayland/meta-wayland-surface.h"
+#include "wayland/meta-wayland-buffer.h"
+#include "wayland/meta-wayland-single-pixel-buffer.h"
+#include "wayland/meta-wayland-surface-private.h"
 #include "wayland/meta-window-wayland.h"
 
 struct _MetaSurfaceContainerActorWayland
@@ -79,15 +80,15 @@ surface_container_new (MetaWindowActor *window_actor)
 }
 
 static void
-surface_container_cull_unobscured (MetaCullable   *cullable,
-                                   cairo_region_t *unobscured_region)
+surface_container_cull_unobscured (MetaCullable *cullable,
+                                   MtkRegion    *unobscured_region)
 {
   meta_cullable_cull_unobscured_children (cullable, unobscured_region);
 }
 
 static void
-surface_container_cull_redraw_clip (MetaCullable   *cullable,
-                                    cairo_region_t *clip_region)
+surface_container_cull_redraw_clip (MetaCullable *cullable,
+                                    MtkRegion    *clip_region)
 {
   meta_cullable_cull_redraw_clip_children (cullable, clip_region);
 }
@@ -233,7 +234,7 @@ meta_window_actor_wayland_rebuild_surface_tree (MetaWindowActor *actor)
     meta_window_actor_get_surface (actor);
   MetaWaylandSurface *surface = meta_surface_actor_wayland_get_surface (
     META_SURFACE_ACTOR_WAYLAND (surface_actor));
-  GNode *root_node = surface->output_state.subsurface_branch_node;
+  GNode *root_node = surface->applied_state.subsurface_branch_node;
   g_autoptr (GList) surface_actors = NULL;
   g_autoptr (GList) children = NULL;
   GList *l;
@@ -274,7 +275,7 @@ meta_window_actor_wayland_rebuild_surface_tree (MetaWindowActor *actor)
                    &traverse_data);
 }
 
-static cairo_region_t *
+static MtkRegion *
 calculate_background_cull_region (MetaWindowActorWayland *self)
 {
   MetaWindowActor *window_actor = META_WINDOW_ACTOR (self);
@@ -289,12 +290,12 @@ calculate_background_cull_region (MetaWindowActorWayland *self)
     .height = clutter_actor_get_height (self->background) * geometry_scale,
   };
 
-  return cairo_region_create_rectangle (&rect);
+  return mtk_region_create_rectangle (&rect);
 }
 
 static void
 subtract_background_opaque_region (MetaWindowActorWayland *self,
-                                   cairo_region_t         *region)
+                                   MtkRegion              *region)
 {
   if (!region)
     return;
@@ -302,19 +303,17 @@ subtract_background_opaque_region (MetaWindowActorWayland *self,
   if (self->background &&
       clutter_actor_get_paint_opacity (CLUTTER_ACTOR (self)) == 0xff)
     {
-      cairo_region_t *background_cull_region;
+      g_autoptr (MtkRegion) background_cull_region = NULL;
 
       background_cull_region = calculate_background_cull_region (self);
 
-      cairo_region_subtract (region, background_cull_region);
-
-      cairo_region_destroy (background_cull_region);
+      mtk_region_subtract (region, background_cull_region);
     }
 }
 
 static void
-meta_window_actor_wayland_cull_unobscured (MetaCullable   *cullable,
-                                           cairo_region_t *unobscured_region)
+meta_window_actor_wayland_cull_unobscured (MetaCullable *cullable,
+                                           MtkRegion    *unobscured_region)
 {
   MetaWindowActorWayland *self =
     META_WINDOW_ACTOR_WAYLAND (cullable);
@@ -325,8 +324,8 @@ meta_window_actor_wayland_cull_unobscured (MetaCullable   *cullable,
 }
 
 static void
-meta_window_actor_wayland_cull_redraw_clip (MetaCullable   *cullable,
-                                            cairo_region_t *clip_region)
+meta_window_actor_wayland_cull_redraw_clip (MetaCullable *cullable,
+                                            MtkRegion    *clip_region)
 {
   MetaWindowActorWayland *self =
     META_WINDOW_ACTOR_WAYLAND (cullable);
@@ -351,8 +350,10 @@ meta_window_actor_wayland_get_scanout_candidate (MetaWindowActor *actor)
   ClutterActor *child_actor;
   ClutterActorIter iter;
   MetaSurfaceActor *topmost_surface_actor = NULL;
-  MetaWindow *window;
   int n_mapped_surfaces = 0;
+  MetaWindow *window;
+  ClutterActorBox window_box;
+  ClutterActorBox surface_box;
 
   if (clutter_actor_get_last_child (CLUTTER_ACTOR (self)) != surface_container)
     {
@@ -379,15 +380,52 @@ meta_window_actor_wayland_get_scanout_candidate (MetaWindowActor *actor)
     }
 
   window = meta_window_actor_get_meta_window (actor);
-  if (!meta_surface_actor_is_opaque (topmost_surface_actor) &&
-      !(meta_window_is_fullscreen (window) && n_mapped_surfaces == 1))
+  if (meta_window_is_fullscreen (window) && n_mapped_surfaces == 1)
+    return topmost_surface_actor;
+
+  if (meta_window_is_fullscreen (window) && n_mapped_surfaces == 2)
     {
-      meta_topic (META_DEBUG_RENDER,
-                  "Window-actor is not opaque");
-      return NULL;
+      MetaSurfaceActorWayland *bg_surface_actor = NULL;
+      MetaWaylandSurface *bg_surface;
+      MetaWaylandBuffer *buffer;
+
+      clutter_actor_iter_init (&iter, surface_container);
+      while (clutter_actor_iter_next (&iter, &child_actor))
+        {
+          if (!clutter_actor_is_mapped (child_actor))
+            continue;
+
+          bg_surface_actor = META_SURFACE_ACTOR_WAYLAND (child_actor);
+          break;
+        }
+      g_assert (bg_surface_actor);
+
+      bg_surface = meta_surface_actor_wayland_get_surface (bg_surface_actor);
+      buffer = meta_wayland_surface_get_buffer (bg_surface);
+      if (buffer->type == META_WAYLAND_BUFFER_TYPE_SINGLE_PIXEL)
+        {
+          MetaWaylandSinglePixelBuffer *sp_buffer;
+
+          sp_buffer = meta_wayland_single_pixel_buffer_from_buffer (buffer);
+          if (sp_buffer &&
+              meta_wayland_single_pixel_buffer_is_opaque_black (sp_buffer))
+            return topmost_surface_actor;
+        }
     }
 
-  return topmost_surface_actor;
+  if (meta_surface_actor_is_opaque (topmost_surface_actor) &&
+      clutter_actor_get_paint_box (CLUTTER_ACTOR (actor), &window_box) &&
+      clutter_actor_get_paint_box (CLUTTER_ACTOR (topmost_surface_actor),
+                                   &surface_box) &&
+      G_APPROX_VALUE (window_box.x1, surface_box.x1, CLUTTER_COORDINATE_EPSILON) &&
+      G_APPROX_VALUE (window_box.y1, surface_box.y1, CLUTTER_COORDINATE_EPSILON) &&
+      G_APPROX_VALUE (window_box.x2, surface_box.x2, CLUTTER_COORDINATE_EPSILON) &&
+      G_APPROX_VALUE (window_box.y2, surface_box.y2, CLUTTER_COORDINATE_EPSILON))
+    return topmost_surface_actor;
+
+  meta_topic (META_DEBUG_RENDER,
+              "Could not find suitable scanout candidate for window-actor");
+  return NULL;
 }
 
 static void

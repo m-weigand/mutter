@@ -42,7 +42,6 @@
 typedef struct _CoglContext CoglContext;
 typedef struct _CoglTimestampQuery CoglTimestampQuery;
 
-#include "cogl/cogl-defines.h"
 #include "cogl/cogl-display.h"
 #include "cogl/cogl-pipeline.h"
 #include "cogl/cogl-primitive.h"
@@ -52,8 +51,9 @@ typedef struct _CoglTimestampQuery CoglTimestampQuery;
 G_BEGIN_DECLS
 
 /**
- * SECTION:cogl-context
- * @short_description: The top level application context.
+ * CoglContext:
+ *
+ * The top level application context.
  *
  * A #CoglContext is the top most sandbox of Cogl state for an
  * application or toolkit. Its main purpose is to act as a sandbox
@@ -73,7 +73,7 @@ G_BEGIN_DECLS
  * that can all access the same GPU without having to worry about
  * what state other components have left you with.
  *
- * <note><para>Cogl does not maintain internal references to the context for
+ * Cogl does not maintain internal references to the context for
  * resources that depend on the context so applications. This is to
  * help applications control the lifetime a context without us needing to
  * introduce special api to handle the breakup of internal circular
@@ -90,18 +90,17 @@ G_BEGIN_DECLS
  * times throughout their lifetime (such as Android applications) they
  * should be careful to destroy all context dependent resources, such as
  * framebuffers or textures etc before unrefing and destroying the
- * context.</para></note>
+ * context.
  */
 
-#define COGL_CONTEXT(OBJECT) ((CoglContext *)OBJECT)
+#define COGL_TYPE_CONTEXT (cogl_context_get_type ())
 
-/**
- * cogl_context_get_gtype:
- *
- * Returns: a #GType that can be used with the GLib type system.
- */
 COGL_EXPORT
-GType cogl_context_get_gtype (void);
+G_DECLARE_FINAL_TYPE (CoglContext,
+                      cogl_context,
+                      COGL,
+                      CONTEXT,
+                      GObject)
 
 /**
  * cogl_context_new: (constructor) (skip)
@@ -150,17 +149,6 @@ cogl_context_get_display (CoglContext *context);
 COGL_EXPORT CoglRenderer *
 cogl_context_get_renderer (CoglContext *context);
 
-/**
- * cogl_is_context:
- * @object: An object or %NULL
- *
- * Gets whether the given object references an existing context object.
- *
- * Return value: %TRUE if the @object references a #CoglContext,
- *   %FALSE otherwise
- */
-COGL_EXPORT gboolean
-cogl_is_context (void *object);
 
 /* XXX: not guarded by the EXPERIMENTAL_API defines to avoid
  * upsetting glib-mkenums, but this can still be considered implicitly
@@ -170,6 +158,9 @@ cogl_is_context (void *object);
  * @COGL_FEATURE_ID_TEXTURE_RG: Support for
  *    %COGL_TEXTURE_COMPONENTS_RG as the internal components of a
  *    texture.
+ * @COGL_FEATURE_ID_TEXTURE_RGBA1010102: Support for 10bpc RGBA formats
+ * @COGL_FEATURE_ID_TEXTURE_HALF_FLOAT: Support for half float formats
+ * @COGL_FEATURE_ID_TEXTURE_NORM16: Support for 16bpc formats
  * @COGL_FEATURE_ID_UNSIGNED_INT_INDICES: Set if
  *     %COGL_INDICES_TYPE_UNSIGNED_INT is supported in
  *     cogl_indices_new().
@@ -194,6 +185,9 @@ typedef enum _CoglFeatureID
   COGL_FEATURE_ID_MAP_BUFFER_FOR_WRITE,
   COGL_FEATURE_ID_FENCE,
   COGL_FEATURE_ID_TEXTURE_RG,
+  COGL_FEATURE_ID_TEXTURE_RGBA1010102,
+  COGL_FEATURE_ID_TEXTURE_HALF_FLOAT,
+  COGL_FEATURE_ID_TEXTURE_NORM16,
   COGL_FEATURE_ID_BUFFER_AGE,
   COGL_FEATURE_ID_TEXTURE_EGL_IMAGE_EXTERNAL,
   COGL_FEATURE_ID_BLIT_FRAMEBUFFER,
@@ -225,7 +219,7 @@ cogl_has_feature (CoglContext *context, CoglFeatureID feature);
 /**
  * cogl_has_features:
  * @context: A #CoglContext pointer
- * @...: A 0 terminated list of CoglFeatureID<!-- -->s
+ * @...: A 0 terminated list of `CoglFeatureID`s
  *
  * Checks if a list of features are all currently available.
  *

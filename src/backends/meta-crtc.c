@@ -111,20 +111,17 @@ meta_crtc_get_all_transforms (MetaCrtc *crtc)
 }
 
 void
-meta_crtc_set_config (MetaCrtc             *crtc,
-                      graphene_rect_t      *layout,
-                      MetaCrtcMode         *mode,
-                      MetaMonitorTransform  transform)
+meta_crtc_set_config (MetaCrtc       *crtc,
+                      MetaCrtcConfig *config,
+                      gpointer        backend_private)
 {
   MetaCrtcPrivate *priv = meta_crtc_get_instance_private (crtc);
-  MetaCrtcConfig *config;
+  MetaCrtcClass *klass = META_CRTC_GET_CLASS (crtc);
 
   meta_crtc_unset_config (crtc);
 
-  config = g_new0 (MetaCrtcConfig, 1);
-  config->layout = *layout;
-  config->mode = mode;
-  config->transform = transform;
+  if (klass->set_config)
+    klass->set_config (crtc, config, backend_private);
 
   priv->config = config;
 }
@@ -143,6 +140,20 @@ meta_crtc_get_config (MetaCrtc *crtc)
   MetaCrtcPrivate *priv = meta_crtc_get_instance_private (crtc);
 
   return priv->config;
+}
+
+gboolean
+meta_crtc_assign_extra (MetaCrtc            *crtc,
+                        MetaCrtcAssignment  *crtc_assignment,
+                        GPtrArray           *crtc_assignments,
+                        GError             **error)
+{
+  MetaCrtcClass *klass = META_CRTC_GET_CLASS (crtc);
+
+  if (klass->assign_extra)
+    return klass->assign_extra (crtc, crtc_assignment, crtc_assignments, error);
+  else
+    return TRUE;
 }
 
 size_t
@@ -401,4 +412,19 @@ meta_crtc_class_init (MetaCrtcClass *klass)
                        G_PARAM_CONSTRUCT_ONLY |
                        G_PARAM_STATIC_STRINGS);
   g_object_class_install_properties (object_class, N_PROPS, obj_props);
+}
+
+MetaCrtcConfig *
+meta_crtc_config_new (graphene_rect_t      *layout,
+                      MetaCrtcMode         *mode,
+                      MetaMonitorTransform  transform)
+{
+  MetaCrtcConfig *config;
+
+  config = g_new0 (MetaCrtcConfig, 1);
+  config->layout = *layout;
+  config->mode = mode;
+  config->transform = transform;
+
+  return config;
 }

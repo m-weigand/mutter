@@ -35,12 +35,13 @@
 
 #include "core/meta-workspace-manager-private.h"
 #include "core/workspace-private.h"
-#include "meta/meta-x11-errors.h"
+#include "mtk/mtk-x11.h"
 #include "wayland/meta-wayland-data-device.h"
 #include "wayland/meta-xwayland-private.h"
 #include "wayland/meta-xwayland-dnd-private.h"
 #include "wayland/meta-xwayland.h"
 #include "x11/meta-x11-display-private.h"
+#include "x11/window-x11.h"
 
 #define INCR_CHUNK_SIZE (128 * 1024)
 #define XDND_VERSION 5
@@ -251,7 +252,7 @@ xdnd_send_enter (MetaXWaylandDnd *dnd,
   gchar **p;
   struct wl_array *source_mime_types;
 
-  meta_x11_error_trap_push (x11_display);
+  mtk_x11_error_trap_push (x11_display->xdisplay);
 
   data_source = compositor->seat->data_device.dnd_data_source;
   xev.xclient.type = ClientMessage;
@@ -298,7 +299,7 @@ xdnd_send_enter (MetaXWaylandDnd *dnd,
 
   XSendEvent (xdisplay, dest, False, NoEventMask, &xev);
 
-  if (meta_x11_error_trap_pop_with_return (x11_display) != Success)
+  if (mtk_x11_error_trap_pop_with_return (x11_display->xdisplay) != Success)
     g_critical ("Error sending XdndEnter");
 }
 
@@ -316,9 +317,9 @@ xdnd_send_leave (MetaXWaylandDnd *dnd,
   xev.xclient.window = dest;
   xev.xclient.data.l[0] = x11_display->selection.xwindow;
 
-  meta_x11_error_trap_push (x11_display);
+  mtk_x11_error_trap_push (x11_display->xdisplay);
   XSendEvent (xdisplay, dest, False, NoEventMask, &xev);
-  meta_x11_error_trap_pop (x11_display);
+  mtk_x11_error_trap_pop (x11_display->xdisplay);
 }
 
 static void
@@ -354,10 +355,10 @@ xdnd_send_position (MetaXWaylandDnd *dnd,
   xev.xclient.data.l[3] = time;
   xev.xclient.data.l[4] = action_to_atom (action);
 
-  meta_x11_error_trap_push (x11_display);
+  mtk_x11_error_trap_push (x11_display->xdisplay);
   XSendEvent (xdisplay, dest, False, NoEventMask, &xev);
 
-  if (meta_x11_error_trap_pop_with_return (x11_display) != Success)
+  if (mtk_x11_error_trap_pop_with_return (x11_display->xdisplay) != Success)
     g_critical ("Error sending XdndPosition");
 }
 
@@ -378,10 +379,10 @@ xdnd_send_drop (MetaXWaylandDnd *dnd,
   xev.xclient.data.l[0] = x11_display->selection.xwindow;
   xev.xclient.data.l[2] = time;
 
-  meta_x11_error_trap_push (x11_display);
+  mtk_x11_error_trap_push (x11_display->xdisplay);
   XSendEvent (xdisplay, dest, False, NoEventMask, &xev);
 
-  if (meta_x11_error_trap_pop_with_return (x11_display) != Success)
+  if (mtk_x11_error_trap_pop_with_return (x11_display->xdisplay) != Success)
     g_critical ("Error sending XdndDrop");
 }
 
@@ -410,10 +411,10 @@ xdnd_send_finished (MetaXWaylandDnd *dnd,
       xev.xclient.data.l[2] = action_to_atom (action);
     }
 
-  meta_x11_error_trap_push (x11_display);
+  mtk_x11_error_trap_push (x11_display->xdisplay);
   XSendEvent (xdisplay, dest, False, NoEventMask, &xev);
 
-  if (meta_x11_error_trap_pop_with_return (x11_display) != Success)
+  if (mtk_x11_error_trap_pop_with_return (x11_display->xdisplay) != Success)
     g_critical ("Error sending XdndFinished");
 }
 
@@ -438,10 +439,10 @@ xdnd_send_status (MetaXWaylandDnd *dnd,
   if (xev.xclient.data.l[4])
     xev.xclient.data.l[1] |= 1 << 0; /* Bit 1: dest accepts the drop */
 
-  meta_x11_error_trap_push (x11_display);
+  mtk_x11_error_trap_push (x11_display->xdisplay);
   XSendEvent (xdisplay, dest, False, NoEventMask, &xev);
 
-  if (meta_x11_error_trap_pop_with_return (x11_display) != Success)
+  if (mtk_x11_error_trap_pop_with_return (x11_display->xdisplay) != Success)
     g_critical ("Error sending Xdndstatus");
 }
 
@@ -616,8 +617,9 @@ meta_x11_drag_dest_focus_in (MetaWaylandDataDevice *data_device,
   MetaWaylandSeat *seat = meta_wayland_data_device_get_seat (data_device);
   MetaWaylandCompositor *compositor = meta_wayland_seat_get_compositor (seat);
   MetaXWaylandDnd *dnd = compositor->xwayland_manager.dnd;
+  MetaWindow *window = meta_wayland_surface_get_window (surface);
 
-  dnd->dnd_dest = meta_wayland_surface_get_window (surface)->xwindow;
+  dnd->dnd_dest = meta_window_x11_get_xwindow (window);
   xdnd_send_enter (dnd, dnd->dnd_dest);
 }
 
@@ -709,7 +711,7 @@ meta_xwayland_data_source_fetch_mimetype_list (MetaWaylandDataSource *source,
   if (source_mime_types->size != 0)
     return TRUE;
 
-  meta_x11_error_trap_push (x11_display);
+  mtk_x11_error_trap_push (x11_display->xdisplay);
 
   utf8_string = XInternAtom (xdisplay, "UTF8_STRING", False);
   if (XGetWindowProperty (xdisplay, window, prop,
@@ -723,11 +725,11 @@ meta_xwayland_data_source_fetch_mimetype_list (MetaWaylandDataSource *source,
                           &bytes_after_ret,
                           (guchar **) &atoms) != Success)
     {
-      meta_x11_error_trap_pop (x11_display);
+      mtk_x11_error_trap_pop (xdisplay);
       return FALSE;
     }
 
-  if (meta_x11_error_trap_pop_with_return (x11_display) != Success)
+  if (mtk_x11_error_trap_pop_with_return (x11_display->xdisplay) != Success)
     return FALSE;
 
   if (nitems_ret == 0 || type_ret != XA_ATOM)

@@ -177,7 +177,6 @@ assign_monitor_crtc (MetaMonitor         *monitor,
   MetaCrtc *crtc;
   MetaMonitorTransform transform;
   MetaMonitorTransform crtc_transform;
-  MetaMonitorTransform crtc_hw_transform;
   int crtc_x, crtc_y;
   float x_offset, y_offset;
   float scale = 0.0;
@@ -209,12 +208,6 @@ assign_monitor_crtc (MetaMonitor         *monitor,
 
   transform = data->logical_monitor_config->transform;
   crtc_transform = meta_monitor_logical_to_crtc_transform (monitor, transform);
-  if (meta_monitor_manager_is_transform_handled (data->monitor_manager,
-                                                 crtc,
-                                                 crtc_transform))
-    crtc_hw_transform = crtc_transform;
-  else
-    crtc_hw_transform = META_MONITOR_TRANSFORM_NORMAL;
 
   meta_monitor_calculate_crtc_pos (monitor, mode, output, crtc_transform,
                                    &crtc_x, &crtc_y);
@@ -256,10 +249,16 @@ assign_monitor_crtc (MetaMonitor         *monitor,
     .crtc = crtc,
     .mode = crtc_mode,
     .layout = crtc_layout,
-    .transform = crtc_hw_transform,
+    .transform = crtc_transform,
     .outputs = g_ptr_array_new ()
   };
   g_ptr_array_add (crtc_assignment->outputs, output);
+
+  if (!meta_crtc_assign_extra (crtc,
+                               crtc_assignment,
+                               data->crtc_assignments,
+                               error))
+    return FALSE;
 
   /*
    * Only one output can be marked as primary (due to Xrandr limitation),
@@ -286,7 +285,8 @@ assign_monitor_crtc (MetaMonitor         *monitor,
     .is_presentation = assign_output_as_presentation,
     .is_underscanning = data->monitor_config->enable_underscanning,
     .has_max_bpc = data->monitor_config->has_max_bpc,
-    .max_bpc = data->monitor_config->max_bpc
+    .max_bpc = data->monitor_config->max_bpc,
+    .rgb_range = data->monitor_config->rgb_range,
   };
 
   g_ptr_array_add (data->crtc_assignments, crtc_assignment);
@@ -691,7 +691,8 @@ create_monitor_config (MetaMonitor     *monitor,
   *monitor_config = (MetaMonitorConfig) {
     .monitor_spec = meta_monitor_spec_clone (monitor_spec),
     .mode_spec = g_memdup2 (mode_spec, sizeof (MetaMonitorModeSpec)),
-    .enable_underscanning = meta_monitor_is_underscanning (monitor)
+    .enable_underscanning = meta_monitor_is_underscanning (monitor),
+    .rgb_range = meta_monitor_get_rgb_range (monitor),
   };
 
   monitor_config->has_max_bpc =
@@ -1748,6 +1749,8 @@ meta_monitors_config_class_init (MetaMonitorsConfigClass *klass)
 static void
 meta_crtc_assignment_free (MetaCrtcAssignment *assignment)
 {
+  g_clear_pointer (&assignment->backend_private,
+                   assignment->backend_private_destroy);
   g_ptr_array_free (assignment->outputs, TRUE);
   g_free (assignment);
 }
@@ -1897,8 +1900,8 @@ has_adjacent_neighbour (MetaMonitorsConfig       *config,
       if (logical_monitor_config == other_logical_monitor_config)
         continue;
 
-      if (meta_rectangle_is_adjacent_to (&logical_monitor_config->layout,
-                                         &other_logical_monitor_config->layout))
+      if (mtk_rectangle_is_adjacent_to (&logical_monitor_config->layout,
+                                        &other_logical_monitor_config->layout))
         return TRUE;
     }
 

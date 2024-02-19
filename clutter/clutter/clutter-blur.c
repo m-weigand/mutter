@@ -20,8 +20,9 @@
 #include "clutter/clutter-backend.h"
 
 /**
- * SECTION:clutter-blur
- * @short_description: Blur textures
+ * ClutterBlur:
+ *
+ * Blur textures
  *
  * #ClutterBlur is a moderately fast gaussian blur implementation.
  *
@@ -161,7 +162,7 @@ create_blur_pipeline (void)
                                   NULL);
       cogl_snippet_set_replace (snippet, gaussian_blur_glsl);
       cogl_pipeline_add_layer_snippet (blur_pipeline, 0, snippet);
-      cogl_object_unref (snippet);
+      g_object_unref (snippet);
 
       cogl_context_set_named_pipeline (ctx, &blur_pipeline_key, blur_pipeline);
     }
@@ -230,7 +231,7 @@ create_fbo (ClutterBlur *blur,
   float height;
   float width;
 
-  g_clear_pointer (&pass->texture, cogl_object_unref);
+  g_clear_object (&pass->texture);
   g_clear_object (&pass->framebuffer);
 
   width = cogl_texture_get_width (blur->source_texture);
@@ -238,9 +239,9 @@ create_fbo (ClutterBlur *blur,
   scaled_width = floorf (width / blur->downscale_factor);
   scaled_height = floorf (height / blur->downscale_factor);
 
-  pass->texture = COGL_TEXTURE (cogl_texture_2d_new_with_size (ctx,
-                                                               scaled_width,
-                                                               scaled_height));
+  pass->texture = cogl_texture_2d_new_with_size (ctx,
+                                                 scaled_width,
+                                                 scaled_height);
   if (!pass->texture)
     return FALSE;
 
@@ -326,8 +327,8 @@ apply_blur_pass (BlurPass *pass)
 static void
 clear_blur_pass (BlurPass *pass)
 {
-  g_clear_pointer (&pass->pipeline, cogl_object_unref);
-  g_clear_pointer (&pass->texture, cogl_object_unref);
+  g_clear_object (&pass->pipeline);
+  g_clear_object (&pass->texture);
   g_clear_object (&pass->framebuffer);
 }
 
@@ -342,7 +343,7 @@ clear_blur_pass (BlurPass *pass)
  */
 ClutterBlur *
 clutter_blur_new (CoglTexture *texture,
-                  float        sigma)
+                  float        radius)
 {
   ClutterBlur *blur;
   unsigned int height;
@@ -351,17 +352,19 @@ clutter_blur_new (CoglTexture *texture,
   BlurPass *vpass;
 
   g_return_val_if_fail (texture != NULL, NULL);
-  g_return_val_if_fail (sigma >= 0.0, NULL);
+  g_return_val_if_fail (radius >= 0.0, NULL);
 
   width = cogl_texture_get_width (texture);
   height = cogl_texture_get_height (texture);
 
   blur = g_new0 (ClutterBlur, 1);
-  blur->sigma = sigma;
-  blur->source_texture = cogl_object_ref (texture);
-  blur->downscale_factor = calculate_downscale_factor (width, height, sigma);
+  blur->sigma = radius / 2.0;
+  blur->source_texture = g_object_ref (texture);
+  blur->downscale_factor = calculate_downscale_factor (width,
+                                                       height,
+                                                       blur->sigma);
 
-  if (G_APPROX_VALUE (sigma, 0.0, FLT_EPSILON))
+  if (G_APPROX_VALUE (blur->sigma, 0.0, FLT_EPSILON))
     goto out;
 
   vpass = &blur->pass[VERTICAL];
@@ -383,7 +386,7 @@ out:
  * @blur: a #ClutterBlur
  *
  * Applies the blur. The resulting texture can be retrieved by
- * clutter_blur_get_texture().
+ * [method@Clutter.Blur.get_texture].
  */
 void
 clutter_blur_apply (ClutterBlur *blur)
@@ -400,7 +403,7 @@ clutter_blur_apply (ClutterBlur *blur)
  * @blur: a #ClutterBlur
  *
  * Retrieves the texture where the blurred contents are stored. The
- * contents are undefined until clutter_blur_apply() is called.
+ * contents are undefined until [method@Clutter.Blur.apply] is called.
  *
  * Returns: (transfer none): a #CoglTexture
  */
@@ -426,6 +429,6 @@ clutter_blur_free (ClutterBlur *blur)
 
   clear_blur_pass (&blur->pass[VERTICAL]);
   clear_blur_pass (&blur->pass[HORIZONTAL]);
-  cogl_clear_object (&blur->source_texture);
+  g_clear_object (&blur->source_texture);
   g_free (blur);
 }

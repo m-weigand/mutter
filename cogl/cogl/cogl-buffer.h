@@ -43,12 +43,13 @@
 G_BEGIN_DECLS
 
 /**
- * SECTION:cogl-buffer
- * @short_description: Common buffer functions, including data upload APIs
+ * CoglBuffer:
+ *
+ * Common buffer functions, including data upload APIs
  *
  * The CoglBuffer API provides a common interface to manipulate
- * buffers that have been allocated either via cogl_pixel_buffer_new()
- * or cogl_attribute_buffer_new(). The API allows you to upload data
+ * buffers that have been allocated either via `cogl_pixel_buffer_new()`
+ * or `cogl_attribute_buffer_new()`. The API allows you to upload data
  * to these buffers and define usage hints that help Cogl manage your
  * buffer optimally.
  *
@@ -62,17 +63,21 @@ G_BEGIN_DECLS
  * of loading an image file and unpacking it into the mapped buffer
  * without blocking other Cogl operations.
  */
+#define COGL_TYPE_BUFFER            (cogl_buffer_get_type ())
+#define COGL_BUFFER(obj)            (G_TYPE_CHECK_INSTANCE_CAST ((obj), COGL_TYPE_BUFFER, CoglBuffer))
+#define COGL_BUFFER_CONST(obj)      (G_TYPE_CHECK_INSTANCE_CAST ((obj), COGL_TYPE_BUFFER, CoglBuffer const))
+#define COGL_BUFFER_CLASS(klass)    (G_TYPE_CHECK_CLASS_CAST ((klass),  COGL_TYPE_BUFFER, CoglBufferClass))
+#define COGL_IS_BUFFER(obj)         (G_TYPE_CHECK_INSTANCE_TYPE ((obj), COGL_TYPE_BUFFER))
+#define COGL_IS_BUFFER_CLASS(klass) (G_TYPE_CHECK_CLASS_TYPE ((klass),  COGL_TYPE_BUFFER))
+#define COGL_BUFFER_GET_CLASS(obj)  (G_TYPE_INSTANCE_GET_CLASS ((obj),  COGL_TYPE_BUFFER, CoglBufferClass))
 
-#if defined(__COGL_H_INSIDE__) && !defined(COGL_ENABLE_MUTTER_API) && \
-  !defined(COGL_GIR_SCANNING)
-/* For the public C api we typedef interface types as void to avoid needing
- * lots of casting in code and instead we will rely on runtime type checking
- * for these objects. */
-typedef void CoglBuffer;
-#else
+typedef struct _CoglBufferClass CoglBufferClass;
 typedef struct _CoglBuffer CoglBuffer;
-#define COGL_BUFFER(buffer) ((CoglBuffer *)(buffer))
-#endif
+
+G_DEFINE_AUTOPTR_CLEANUP_FUNC (CoglBuffer, g_object_unref)
+
+COGL_EXPORT
+GType       cogl_buffer_get_type (void) G_GNUC_CONST;
 
 #define COGL_BUFFER_ERROR (_cogl_buffer_error_domain ())
 
@@ -91,17 +96,6 @@ typedef enum /*< prefix=COGL_BUFFER_ERROR >*/
 
 uint32_t
 _cogl_buffer_error_domain (void);
-
-/**
- * cogl_is_buffer:
- * @object: a buffer object
- *
- * Checks whether @buffer is a buffer object.
- *
- * Return value: %TRUE if the handle is a CoglBuffer, and %FALSE otherwise
- */
-COGL_EXPORT gboolean
-cogl_is_buffer (void *object);
 
 /**
  * cogl_buffer_get_size:
@@ -147,7 +141,7 @@ cogl_buffer_set_update_hint (CoglBuffer          *buffer,
  * cogl_buffer_get_update_hint:
  * @buffer: a buffer object
  *
- * Retrieves the update hints set using cogl_buffer_set_update_hint()
+ * Retrieves the update hints set using [method@Cogl.Buffer.set_update_hint]
  *
  * Return value: the #CoglBufferUpdateHint currently used by the buffer
  */
@@ -161,7 +155,7 @@ cogl_buffer_get_update_hint (CoglBuffer *buffer);
  * @COGL_BUFFER_ACCESS_READ_WRITE: the buffer will be used for both reading and
  *   writing
  *
- * The access hints for cogl_buffer_set_update_hint()
+ * The access hints for [method@Cogl.Buffer.set_update_hint]
  */
 typedef enum /*< prefix=COGL_BUFFER_ACCESS >*/
 {
@@ -192,14 +186,27 @@ typedef enum /*< prefix=COGL_BUFFER_MAP_HINT >*/
 } CoglBufferMapHint;
 
 /**
+ * CoglBufferBindTarget:
+ */
+typedef enum /*< prefix=COGL_BUFFER_BIND_TARGET >*/
+{
+  COGL_BUFFER_BIND_TARGET_PIXEL_PACK,
+  COGL_BUFFER_BIND_TARGET_PIXEL_UNPACK,
+  COGL_BUFFER_BIND_TARGET_ATTRIBUTE_BUFFER,
+  COGL_BUFFER_BIND_TARGET_INDEX_BUFFER,
+
+  COGL_BUFFER_BIND_TARGET_COUNT
+} CoglBufferBindTarget;
+
+/**
  * cogl_buffer_map:
  * @buffer: a buffer object
  * @access: how the mapped buffer will be used by the application
- * @hints: A mask of #CoglBufferMapHint<!-- -->s that tell Cogl how
+ * @hints: A mask of `CoglBufferMapHint`s that tell Cogl how
  *   the data will be modified once mapped.
  *
  * Maps the buffer into the application address space for direct
- * access. This is equivalent to calling cogl_buffer_map_range() with
+ * access. This is equivalent to calling [method@Cogl.Buffer.map_range] with
  * zero as the offset and the size of the entire buffer as the size.
  *
  * It is strongly recommended that you pass
@@ -227,7 +234,7 @@ cogl_buffer_map (CoglBuffer *buffer,
  * @offset: Offset within the buffer to start the mapping
  * @size: The size of data to map
  * @access: how the mapped buffer will be used by the application
- * @hints: A mask of #CoglBufferMapHint<!-- -->s that tell Cogl how
+ * @hints: A mask of `CoglBufferMapHint`s that tell Cogl how
  *   the data will be modified once mapped.
  * @error: A #GError for catching exceptional errors
  *
@@ -262,7 +269,7 @@ cogl_buffer_map_range (CoglBuffer *buffer,
  * cogl_buffer_unmap:
  * @buffer: a buffer object
  *
- * Unmaps a buffer previously mapped by cogl_buffer_map().
+ * Unmaps a buffer previously mapped by [method@Cogl.Buffer.map].
  */
 COGL_EXPORT void
 cogl_buffer_unmap (CoglBuffer *buffer);

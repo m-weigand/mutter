@@ -21,13 +21,14 @@
 #include <X11/Xatom.h>
 
 #include "core/frame.h"
-#include "meta/meta-x11-errors.h"
+#include "mtk/mtk-x11.h"
+#include "x11/meta-x11-display-private.h"
 #include "x11/window-x11.h"
 #include "x11/window-x11-private.h"
 #include "x11/xprops.h"
 #include "wayland/meta-window-xwayland.h"
 #include "wayland/meta-wayland.h"
-#include "wayland/meta-wayland-surface.h"
+#include "wayland/meta-wayland-surface-private.h"
 
 enum
 {
@@ -122,7 +123,7 @@ meta_window_xwayland_adjust_fullscreen_monitor_rect (MetaWindow   *window,
   win_monitor_rect = meta_logical_monitor_get_layout (window->monitor);
 
   if (!meta_prop_get_cardinal_list (x11_display,
-                                    window->xwindow,
+                                    meta_window_x11_get_xwindow (window),
                                     x11_display->atom__XWAYLAND_RANDR_EMU_MONITOR_RECTS,
                                     &list, &n_items))
     return;
@@ -198,7 +199,7 @@ apply_allow_commits_x11_property (MetaWindowXwayland *xwayland_window,
 
   frame = meta_window_get_frame (window);
   if (!frame)
-    xwin = window->xwindow;
+    xwin = meta_window_x11_get_xwindow (window);
   else
     xwin = meta_frame_get_xwindow (frame);
 
@@ -207,12 +208,12 @@ apply_allow_commits_x11_property (MetaWindowXwayland *xwayland_window,
 
   property[0] = !!allow_commits;
 
-  meta_x11_error_trap_push (x11_display);
+  mtk_x11_error_trap_push (x11_display->xdisplay);
   XChangeProperty (x11_display->xdisplay, xwin,
                    x11_display->atom__XWAYLAND_ALLOW_COMMITS,
                    XA_CARDINAL, 32, PropModeReplace,
                    (guchar*) &property, 1);
-  meta_x11_error_trap_pop (x11_display);
+  mtk_x11_error_trap_pop (x11_display->xdisplay);
   XFlush (x11_display->xdisplay);
 }
 

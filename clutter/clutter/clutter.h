@@ -41,9 +41,6 @@
 #include "clutter/clutter-blur-effect.h"
 #include "clutter/clutter-box-layout.h"
 #include "clutter/clutter-brightness-contrast-effect.h"
-#include "clutter/clutter-cairo.h"
-#include "clutter/clutter-canvas.h"
-#include "clutter/clutter-child-meta.h"
 #include "clutter/clutter-click-action.h"
 #include "clutter/clutter-clone.h"
 #include "clutter/clutter-color.h"
@@ -51,7 +48,6 @@
 #include "clutter/clutter-color-static.h"
 #include "clutter/clutter-colorize-effect.h"
 #include "clutter/clutter-constraint.h"
-#include "clutter/clutter-container.h"
 #include "clutter/clutter-content.h"
 #include "clutter/clutter-deform-effect.h"
 #include "clutter/clutter-desaturate-effect.h"
@@ -85,12 +81,8 @@
 #include "clutter/clutter-paint-nodes.h"
 #include "clutter/clutter-paint-node.h"
 #include "clutter/clutter-pan-action.h"
-#include "clutter/clutter-path-constraint.h"
-#include "clutter/clutter-path.h"
 #include "clutter/clutter-property-transition.h"
 #include "clutter/clutter-rotate-action.h"
-#include "clutter/clutter-scriptable.h"
-#include "clutter/clutter-script.h"
 #include "clutter/clutter-scroll-actor.h"
 #include "clutter/clutter-settings.h"
 #include "clutter/clutter-shader-effect.h"
@@ -106,12 +98,7 @@
 #include "clutter/clutter-timeline.h"
 #include "clutter/clutter-transition-group.h"
 #include "clutter/clutter-transition.h"
-#include "clutter/clutter-units.h"
 #include "clutter/clutter-virtual-input-device.h"
 #include "clutter/clutter-zoom-action.h"
-
-#include "clutter/clutter-deprecated.h"
-
-#include "clutter/clutter-autocleanups.h"
 
 #undef __CLUTTER_H_INSIDE__

@@ -14,25 +14,23 @@ mtk_c_args = [
 ]
 
 mtk_debug_c_args = []
-if get_option('debug')
-  mtk_debug_c_args += [
-    '-fno-omit-frame-pointer'
-  ]
-elif buildtype != 'plain'
-  mtk_debug_c_args += [
-    '-DG_DISABLE_ASSERT',
-    '-DG_DISABLE_CAST_CHECKS',
-  ]
+if buildtype != 'plain'
+  if not get_option('debug')
+    mtk_debug_c_args += [
+      '-DG_DISABLE_ASSERT',
+      '-DG_DISABLE_CAST_CHECKS',
+    ]
+  endif
 endif
-supported_mtk_debug_c_args = cc.get_supported_arguments(mtk_debug_c_args)
+mtk_debug_c_args = cc.get_supported_arguments(mtk_debug_c_args)
 mtk_c_args += mtk_debug_c_args
 
 mtk_pkg_deps = [
-  cairo_gobject_dep,
   glib_dep,
   gobject_dep,
   gio_dep,
   graphene_dep,
+  pixman_dep,
 ]
 
 if have_x11

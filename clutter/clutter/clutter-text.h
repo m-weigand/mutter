@@ -35,29 +35,11 @@
 G_BEGIN_DECLS
 
 #define CLUTTER_TYPE_TEXT               (clutter_text_get_type ())
-#define CLUTTER_TEXT(obj)               (G_TYPE_CHECK_INSTANCE_CAST ((obj), CLUTTER_TYPE_TEXT, ClutterText))
-#define CLUTTER_TEXT_CLASS(klass)       (G_TYPE_CHECK_CLASS_CAST ((klass), CLUTTER_TYPE_TEXT, ClutterTextClass))
-#define CLUTTER_IS_TEXT(obj)            (G_TYPE_CHECK_INSTANCE_TYPE ((obj), CLUTTER_TYPE_TEXT))
-#define CLUTTER_IS_TEXT_CLASS(klass)    (G_TYPE_CHECK_CLASS_TYPE ((klass), CLUTTER_TYPE_TEXT))
-#define CLUTTER_TEXT_GET_CLASS(obj)     (G_TYPE_INSTANCE_GET_CLASS ((obj), CLUTTER_TYPE_TEXT, ClutterTextClass))
-
-typedef struct _ClutterText        ClutterText;
-typedef struct _ClutterTextPrivate ClutterTextPrivate;
-typedef struct _ClutterTextClass   ClutterTextClass;
-
-struct _ClutterText
-{
-  /*< private >*/
-  ClutterActor parent_instance;
-
-  ClutterTextPrivate *priv;
-};
 
 /**
  * ClutterTextClass:
  * @text_changed: class handler for the #ClutterText::text-changed signal
  * @activate: class handler for the #ClutterText::activate signal
- * @cursor_event: class handler for the #ClutterText::cursor-event signal
  * @cursor_changed: class handler for the #ClutterText::cursor-changed signal
  *
  * The #ClutterTextClass struct contains only private data.
@@ -71,13 +53,14 @@ struct _ClutterTextClass
   /* signals, not vfuncs */
   void (* text_changed)   (ClutterText           *self);
   void (* activate)       (ClutterText           *self);
-  void (* cursor_event)   (ClutterText           *self,
-                           const graphene_rect_t *rect);
   void (* cursor_changed) (ClutterText           *self);
 };
 
 CLUTTER_EXPORT
-GType clutter_text_get_type (void) G_GNUC_CONST;
+G_DECLARE_DERIVABLE_TYPE (ClutterText,
+                          clutter_text,
+                          CLUTTER, TEXT,
+                          ClutterActor)
 
 CLUTTER_EXPORT
 ClutterActor *        clutter_text_new                  (void);

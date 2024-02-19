@@ -36,15 +36,24 @@
 #error "Only <cogl/cogl.h> can be included directly."
 #endif
 
-#include "cogl/cogl-defines.h"
+#include "config.h"
 #include "cogl/cogl-context.h"
+
+#include <poll.h>
+
+#define COGL_SYSDEF_POLLIN POLLIN
+#define COGL_SYSDEF_POLLPRI POLLPRI
+#define COGL_SYSDEF_POLLOUT POLLOUT
+#define COGL_SYSDEF_POLLERR POLLERR
+#define COGL_SYSDEF_POLLHUP POLLHUP
+#define COGL_SYSDEF_POLLNVAL POLLNVAL
 
 G_BEGIN_DECLS
 
 /**
- * SECTION:cogl-poll
- * @short_description: Functions for integrating Cogl with an
- *   application's main loop
+ * CoglPoll:
+ *
+ * Functions for integrating Cogl with an application's main loop
  *
  * Cogl needs to integrate with the application's main loop so that it
  * can internally handle some events from the driver. All Cogl
@@ -88,9 +97,9 @@ typedef enum
  *
  * A struct for describing the state of a file descriptor that Cogl
  * needs to block on. The @events field contains a bitmask of
- * #CoglPollFDEvent<!-- -->s that should cause the application to wake
+ * `CoglPollFDEvent`s that should cause the application to wake
  * up. After the application is woken up from idle it should pass back
- * an array of #CoglPollFD<!-- -->s to Cogl and update the @revents
+ * an array of `CoglPollFD`s to Cogl and update the @revents
  * mask to the actual events that occurred on the file descriptor.
  *
  * Note that CoglPollFD is deliberately exactly the same as struct
@@ -106,7 +115,7 @@ typedef struct {
  * cogl_poll_renderer_get_info:
  * @renderer: A #CoglRenderer
  * @poll_fds: A return location for a pointer to an array
- *            of #CoglPollFD<!-- -->s
+ *            of `CoglPollFD`s
  * @n_poll_fds: A return location for the number of entries in *@poll_fds
  * @timeout: A return location for the maximum length of time to wait
  *           in microseconds, or -1 to wait indefinitely.
@@ -117,9 +126,9 @@ typedef struct {
  * that Cogl has a chance to describe what file descriptor events it
  * needs to be woken up for.
  *
- * <note>If your application is using the Glib mainloop then you
+ * If your application is using the Glib mainloop then you
  * should jump to the cogl_glib_source_new() api as a more convenient
- * way of integrating Cogl with the mainloop.</note>
+ * way of integrating Cogl with the mainloop.
  *
  * After the function is called *@poll_fds will contain a pointer to
  * an array of #CoglPollFD structs describing the file descriptors
@@ -131,7 +140,7 @@ typedef struct {
  *
  * When the application mainloop returns from calling poll(2) (or its
  * equivalent) then it should call cogl_poll_renderer_dispatch()
- * passing a pointer the array of CoglPollFD<!-- -->s with updated
+ * passing a pointer the array of `CoglPollFD`s with updated
  * revent values.
  *
  * @timeout will contain a maximum amount of time to wait in
@@ -156,7 +165,7 @@ cogl_poll_renderer_get_info (CoglRenderer *renderer,
 /**
  * cogl_poll_renderer_dispatch:
  * @renderer: A #CoglRenderer
- * @poll_fds: An array of #CoglPollFD<!-- -->s describing the events
+ * @poll_fds: An array of `CoglPollFD`s describing the events
  *            that have occurred since the application went idle.
  * @n_poll_fds: The length of the @poll_fds array.
  *
@@ -167,10 +176,6 @@ cogl_poll_renderer_get_info (CoglRenderer *renderer,
  * file descriptors that Cogl didn't request when calling
  * cogl_poll_renderer_get_info() or a shorter array missing some file
  * descriptors that Cogl requested.
- *
- * <note>If your application didn't originally create a #CoglRenderer
- * manually then you can easily get a #CoglRenderer pointer by calling
- * cogl_get_renderer().</note>
  */
 COGL_EXPORT void
 cogl_poll_renderer_dispatch (CoglRenderer *renderer,

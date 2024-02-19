@@ -42,17 +42,13 @@
 
 G_BEGIN_DECLS
 
-typedef struct _CoglOnscreenTemplate	      CoglOnscreenTemplate;
+typedef struct _CoglOnscreenTemplate CoglOnscreenTemplate;
 
-#define COGL_ONSCREEN_TEMPLATE(OBJECT) ((CoglOnscreenTemplate *)OBJECT)
+#define COGL_TYPE_ONSCREEN_TEMPLATE (cogl_onscreen_template_get_type ())
 
-/**
- * cogl_onscreen_template_get_gtype:
- *
- * Returns: a #GType that can be used with the GLib type system.
- */
 COGL_EXPORT
-GType cogl_onscreen_template_get_gtype (void);
+G_DECLARE_FINAL_TYPE (CoglOnscreenTemplate, cogl_onscreen_template,
+                      COGL, ONSCREEN_TEMPLATE, GObject)
 
 COGL_EXPORT CoglOnscreenTemplate *
 cogl_onscreen_template_new (CoglSwapChain *swap_chain);
@@ -71,11 +67,11 @@ cogl_onscreen_template_new (CoglSwapChain *swap_chain);
  * as "single-sample" rendering. A value of 1 or greater is referred
  * to as "multisample" rendering.
  *
- * <note>There are some semantic differences between single-sample
+ * There are some semantic differences between single-sample
  * rendering and multisampling with just 1 point sample such as it
  * being redundant to use the cogl_framebuffer_resolve_samples() and
  * cogl_framebuffer_resolve_samples_region() apis with single-sample
- * rendering.</note>
+ * rendering.
  */
 COGL_EXPORT void
 cogl_onscreen_template_set_samples_per_pixel (
@@ -95,18 +91,7 @@ cogl_onscreen_template_set_samples_per_pixel (
  */
 COGL_EXPORT void
 cogl_onscreen_template_set_stereo_enabled (
-					   CoglOnscreenTemplate *onscreen_template,
-					   gboolean enabled);
-/**
- * cogl_is_onscreen_template:
- * @object: A #CoglObject pointer
- *
- * Gets whether the given object references a #CoglOnscreenTemplate.
- *
- * Return value: %TRUE if the object references a #CoglOnscreenTemplate
- *   and %FALSE otherwise.
- */
-COGL_EXPORT gboolean
-cogl_is_onscreen_template (void *object);
+  CoglOnscreenTemplate *onscreen_template,
+  gboolean              enabled);
 
 G_END_DECLS

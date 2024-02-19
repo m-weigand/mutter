@@ -286,7 +286,7 @@ mtk_rectangle_contains_rect (const MtkRectangle *outer_rect,
  * Returns: Return a graphene_rect_t created from `rect`
  */
 graphene_rect_t
-mtk_rectangle_to_graphene_rect (MtkRectangle *rect)
+mtk_rectangle_to_graphene_rect (const MtkRectangle *rect)
 {
   return (graphene_rect_t) {
            .origin = {
@@ -348,4 +348,59 @@ mtk_rectangle_from_graphene_rect (const graphene_rect_t *rect,
         };
       }
     }
+}
+
+void
+mtk_rectangle_crop_and_scale (const MtkRectangle    *rect,
+                              const graphene_rect_t *src_rect,
+                              int                    dst_width,
+                              int                    dst_height,
+                              MtkRectangle          *dest)
+{
+  graphene_rect_t tmp = GRAPHENE_RECT_INIT (rect->x, rect->y,
+                                            rect->width, rect->height);
+
+  graphene_rect_scale (&tmp,
+                       src_rect->size.width / dst_width,
+                       src_rect->size.height / dst_height,
+                       &tmp);
+  graphene_rect_offset (&tmp, src_rect->origin.x, src_rect->origin.y);
+
+  mtk_rectangle_from_graphene_rect (&tmp, MTK_ROUNDING_STRATEGY_GROW, dest);
+}
+
+void
+mtk_rectangle_scale_double (const MtkRectangle  *rect,
+                            double               scale,
+                            MtkRoundingStrategy  rounding_strategy,
+                            MtkRectangle        *dest)
+{
+  graphene_rect_t tmp = GRAPHENE_RECT_INIT (rect->x, rect->y,
+                                            rect->width, rect->height);
+
+  graphene_rect_scale (&tmp, scale, scale, &tmp);
+  mtk_rectangle_from_graphene_rect (&tmp, rounding_strategy, dest);
+}
+
+gboolean
+mtk_rectangle_is_adjacent_to (const MtkRectangle *rect,
+                              const MtkRectangle *other)
+{
+  int rect_x1 = rect->x;
+  int rect_y1 = rect->y;
+  int rect_x2 = rect->x + rect->width;
+  int rect_y2 = rect->y + rect->height;
+  int other_x1 = other->x;
+  int other_y1 = other->y;
+  int other_x2 = other->x + other->width;
+  int other_y2 = other->y + other->height;
+
+  if ((rect_x1 == other_x2 || rect_x2 == other_x1) &&
+      !(rect_y2 <= other_y1 || rect_y1 >= other_y2))
+    return TRUE;
+  else if ((rect_y1 == other_y2 || rect_y2 == other_y1) &&
+           !(rect_x2 <= other_x1 || rect_x1 >= other_x2))
+    return TRUE;
+  else
+    return FALSE;
 }

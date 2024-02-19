@@ -33,14 +33,13 @@
 
 #pragma once
 
-#include "cogl/cogl-object-private.h"
 #include "cogl/cogl-attribute-buffer-private.h"
 #include "cogl/cogl-attribute-private.h"
 #include "cogl/cogl-framebuffer.h"
 
 struct _CoglPrimitive
 {
-  CoglObject _parent;
+  GObject parent_instance;
 
   CoglIndices *indices;
   CoglVerticesMode mode;
@@ -49,11 +48,8 @@ struct _CoglPrimitive
 
   int immutable_ref;
 
-  CoglAttribute **attributes;
+  GPtrArray *attributes;
   int n_attributes;
-
-  int n_embedded_attributes;
-  CoglAttribute *embedded_attribute;
 };
 
 CoglPrimitive *
@@ -62,7 +58,7 @@ _cogl_primitive_immutable_ref (CoglPrimitive *primitive);
 void
 _cogl_primitive_immutable_unref (CoglPrimitive *primitive);
 
-COGL_EXPORT void
+void
 _cogl_primitive_draw (CoglPrimitive *primitive,
                       CoglFramebuffer *framebuffer,
                       CoglPipeline *pipeline,

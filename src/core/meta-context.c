@@ -103,6 +103,8 @@ typedef struct _MetaContextPrivate
 #ifdef HAVE_WAYLAND
   MetaServiceChannel *service_channel;
 #endif
+
+  MetaDebugControl *debug_control;
 } MetaContextPrivate;
 
 G_DEFINE_TYPE_WITH_PRIVATE (MetaContext, meta_context, G_TYPE_OBJECT)
@@ -200,7 +202,8 @@ meta_context_notify_ready (MetaContext *context)
   g_return_if_fail (priv->state == META_CONTEXT_STATE_STARTED ||
                     priv->state == META_CONTEXT_STATE_RUNNING);
 
-  META_CONTEXT_GET_CLASS (context)->notify_ready (context);
+  if (META_CONTEXT_GET_CLASS (context)->notify_ready)
+    META_CONTEXT_GET_CLASS (context)->notify_ready (context);
 }
 
 const char *
@@ -329,7 +332,13 @@ meta_context_real_configure (MetaContext   *context,
     }
 
   option_context = g_steal_pointer (&priv->option_context);
-  return g_option_context_parse (option_context, argc, argv, error);
+  if (!g_option_context_parse (option_context, argc, argv, error))
+    return FALSE;
+
+  priv->debug_control = g_object_new (META_TYPE_DEBUG_CONTROL,
+                                      "context", context,
+                                      NULL);
+  return TRUE;
 }
 
 /**
@@ -552,14 +561,6 @@ meta_context_destroy (MetaContext *context)
   g_object_unref (context);
 }
 
-gboolean
-meta_context_get_unsafe_mode (MetaContext *context)
-{
-  MetaContextPrivate *priv = meta_context_get_instance_private (context);
-
-  return priv->unsafe_mode;
-}
-
 void
 meta_context_set_unsafe_mode (MetaContext *context,
                               gboolean     enable)
@@ -747,6 +748,8 @@ meta_context_dispose (GObject *object)
 
   g_clear_pointer (&priv->backend, meta_backend_destroy);
 
+  g_clear_object (&priv->debug_control);
+
   g_clear_pointer (&priv->option_context, g_option_context_free);
   g_clear_pointer (&priv->main_loop, g_main_loop_unref);
 
@@ -838,4 +841,12 @@ meta_context_init (MetaContext *context)
       if (!g_error_matches (error, G_FILE_ERROR, G_FILE_ERROR_NOSYS))
         g_warning ("Failed to save the nofile limit: %s", error->message);
     }
+}
+
+MetaDebugControl *
+meta_context_get_debug_control (MetaContext *context)
+{
+  MetaContextPrivate *priv = meta_context_get_instance_private (context);
+
+  return priv->debug_control;
 }

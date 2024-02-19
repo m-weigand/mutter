@@ -119,7 +119,7 @@ meta_wayland_single_pixel_buffer_attach (MetaWaylandBuffer  *buffer,
     wl_resource_get_user_data (buffer->resource);
   uint8_t data[4];
   CoglPixelFormat pixel_format;
-  CoglTexture2D *tex_2d;
+  CoglTexture *tex_2d;
 
   if (buffer->single_pixel.texture)
     return TRUE;
@@ -143,7 +143,7 @@ meta_wayland_single_pixel_buffer_attach (MetaWaylandBuffer  *buffer,
     return FALSE;
 
   buffer->single_pixel.texture =
-    meta_multi_texture_new_simple (COGL_TEXTURE (tex_2d));
+    meta_multi_texture_new_simple (tex_2d);
 
   g_clear_object (texture);
   *texture = g_object_ref (buffer->single_pixel.texture);
@@ -167,6 +167,15 @@ void
 meta_wayland_single_pixel_buffer_free (MetaWaylandSinglePixelBuffer *single_pixel_buffer)
 {
   g_free (single_pixel_buffer);
+}
+
+gboolean
+meta_wayland_single_pixel_buffer_is_opaque_black (MetaWaylandSinglePixelBuffer *single_pixel_buffer)
+{
+  return (single_pixel_buffer->a == UINT32_MAX &&
+          single_pixel_buffer->r == 0x0 &&
+          single_pixel_buffer->g == 0x0 &&
+          single_pixel_buffer->b == 0x0);
 }
 
 void

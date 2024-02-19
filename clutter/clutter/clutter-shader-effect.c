@@ -110,7 +110,9 @@
  * ```
  */
 
-#include "clutter/clutter-build-config.h"
+#include "config.h"
+
+#define COGL_DISABLE_DEPRECATION_WARNINGS
 
 #include "cogl/cogl.h"
 
@@ -129,17 +131,17 @@ typedef struct _ShaderUniform
   int location;
 } ShaderUniform;
 
-struct _ClutterShaderEffectPrivate
+typedef struct _ClutterShaderEffectPrivate
 {
   ClutterActor *actor;
 
   ClutterShaderType shader_type;
 
-  CoglHandle program;
-  CoglHandle shader;
+  CoglProgram *program;
+  CoglShader *shader;
 
   GHashTable *uniforms;
-};
+} ClutterShaderEffectPrivate;
 
 typedef struct _ClutterShaderEffectClassPrivate
 {
@@ -147,8 +149,8 @@ typedef struct _ClutterShaderEffectClassPrivate
      used when the class implements get_static_shader_source without
      calling set_shader_source. They will be shared by all instances
      of this class */
-  CoglHandle program;
-  CoglHandle shader;
+  CoglProgram *program;
+  CoglShader *shader;
 } ClutterShaderEffectClassPrivate;
 
 enum
@@ -173,21 +175,11 @@ static inline void
 clutter_shader_effect_clear (ClutterShaderEffect *self,
                              gboolean             reset_uniforms)
 {
-  ClutterShaderEffectPrivate *priv = self->priv;
+  ClutterShaderEffectPrivate *priv =
+    clutter_shader_effect_get_instance_private (self);
 
-  if (priv->shader != NULL)
-    {
-      cogl_object_unref (priv->shader);
-
-      priv->shader = NULL;
-    }
-
-  if (priv->program != NULL)
-    {
-      cogl_object_unref (priv->program);
-
-      priv->program = NULL;
-    }
+  g_clear_object (&priv->shader);
+  g_clear_object (&priv->program);
 
   if (reset_uniforms && priv->uniforms != NULL)
     {
@@ -201,7 +193,8 @@ clutter_shader_effect_clear (ClutterShaderEffect *self,
 static void
 clutter_shader_effect_update_uniforms (ClutterShaderEffect *effect)
 {
-  ClutterShaderEffectPrivate *priv = effect->priv;
+  ClutterShaderEffectPrivate *priv =
+    clutter_shader_effect_get_instance_private (effect);
   GHashTableIter iter;
   gpointer key, value;
   gsize size;
@@ -287,7 +280,8 @@ clutter_shader_effect_set_actor (ClutterActorMeta *meta,
                                  ClutterActor     *actor)
 {
   ClutterShaderEffect *self = CLUTTER_SHADER_EFFECT (meta);
-  ClutterShaderEffectPrivate *priv = self->priv;
+  ClutterShaderEffectPrivate *priv =
+    clutter_shader_effect_get_instance_private (self);
   ClutterActorMetaClass *parent;
 
   parent = CLUTTER_ACTOR_META_CLASS (clutter_shader_effect_parent_class);
@@ -302,10 +296,11 @@ clutter_shader_effect_set_actor (ClutterActorMeta *meta,
                 G_OBJECT_TYPE_NAME (meta));
 }
 
-static CoglHandle
+static CoglShader*
 clutter_shader_effect_create_shader (ClutterShaderEffect *self)
 {
-  ClutterShaderEffectPrivate *priv = self->priv;
+  ClutterShaderEffectPrivate *priv =
+    clutter_shader_effect_get_instance_private (self);
 
   switch (priv->shader_type)
     {
@@ -326,7 +321,8 @@ clutter_shader_effect_create_shader (ClutterShaderEffect *self)
 static void
 clutter_shader_effect_try_static_source (ClutterShaderEffect *self)
 {
-  ClutterShaderEffectPrivate *priv = self->priv;
+  ClutterShaderEffectPrivate *priv =
+    clutter_shader_effect_get_instance_private (self);
   ClutterShaderEffectClass *shader_effect_class =
     CLUTTER_SHADER_EFFECT_GET_CLASS (self);
 
@@ -361,10 +357,10 @@ clutter_shader_effect_try_static_source (ClutterShaderEffect *self)
           cogl_program_link (class_priv->program);
         }
 
-      priv->shader = cogl_object_ref (class_priv->shader);
+      priv->shader = g_object_ref (class_priv->shader);
 
       if (class_priv->program != NULL)
-        priv->program = cogl_object_ref (class_priv->program);
+        priv->program = g_object_ref (class_priv->program);
     }
 }
 
@@ -374,7 +370,8 @@ clutter_shader_effect_paint_target (ClutterOffscreenEffect *effect,
                                     ClutterPaintContext    *paint_context)
 {
   ClutterShaderEffect *self = CLUTTER_SHADER_EFFECT (effect);
-  ClutterShaderEffectPrivate *priv = self->priv;
+  ClutterShaderEffectPrivate *priv =
+    clutter_shader_effect_get_instance_private (self);
   ClutterOffscreenEffectClass *parent;
   CoglPipeline *pipeline;
 
@@ -411,7 +408,8 @@ clutter_shader_effect_set_property (GObject      *gobject,
                                     const GValue *value,
                                     GParamSpec   *pspec)
 {
-  ClutterShaderEffectPrivate *priv = CLUTTER_SHADER_EFFECT (gobject)->priv;
+  ClutterShaderEffectPrivate *priv =
+    clutter_shader_effect_get_instance_private (CLUTTER_SHADER_EFFECT (gobject));
 
   switch (prop_id)
     {
@@ -455,7 +453,9 @@ clutter_shader_effect_class_init (ClutterShaderEffectClass *klass)
     g_param_spec_enum ("shader-type", NULL, NULL,
                        CLUTTER_TYPE_SHADER_TYPE,
                        CLUTTER_FRAGMENT_SHADER,
-                       CLUTTER_PARAM_WRITABLE | G_PARAM_CONSTRUCT_ONLY);
+                       G_PARAM_WRITABLE |
+                       G_PARAM_STATIC_STRINGS |
+                       G_PARAM_CONSTRUCT_ONLY);
 
   gobject_class->set_property = clutter_shader_effect_set_property;
   gobject_class->finalize = clutter_shader_effect_finalize;
@@ -471,8 +471,10 @@ clutter_shader_effect_class_init (ClutterShaderEffectClass *klass)
 static void
 clutter_shader_effect_init (ClutterShaderEffect *effect)
 {
-  effect->priv = clutter_shader_effect_get_instance_private (effect);
-  effect->priv->shader_type = CLUTTER_FRAGMENT_SHADER;
+  ClutterShaderEffectPrivate *priv =
+    clutter_shader_effect_get_instance_private (effect);
+
+  priv->shader_type = CLUTTER_FRAGMENT_SHADER;
 }
 
 /**
@@ -506,13 +508,16 @@ clutter_shader_effect_new (ClutterShaderType shader_type)
  * Return value: (transfer none): a pointer to the shader's handle,
  *   or %NULL
  */
-CoglHandle
+CoglShader*
 clutter_shader_effect_get_shader (ClutterShaderEffect *effect)
 {
+  ClutterShaderEffectPrivate *priv;
+
   g_return_val_if_fail (CLUTTER_IS_SHADER_EFFECT (effect),
                         NULL);
 
-  return effect->priv->shader;
+  priv = clutter_shader_effect_get_instance_private (effect);
+  return priv->shader;
 }
 
 /**
@@ -524,13 +529,16 @@ clutter_shader_effect_get_shader (ClutterShaderEffect *effect)
  * Return value: (transfer none): a pointer to the program's handle,
  *   or %NULL
  */
-CoglHandle
+CoglProgram*
 clutter_shader_effect_get_program (ClutterShaderEffect *effect)
 {
+  ClutterShaderEffectPrivate *priv;
+
   g_return_val_if_fail (CLUTTER_IS_SHADER_EFFECT (effect),
                         NULL);
 
-  return effect->priv->program;
+  priv = clutter_shader_effect_get_instance_private (effect);
+  return priv->program;
 }
 
 static void
@@ -579,7 +587,8 @@ clutter_shader_effect_add_uniform (ClutterShaderEffect *effect,
                                    const gchar         *name,
                                    const GValue        *value)
 {
-  ClutterShaderEffectPrivate *priv = effect->priv;
+  ClutterShaderEffectPrivate *priv =
+    clutter_shader_effect_get_instance_private (effect);
   ShaderUniform *uniform;
 
   if (priv->uniforms == NULL)
@@ -853,7 +862,7 @@ clutter_shader_effect_set_shader_source (ClutterShaderEffect *effect,
   g_return_val_if_fail (CLUTTER_IS_SHADER_EFFECT (effect), FALSE);
   g_return_val_if_fail (source != NULL && *source != '\0', FALSE);
 
-  priv = effect->priv;
+  priv = clutter_shader_effect_get_instance_private (effect);
 
   if (priv->shader != NULL)
     return TRUE;

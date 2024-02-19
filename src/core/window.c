@@ -64,7 +64,6 @@
 #include <math.h>
 #include <stdlib.h>
 #include <string.h>
-#include <X11/Xatom.h>
 
 #include "backends/meta-backend-private.h"
 #include "backends/meta-logical-monitor.h"
@@ -80,19 +79,23 @@
 #include "core/util-private.h"
 #include "core/workspace-private.h"
 #include "meta/compositor-mutter.h"
-#include "meta/group.h"
 #include "meta/meta-cursor-tracker.h"
 #include "meta/meta-enum-types.h"
-#include "meta/meta-x11-errors.h"
 #include "meta/prefs.h"
+#include "mtk/mtk-x11.h"
+
+#ifdef HAVE_X11_CLIENT
+#include "meta/group.h"
 #include "x11/meta-x11-display-private.h"
 #include "x11/window-props.h"
+#include "x11/window-x11-private.h"
 #include "x11/window-x11.h"
 #include "x11/xprops.h"
+#endif
 
 #ifdef HAVE_WAYLAND
 #include "wayland/meta-wayland-private.h"
-#include "wayland/meta-wayland-surface.h"
+#include "wayland/meta-wayland-surface-private.h"
 #include "wayland/meta-window-wayland.h"
 #endif
 
@@ -186,8 +189,6 @@ enum
   PROP_0,
 
   PROP_TITLE,
-  PROP_ICON,
-  PROP_MINI_ICON,
   PROP_DECORATED,
   PROP_FULLSCREEN,
   PROP_MAXIMIZED_HORIZONTALLY,
@@ -213,7 +214,6 @@ enum
   PROP_IS_ALIVE,
   PROP_DISPLAY,
   PROP_EFFECT,
-  PROP_XWINDOW,
   PROP_SUSPEND_STATE,
 
   PROP_LAST,
@@ -313,17 +313,10 @@ meta_window_finalize (GObject *object)
 {
   MetaWindow *window = META_WINDOW (object);
 
-  if (window->frame_bounds)
-    cairo_region_destroy (window->frame_bounds);
-
-  if (window->shape_region)
-    cairo_region_destroy (window->shape_region);
-
-  if (window->opaque_region)
-    cairo_region_destroy (window->opaque_region);
-
-  if (window->input_region)
-    cairo_region_destroy (window->input_region);
+  g_clear_pointer (&window->frame_bounds, mtk_region_unref);
+  g_clear_pointer (&window->shape_region, mtk_region_unref);
+  g_clear_pointer (&window->opaque_region, mtk_region_unref);
+  g_clear_pointer (&window->input_region, mtk_region_unref);
 
   if (window->transient_for)
     g_object_unref (window->transient_for);
@@ -365,12 +358,6 @@ meta_window_get_property(GObject         *object,
     {
     case PROP_TITLE:
       g_value_set_string (value, win->title);
-      break;
-    case PROP_ICON:
-      g_value_set_pointer (value, meta_window_get_icon (win));
-      break;
-    case PROP_MINI_ICON:
-      g_value_set_pointer (value, meta_window_get_mini_icon (win));
       break;
     case PROP_DECORATED:
       g_value_set_boolean (value, win->decorated);
@@ -447,9 +434,6 @@ meta_window_get_property(GObject         *object,
     case PROP_EFFECT:
       g_value_set_int (value, win->pending_compositor_effect);
       break;
-    case PROP_XWINDOW:
-      g_value_set_ulong (value, win->xwindow);
-      break;
     case PROP_SUSPEND_STATE:
       g_value_set_enum (value, priv->suspend_state);
       break;
@@ -474,9 +458,6 @@ meta_window_set_property(GObject         *object,
       break;
     case PROP_EFFECT:
       win->pending_compositor_effect = g_value_get_int (value);
-      break;
-    case PROP_XWINDOW:
-      win->xwindow = g_value_get_ulong (value);
       break;
     default:
       G_OBJECT_WARN_INVALID_PROPERTY_ID (object, prop_id, pspec);
@@ -506,12 +487,6 @@ meta_window_class_init (MetaWindowClass *klass)
     g_param_spec_string ("title", NULL, NULL,
                          NULL,
                          G_PARAM_READABLE | G_PARAM_STATIC_STRINGS);
-  obj_props[PROP_ICON] =
-    g_param_spec_pointer ("icon", NULL, NULL,
-                          G_PARAM_READABLE | G_PARAM_STATIC_STRINGS);
-  obj_props[PROP_MINI_ICON] =
-    g_param_spec_pointer ("mini-icon", NULL, NULL,
-                          G_PARAM_READABLE | G_PARAM_STATIC_STRINGS);
   obj_props[PROP_DECORATED] =
     g_param_spec_boolean ("decorated", NULL, NULL,
                           TRUE,
@@ -621,18 +596,11 @@ meta_window_class_init (MetaWindowClass *klass)
                       META_COMP_EFFECT_NONE,
                       G_PARAM_CONSTRUCT_ONLY | G_PARAM_READWRITE);
 
-  obj_props[PROP_XWINDOW] =
-    g_param_spec_ulong ("xwindow", NULL, NULL,
-                        0, G_MAXULONG, 0,
-                        G_PARAM_CONSTRUCT_ONLY | G_PARAM_READWRITE);
-
   /**
    * MetaWindow::suspend-state: (skip)
    */
   obj_props[PROP_SUSPEND_STATE] =
-    g_param_spec_enum ("suspend-state",
-                       "Suspend state",
-                       "The suspend state of the window",
+    g_param_spec_enum ("suspend-state", NULL, NULL,
                        META_TYPE_WINDOW_SUSPEND_STATE,
                        META_WINDOW_SUSPEND_STATE_SUSPENDED,
                        G_PARAM_READABLE | G_PARAM_STATIC_STRINGS);
@@ -963,13 +931,15 @@ meta_window_update_desc (MetaWindow *window)
 {
   g_clear_pointer (&window->desc, g_free);
 
+#ifdef HAVE_X11_CLIENT
   if (window->client_type == META_WINDOW_CLIENT_TYPE_X11)
-    window->desc = g_strdup_printf ("0x%lx", window->xwindow);
+    window->desc = g_strdup_printf ("0x%lx", meta_window_x11_get_xwindow (window));
   else
+#endif
     {
-      guint64 small_stamp = window->stamp - G_GUINT64_CONSTANT(0x100000000);
+      guint64 small_stamp = window->stamp - G_GUINT64_CONSTANT (0x100000000);
 
-      window->desc = g_strdup_printf ("W%" G_GUINT64_FORMAT , small_stamp);
+      window->desc = g_strdup_printf ("W%" G_GUINT64_FORMAT, small_stamp);
     }
 }
 
@@ -1017,7 +987,7 @@ static void
 meta_window_manage (MetaWindow *window)
 {
   COGL_TRACE_BEGIN_SCOPED (MetaWindowManage,
-                           "Window (manage)");
+                           "Meta::Window::manage()");
 
   META_WINDOW_GET_CLASS (window)->manage (window);
 }
@@ -1032,7 +1002,7 @@ meta_window_constructed (GObject *object)
   MetaWorkspaceManager *workspace_manager = display->workspace_manager;
 
   COGL_TRACE_BEGIN_SCOPED (MetaWindowSharedInit,
-                           "Window (init)");
+                           "Meta::Window::constructed()");
 
   window->constructing = TRUE;
 
@@ -1047,7 +1017,9 @@ meta_window_constructed (GObject *object)
   meta_stack_freeze (display->stack);
 
   /* initialize the remaining size_hints as if size_hints.flags were zero */
+#ifdef HAVE_X11_CLIENT
   meta_set_normal_hints (window, NULL);
+#endif
 
   /* And this is our unmaximized size */
   window->saved_rect = window->rect;
@@ -1093,7 +1065,6 @@ meta_window_constructed (GObject *object)
   window->initial_workspace_set = FALSE;
   window->initial_timestamp_set = FALSE;
   window->net_wm_user_time_set = FALSE;
-  window->user_time_window = None;
   window->input = TRUE;
   window->calc_placement = FALSE;
   window->have_focus_click_grab = FALSE;
@@ -1138,9 +1109,6 @@ meta_window_constructed (GObject *object)
 
   window->has_valid_cgroup = TRUE;
   window->cgroup_path = NULL;
-
-  window->xtransient_for = None;
-  window->xclient_leader = None;
 
   window->type = META_WINDOW_NORMAL;
 
@@ -1476,26 +1444,33 @@ meta_window_unmanage (MetaWindow  *window,
   if (meta_prefs_get_workspaces_only_on_primary ())
     meta_window_on_all_workspaces_changed (window);
 
+#ifdef HAVE_X11_CLIENT
   if (window->fullscreen)
     {
-      MetaGroup *group;
-
+      MetaGroup *group = NULL;
       /* If the window is fullscreen, it may be forcing
        * other windows in its group to a higher layer
        */
 
       meta_stack_freeze (window->display->stack);
-      group = meta_window_get_group (window);
-      if (group)
-        meta_group_update_layers (group);
+      if (window->client_type == META_WINDOW_CLIENT_TYPE_X11)
+        {
+          group = meta_window_x11_get_group (window);
+          if (group)
+            meta_group_update_layers (group);
+        }
       meta_stack_thaw (window->display->stack);
     }
+#endif
 
   meta_display_remove_pending_pings_for_window (window->display, window);
 
   /* safe to do this early as group.c won't re-add to the
    * group if window->unmanaging */
-  meta_window_shutdown_group (window);
+#ifdef HAVE_X11_CLIENT
+  if (window->client_type == META_WINDOW_CLIENT_TYPE_X11)
+    meta_window_x11_shutdown_group (window);
+#endif
 
   /* If we have the focus, focus some other window.
    * This is done first, so that if the unmap causes
@@ -1591,22 +1566,28 @@ meta_window_unmanage (MetaWindow  *window,
 static void
 set_wm_state (MetaWindow *window)
 {
+#ifdef HAVE_X11_CLIENT
   if (window->client_type == META_WINDOW_CLIENT_TYPE_X11)
     meta_window_x11_set_wm_state (window);
+#endif
 }
 
 static void
 set_net_wm_state (MetaWindow *window)
 {
+#ifdef HAVE_X11_CLIENT
   if (window->client_type == META_WINDOW_CLIENT_TYPE_X11)
     meta_window_x11_set_net_wm_state (window);
+#endif
 }
 
 static void
 set_allowed_actions_hint (MetaWindow *window)
 {
+#ifdef HAVE_X11_CLIENT
   if (window->client_type == META_WINDOW_CLIENT_TYPE_X11)
     meta_window_x11_set_allowed_actions_hint (window);
+#endif
 }
 
 /**
@@ -3015,12 +2996,6 @@ meta_window_tile (MetaWindow   *window,
                                     window->unconstrained_rect);
 }
 
-MetaTileMode
-meta_window_get_tile_mode (MetaWindow *window)
-{
-  return window->tile_mode;
-}
-
 void
 meta_window_restore_tile (MetaWindow   *window,
                           MetaTileMode  mode,
@@ -3948,10 +3923,7 @@ meta_window_move_resize_internal (MetaWindow          *window,
     }
 
   if ((result & META_MOVE_RESIZE_RESULT_FRAME_SHAPE_CHANGED) && window->frame_bounds)
-    {
-      cairo_region_destroy (window->frame_bounds);
-      window->frame_bounds = NULL;
-    }
+    g_clear_pointer (&window->frame_bounds, mtk_region_unref);
 
   meta_window_foreach_transient (window, maybe_move_attached_window, NULL);
 
@@ -4440,7 +4412,7 @@ meta_window_get_frame_rect (const MetaWindow *window,
 /**
  * meta_window_get_client_area_rect:
  * @window: a #MetaWindow
- * @rect: (out): pointer to a cairo rectangle
+ * @rect: (out): pointer to a rectangle
  *
  * Gets the rectangle for the boundaries of the client area, relative
  * to the buffer rect.
@@ -4493,15 +4465,17 @@ meta_window_get_titlebar_rect (MetaWindow   *window,
 const char*
 meta_window_get_startup_id (MetaWindow *window)
 {
-  if (window->startup_id == NULL)
+#ifdef HAVE_X11_CLIENT
+  if (window->startup_id == NULL && window->client_type == META_WINDOW_CLIENT_TYPE_X11)
     {
       MetaGroup *group;
 
-      group = meta_window_get_group (window);
+      group = meta_window_x11_get_group (window);
 
       if (group != NULL)
         return meta_group_get_startup_id (group);
     }
+#endif
 
   return window->startup_id;
 }
@@ -4559,10 +4533,17 @@ meta_window_transient_can_focus (MetaWindow *window)
 }
 
 static void
-meta_window_make_most_recent (MetaWindow *window)
+meta_window_make_most_recent (MetaWindow    *window,
+                              MetaWorkspace *target_workspace)
 {
   MetaWorkspaceManager *workspace_manager = window->display->workspace_manager;
   GList *l;
+
+  /* Marks the window as the most recently used window on a specific workspace.
+   * If the window exists on all workspaces, it will become the most recently
+   * used sticky window on all other workspaces. This ensures proper tracking
+   * among windows on all workspaces while not overriding MRU for other windows.
+   */
 
   for (l = workspace_manager->workspaces; l != NULL; l = l->next)
     {
@@ -4575,15 +4556,18 @@ meta_window_make_most_recent (MetaWindow *window)
 
       /*
        * Move to the front of the MRU list if the window is on the
-       * active workspace or was explicitly made sticky
+       * target_workspace or was explicitly made sticky
        */
-      if (workspace == workspace_manager->active_workspace ||
-          window->on_all_workspaces_requested)
+      if (workspace == target_workspace || window->on_all_workspaces_requested)
         {
           workspace->mru_list = g_list_delete_link (workspace->mru_list, self);
           workspace->mru_list = g_list_prepend (workspace->mru_list, window);
           continue;
         }
+
+      /* Not sticky and not on the target workspace: we're done here */
+      if (!window->on_all_workspaces)
+        continue;
 
       /* Otherwise move it before other sticky windows */
       for (link = workspace->mru_list; link; link = link->next)
@@ -4682,7 +4666,7 @@ meta_window_focus (MetaWindow  *window,
   if (workspace_manager->active_workspace &&
       meta_window_located_on_workspace (window,
                                         workspace_manager->active_workspace))
-    meta_window_make_most_recent (window);
+    meta_window_make_most_recent (window, workspace_manager->active_workspace);
 
   backend = backend_from_window (window);
   stage = CLUTTER_STAGE (meta_backend_get_stage (backend));
@@ -5029,13 +5013,26 @@ meta_window_raise (MetaWindow  *window)
   g_signal_emit (window, window_signals[RAISED], 0);
 }
 
+/**
+ * meta_window_raise_and_make_recent_on_workspace:
+ * @window: a #MetaWindow
+ * @workspace: the #MetaWorkspace to raise and make it most recent on
+ *
+ * Raises a window and marks it as the most recently used window on the
+ * workspace @target_workspace. If the window exists on all workspaces, it will
+ * become the most recently used sticky window on all other workspaces. This
+ * ensures proper tracking among windows on all workspaces while not overriding
+ * MRU for other windows.
+ */
 void
-meta_window_raise_and_make_recent (MetaWindow *window)
+meta_window_raise_and_make_recent_on_workspace (MetaWindow    *window,
+                                                MetaWorkspace *workspace)
 {
   g_return_if_fail (META_IS_WINDOW (window));
+  g_return_if_fail (META_IS_WORKSPACE (workspace));
 
   meta_window_raise (window);
-  meta_window_make_most_recent (window);
+  meta_window_make_most_recent (window, workspace);
 }
 
 void
@@ -5356,29 +5353,7 @@ meta_window_set_icon_geometry (MetaWindow   *window,
     }
 }
 
-cairo_surface_t *
-meta_window_get_icon (MetaWindow *window)
-{
-  MetaWindowClass *klass = META_WINDOW_GET_CLASS (window);
-
-  if (klass->get_icon)
-    return klass->get_icon (window);
-  else
-    return NULL;
-}
-
-cairo_surface_t *
-meta_window_get_mini_icon (MetaWindow *window)
-{
-  MetaWindowClass *klass = META_WINDOW_GET_CLASS (window);
-
-  if (klass->get_mini_icon)
-    return klass->get_mini_icon (window);
-  else
-    return NULL;
-}
-
-GList*
+static GList*
 meta_window_get_workspaces (MetaWindow *window)
 {
   MetaWorkspaceManager *workspace_manager = window->display->workspace_manager;
@@ -5957,19 +5932,6 @@ meta_window_get_tile_area (MetaWindow   *window,
     tile_area->x += work_area.width - tile_area->width;
 }
 
-gboolean
-meta_window_same_application (MetaWindow *window,
-                              MetaWindow *other_window)
-{
-  MetaGroup *group       = meta_window_get_group (window);
-  MetaGroup *other_group = meta_window_get_group (other_window);
-
-  return
-    group!=NULL &&
-    other_group!=NULL &&
-    group==other_group;
-}
-
 /**
  * meta_window_is_client_decorated:
  *
@@ -6148,15 +6110,23 @@ meta_window_get_default_layer (MetaWindow *window)
 void
 meta_window_update_layer (MetaWindow *window)
 {
-  MetaGroup *group;
+#ifdef HAVE_X11_CLIENT
+  MetaGroup *group = NULL;
+
+  if (window->client_type == META_WINDOW_CLIENT_TYPE_X11)
+    group = meta_window_x11_get_group (window);
 
   meta_stack_freeze (window->display->stack);
-  group = meta_window_get_group (window);
   if (group)
     meta_group_update_layers (group);
   else
     meta_stack_update_layer (window->display->stack, window);
   meta_stack_thaw (window->display->stack);
+#else
+  meta_stack_freeze (window->display->stack);
+  meta_stack_update_layer (window->display->stack, window);
+  meta_stack_thaw (window->display->stack);
+#endif
 }
 
 /* ensure_mru_position_after ensures that window appears after
@@ -6496,17 +6466,6 @@ meta_window_get_display (MetaWindow *window)
   return window->display;
 }
 
-/**
- * meta_window_get_xwindow: (skip)
- * @window: a #MetaWindow
- *
- */
-Window
-meta_window_get_xwindow (MetaWindow *window)
-{
-  return window->xwindow;
-}
-
 MetaWindowType
 meta_window_get_window_type (MetaWindow *window)
 {
@@ -6765,13 +6724,7 @@ meta_window_get_transient_for (MetaWindow *window)
 {
   g_return_val_if_fail (META_IS_WINDOW (window), NULL);
 
-  if (window->transient_for)
-    return window->transient_for;
-  else if (window->xtransient_for)
-    return meta_x11_display_lookup_x_window (window->display->x11_display,
-                                             window->xtransient_for);
-  else
-    return NULL;
+  return window->transient_for;
 }
 
 /**
@@ -7000,11 +6953,11 @@ meta_window_get_frame_type (MetaWindow *window)
  *
  * Gets a region representing the outer bounds of the window's frame.
  *
- * Return value: (transfer none) (nullable): a #cairo_region_t
+ * Return value: (transfer none) (nullable): a #MtkRegion
  *  holding the outer bounds of the window, or %NULL if the window
  *  doesn't have a frame.
  */
-cairo_region_t *
+MtkRegion *
 meta_window_get_frame_bounds (MetaWindow *window)
 {
   if (!window->frame_bounds)
@@ -7293,7 +7246,7 @@ check_transient_for_loop (MetaWindow *window,
   while (parent)
     {
       if (parent == window)
-          return TRUE;
+        return TRUE;
       parent = parent->transient_for;
     }
 
@@ -7314,6 +7267,8 @@ void
 meta_window_set_transient_for (MetaWindow *window,
                                MetaWindow *parent)
 {
+  MetaWindowClass *klass = META_WINDOW_GET_CLASS (window);
+
   if (check_transient_for_loop (window, parent))
     {
       meta_warning ("Setting %s transient for %s would create a loop.",
@@ -7324,31 +7279,10 @@ meta_window_set_transient_for (MetaWindow *window,
   if (window->appears_focused && window->transient_for != NULL)
     meta_window_propagate_focus_appearance (window, FALSE);
 
-  /* may now be a dialog */
-  if (window->client_type == META_WINDOW_CLIENT_TYPE_X11)
-    {
-      meta_window_x11_recalc_window_type (window);
+  if (!klass->set_transient_for (window, parent))
+    return;
 
-      if (!window->constructing)
-        {
-          /* If the window attaches, detaches, or changes attached
-           * parents, we need to destroy the MetaWindow and let a new one
-           * be created (which happens as a side effect of
-           * meta_window_unmanage()). The condition below is correct
-           * because we know window->transient_for has changed.
-           */
-          if (window->attached || meta_window_should_attach_to_parent (window))
-            {
-              guint32 timestamp;
-
-              timestamp =
-                meta_display_get_current_time_roundtrip (window->display);
-              meta_window_unmanage (window, timestamp);
-              return;
-            }
-        }
-    }
-  else if (window->attached && parent == NULL)
+  if (window->attached && parent == NULL)
     {
       guint32 timestamp;
 
@@ -7360,25 +7294,9 @@ meta_window_set_transient_for (MetaWindow *window,
 
   g_set_object (&window->transient_for, parent);
 
-  if (window->client_type == META_WINDOW_CLIENT_TYPE_WAYLAND &&
-      window->attached != meta_window_should_attach_to_parent (window))
-    {
-      window->attached = meta_window_should_attach_to_parent (window);
-      meta_window_recalc_features (window);
-    }
-
   /* update stacking constraints */
   if (!window->override_redirect)
     meta_stack_update_transient (window->display->stack, window);
-
-  /* possibly change its group. We treat being a window's transient as
-   * equivalent to making it your group leader, to work around shortcomings
-   * in programs such as xmms-- see #328211.
-   */
-  if (window->xtransient_for != None &&
-      window->xgroup_leader != None &&
-      window->xtransient_for != window->xgroup_leader)
-    meta_window_group_leader_changed (window);
 
   if (!window->constructing && !window->override_redirect)
     meta_window_queue (window, META_QUEUE_MOVE_RESIZE | META_QUEUE_CALC_SHOWING);
@@ -7394,57 +7312,6 @@ meta_window_set_opacity (MetaWindow *window,
   window->opacity = opacity;
 
   meta_compositor_window_opacity_changed (window->display->compositor, window);
-}
-
-typedef struct
-{
-  MetaWindow *window;
-  int pointer_x;
-  int pointer_y;
-} MetaFocusData;
-
-static void
-mouse_mode_focus (MetaWindow  *window,
-                  guint32      timestamp)
-{
-  MetaDisplay *display = window->display;
-
-  if (window->override_redirect)
-    return;
-
-  if (window->type != META_WINDOW_DESKTOP)
-    {
-      meta_topic (META_DEBUG_FOCUS,
-                  "Focusing %s at time %u.", window->desc, timestamp);
-
-      meta_window_focus (window, timestamp);
-
-      if (meta_prefs_get_auto_raise ())
-        meta_display_queue_autoraise_callback (display, window);
-      else
-        meta_topic (META_DEBUG_FOCUS, "Auto raise is disabled");
-    }
-  else
-    {
-      /* In mouse focus mode, we defocus when the mouse *enters*
-       * the DESKTOP window, instead of defocusing on LeaveNotify.
-       * This is because having the mouse enter override-redirect
-       * child windows unfortunately causes LeaveNotify events that
-       * we can't distinguish from the mouse actually leaving the
-       * toplevel window as we expect.  But, since we filter out
-       * EnterNotify events on override-redirect windows, this
-       * alternative mechanism works great.
-       */
-      if (meta_prefs_get_focus_mode() == G_DESKTOP_FOCUS_MODE_MOUSE &&
-          display->focus_window != NULL)
-        {
-          meta_topic (META_DEBUG_FOCUS,
-                      "Unsetting focus from %s due to mouse entering "
-                      "the DESKTOP window",
-                      display->focus_window->desc);
-          meta_display_unset_input_focus (display, timestamp);
-        }
-    }
 }
 
 static gboolean
@@ -7464,138 +7331,17 @@ window_has_pointer_wayland (MetaWindow *window)
   return pointer_actor && clutter_actor_contains (window_actor, pointer_actor);
 }
 
-static gboolean
-window_has_pointer_x11 (MetaWindow *window)
-{
-  MetaX11Display *x11_display = window->display->x11_display;
-  Window root, child;
-  double root_x, root_y, x, y;
-  XIButtonState buttons;
-  XIModifierState mods;
-  XIGroupState group;
-
-  meta_x11_error_trap_push (x11_display);
-  XIQueryPointer (x11_display->xdisplay,
-                  META_VIRTUAL_CORE_POINTER_ID,
-                  x11_display->xroot,
-                  &root, &child,
-                  &root_x, &root_y, &x, &y,
-                  &buttons, &mods, &group);
-  meta_x11_error_trap_pop (x11_display);
-  free (buttons.mask);
-
-  return meta_x11_display_lookup_x_window (x11_display, child) == window;
-}
-
 gboolean
 meta_window_has_pointer (MetaWindow *window)
 {
   if (meta_is_wayland_compositor ())
     return window_has_pointer_wayland (window);
+#ifdef HAVE_X11_CLIENT
   else
-    return window_has_pointer_x11 (window);
-}
-
-static gboolean
-window_focus_on_pointer_rest_callback (gpointer data)
-{
-  MetaFocusData *focus_data = data;
-  MetaWindow *window = focus_data->window;
-  MetaDisplay *display = window->display;
-  MetaBackend *backend = backend_from_window (window);
-  MetaCursorTracker *cursor_tracker = meta_backend_get_cursor_tracker (backend);
-  graphene_point_t point;
-  guint32 timestamp;
-
-  if (meta_prefs_get_focus_mode () == G_DESKTOP_FOCUS_MODE_CLICK)
-    goto out;
-
-  meta_cursor_tracker_get_pointer (cursor_tracker, &point, NULL);
-
-  if ((int) point.x != focus_data->pointer_x ||
-      (int) point.y != focus_data->pointer_y)
-    {
-      focus_data->pointer_x = point.x;
-      focus_data->pointer_y = point.y;
-      return G_SOURCE_CONTINUE;
-    }
-
-  if (!meta_window_has_pointer (window))
-    goto out;
-
-  timestamp = meta_display_get_current_time_roundtrip (display);
-  mouse_mode_focus (window, timestamp);
-
- out:
-  display->focus_timeout_id = 0;
-  return G_SOURCE_REMOVE;
-}
-
-/* The interval, in milliseconds, we use in focus-follows-mouse
- * mode to check whether the pointer has stopped moving after a
- * crossing event.
- */
-#define FOCUS_TIMEOUT_DELAY 25
-
-static void
-queue_focus_callback (MetaDisplay *display,
-                      MetaWindow  *window,
-                      int          pointer_x,
-                      int          pointer_y)
-{
-  MetaFocusData *focus_data;
-
-  focus_data = g_new (MetaFocusData, 1);
-  focus_data->window = window;
-  focus_data->pointer_x = pointer_x;
-  focus_data->pointer_y = pointer_y;
-
-  g_clear_handle_id (&display->focus_timeout_id, g_source_remove);
-
-  display->focus_timeout_id =
-    g_timeout_add_full (G_PRIORITY_DEFAULT,
-                        FOCUS_TIMEOUT_DELAY,
-                        window_focus_on_pointer_rest_callback,
-                        focus_data,
-                        g_free);
-  g_source_set_name_by_id (display->focus_timeout_id,
-                           "[mutter] window_focus_on_pointer_rest_callback");
-}
-
-void
-meta_window_handle_enter (MetaWindow  *window,
-                          guint32      timestamp,
-                          guint        root_x,
-                          guint        root_y)
-{
-  MetaDisplay *display = window->display;
-
-  switch (meta_prefs_get_focus_mode ())
-    {
-    case G_DESKTOP_FOCUS_MODE_SLOPPY:
-    case G_DESKTOP_FOCUS_MODE_MOUSE:
-      display->mouse_mode = TRUE;
-      if (window->type != META_WINDOW_DOCK)
-        {
-          if (meta_prefs_get_focus_change_on_pointer_rest())
-            queue_focus_callback (display, window, root_x, root_y);
-          else
-            mouse_mode_focus (window, timestamp);
-        }
-      break;
-    case G_DESKTOP_FOCUS_MODE_CLICK:
-      break;
-    }
-
-  if (window->type == META_WINDOW_DOCK)
-    meta_window_raise (window);
-}
-
-void
-meta_window_handle_leave (MetaWindow *window)
-{
-  if (window->type == META_WINDOW_DOCK && !window->has_focus)
-    meta_window_lower (window);
+    return meta_window_x11_has_pointer (window);
+#else
+  g_assert_not_reached ();
+#endif
 }
 
 void

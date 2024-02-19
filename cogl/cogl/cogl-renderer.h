@@ -42,8 +42,9 @@
 G_BEGIN_DECLS
 
 /**
- * SECTION:cogl-renderer
- * @short_description: Choosing a means to render
+ * CoglRenderer:
+ *
+ * Choosing a means to render
  *
  * A #CoglRenderer represents a means to render. It encapsulates the
  * selection of an underlying driver, such as OpenGL or OpenGL-ES and
@@ -64,12 +65,6 @@ G_BEGIN_DECLS
  *
  * Once you have a configured #CoglRenderer it can be used to create a
  * #CoglDisplay object using cogl_display_new().
- *
- * <note>Many applications don't need to explicitly use
- * cogl_renderer_new() or cogl_display_new() and can just jump
- * straight to cogl_context_new() and pass a %NULL display argument so
- * Cogl will automatically connect and setup a renderer and
- * display.</note>
  */
 
 
@@ -85,24 +80,15 @@ cogl_renderer_error_quark (void);
 
 typedef struct _CoglRenderer CoglRenderer;
 
-/**
- * cogl_renderer_get_gtype:
- *
- * Returns: a #GType that can be used with the GLib type system.
- */
-COGL_EXPORT
-GType cogl_renderer_get_gtype (void);
+#define COGL_TYPE_RENDERER (cogl_renderer_get_type ())
 
-/**
- * cogl_is_renderer:
- * @object: A #CoglObject pointer
- *
- * Determines if the given @object is a #CoglRenderer
- *
- * Return value: %TRUE if @object is a #CoglRenderer, else %FALSE.
- */
-COGL_EXPORT gboolean
-cogl_is_renderer (void *object);
+COGL_EXPORT
+G_DECLARE_FINAL_TYPE (CoglRenderer,
+                      cogl_renderer,
+                      COGL,
+                      RENDERER,
+                      GObject)
+
 
 /**
  * cogl_renderer_new:
@@ -132,12 +118,6 @@ cogl_is_renderer (void *object);
  *
  * Once you have setup your renderer then the next step is to create a
  * #CoglDisplay using cogl_display_new().
- *
- * <note>Many applications don't need to explicitly use
- * cogl_renderer_new() or cogl_display_new() and can just jump
- * straight to cogl_context_new() and pass a %NULL display argument
- * so Cogl will automatically connect and setup a renderer and
- * display.</note>
  *
  * Return value: (transfer full): A newly created #CoglRenderer.
  */

@@ -35,8 +35,10 @@
 #include "meta/window.h"
 #include "x11/group-props.h"
 #include "x11/meta-x11-display-private.h"
+#include "x11/window-x11.h"
+#include "x11/window-x11-private.h"
 
-static MetaGroup*
+MetaGroup*
 meta_group_new (MetaX11Display *x11_display,
                 Window          group_leader)
 {
@@ -93,7 +95,7 @@ meta_group_new (MetaX11Display *x11_display,
   return g_steal_pointer (&group);
 }
 
-static void
+void
 meta_group_unref (MetaGroup *group)
 {
   g_return_if_fail (group->refcount > 0);
@@ -122,109 +124,6 @@ meta_group_unref (MetaGroup *group)
 
       g_free (group);
     }
-}
-
-/**
- * meta_window_get_group: (skip)
- * @window: a #MetaWindow
- *
- * Returns: (transfer none) (nullable): the #MetaGroup of the window
- */
-MetaGroup*
-meta_window_get_group (MetaWindow *window)
-{
-  if (window->unmanaging)
-    return NULL;
-
-  return window->group;
-}
-
-void
-meta_window_compute_group (MetaWindow* window)
-{
-  MetaGroup *group;
-  MetaWindow *ancestor;
-  MetaX11Display *x11_display = window->display->x11_display;
-
-  /* use window->xwindow if no window->xgroup_leader */
-
-  group = NULL;
-
-  /* Determine the ancestor of the window; its group setting will override the
-   * normal grouping rules; see bug 328211.
-   */
-  ancestor = meta_window_find_root_ancestor (window);
-
-  if (x11_display->groups_by_leader)
-    {
-      if (ancestor != window)
-        group = ancestor->group;
-      else if (window->xgroup_leader != None)
-        group = g_hash_table_lookup (x11_display->groups_by_leader,
-                                     &window->xgroup_leader);
-      else
-        group = g_hash_table_lookup (x11_display->groups_by_leader,
-                                     &window->xwindow);
-    }
-
-  if (group != NULL)
-    {
-      window->group = group;
-      group->refcount += 1;
-    }
-  else
-    {
-      if (ancestor != window && ancestor->xgroup_leader != None)
-        group = meta_group_new (x11_display,
-                                ancestor->xgroup_leader);
-      else if (window->xgroup_leader != None)
-        group = meta_group_new (x11_display,
-                                window->xgroup_leader);
-      else
-        group = meta_group_new (x11_display,
-                                window->xwindow);
-
-      window->group = group;
-    }
-
-  if (!window->group)
-    return;
-
-  window->group->windows = g_slist_prepend (window->group->windows, window);
-
-  meta_topic (META_DEBUG_GROUPS,
-              "Adding %s to group with leader 0x%lx",
-              window->desc, group->group_leader);
-}
-
-static void
-remove_window_from_group (MetaWindow *window)
-{
-  if (window->group != NULL)
-    {
-      meta_topic (META_DEBUG_GROUPS,
-                  "Removing %s from group with leader 0x%lx",
-                  window->desc, window->group->group_leader);
-
-      window->group->windows =
-        g_slist_remove (window->group->windows,
-                        window);
-      meta_group_unref (window->group);
-      window->group = NULL;
-    }
-}
-
-void
-meta_window_group_leader_changed (MetaWindow *window)
-{
-  remove_window_from_group (window);
-  meta_window_compute_group (window);
-}
-
-void
-meta_window_shutdown_group (MetaWindow *window)
-{
-  remove_window_from_group (window);
 }
 
 /**

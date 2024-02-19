@@ -81,7 +81,7 @@
  * instead.
  */
 
-#include "clutter/clutter-build-config.h"
+#include "config.h"
 
 
 #include "clutter/clutter-debug.h"
@@ -678,7 +678,8 @@ clutter_gesture_action_class_init (ClutterGestureActionClass *klass)
   gesture_props[PROP_N_TOUCH_POINTS] =
     g_param_spec_int ("n-touch-points", NULL, NULL,
                       1, G_MAXINT, 1,
-                      CLUTTER_PARAM_READWRITE);
+                      G_PARAM_READWRITE |
+                      G_PARAM_STATIC_STRINGS);
 
   /**
    * ClutterGestureAction:threshold-trigger-edge:
@@ -691,7 +692,8 @@ clutter_gesture_action_class_init (ClutterGestureActionClass *klass)
     g_param_spec_enum ("threshold-trigger-edge", NULL, NULL,
                        CLUTTER_TYPE_GESTURE_TRIGGER_EDGE,
                        CLUTTER_GESTURE_TRIGGER_EDGE_NONE,
-                       CLUTTER_PARAM_READWRITE |
+                       G_PARAM_READWRITE |
+                       G_PARAM_STATIC_STRINGS |
                        G_PARAM_CONSTRUCT_ONLY);
 
   /**
@@ -706,7 +708,8 @@ clutter_gesture_action_class_init (ClutterGestureActionClass *klass)
   gesture_props[PROP_THRESHOLD_TRIGGER_DISTANCE_X] =
     g_param_spec_float ("threshold-trigger-distance-x", NULL, NULL,
                         -1.0, G_MAXFLOAT, -1.0,
-                        CLUTTER_PARAM_READWRITE |
+                        G_PARAM_READWRITE |
+                        G_PARAM_STATIC_STRINGS |
                         G_PARAM_CONSTRUCT_ONLY);
 
   /**
@@ -721,7 +724,8 @@ clutter_gesture_action_class_init (ClutterGestureActionClass *klass)
   gesture_props[PROP_THRESHOLD_TRIGGER_DISTANCE_Y] =
     g_param_spec_float ("threshold-trigger-distance-y", NULL, NULL,
                         -1.0, G_MAXFLOAT, -1.0,
-                        CLUTTER_PARAM_READWRITE |
+                        G_PARAM_READWRITE |
+                        G_PARAM_STATIC_STRINGS |
                         G_PARAM_CONSTRUCT_ONLY);
 
   g_object_class_install_properties (gobject_class,
@@ -1279,23 +1283,6 @@ clutter_gesture_action_get_threshold_trigger_edge (ClutterGestureAction *action)
   priv = clutter_gesture_action_get_instance_private (action);
 
   return priv->edge;
-}
-
-/**
- * clutter_gesture_action_get_threshold_trigger_egde:
- * @action: a #ClutterGestureAction
- *
- * Retrieves the edge trigger of the gesture @action, as set using
- * [method@GestureAction.set_threshold_trigger_edge].
- *
- * Return value: the edge trigger
- *
- * Deprecated: 1.20: Use [method@GestureAction.get_threshold_trigger_edge] instead.
- */
-ClutterGestureTriggerEdge
-clutter_gesture_action_get_threshold_trigger_egde (ClutterGestureAction *action)
-{
-  return clutter_gesture_action_get_threshold_trigger_edge (action);
 }
 
 /**

@@ -34,23 +34,13 @@
 G_BEGIN_DECLS
 
 #define CLUTTER_TYPE_DEFORM_EFFECT              (clutter_deform_effect_get_type ())
-#define CLUTTER_DEFORM_EFFECT(obj)              (G_TYPE_CHECK_INSTANCE_CAST ((obj), CLUTTER_TYPE_DEFORM_EFFECT, ClutterDeformEffect))
-#define CLUTTER_IS_DEFORM_EFFECT(obj)           (G_TYPE_CHECK_INSTANCE_TYPE ((obj), CLUTTER_TYPE_DEFORM_EFFECT))
-#define CLUTTER_DEFORM_EFFECT_CLASS(klass)      (G_TYPE_CHECK_CLASS_CAST ((klass), CLUTTER_TYPE_DEFORM_EFFECT, ClutterDeformEffectClass))
-#define CLUTTER_IS_DEFORM_EFFECT_CLASS(klass)   (G_TYPE_CHECK_CLASS_TYPE ((klass), CLUTTER_TYPE_DEFORM_EFFECT))
-#define CLUTTER_DEFORM_EFFECT_GET_CLASS(obj)    (G_TYPE_INSTANCE_GET_CLASS ((obj), CLUTTER_TYPE_DEFORM_EFFECT, ClutterDeformEffectClass))
 
-typedef struct _ClutterDeformEffect             ClutterDeformEffect;
-typedef struct _ClutterDeformEffectPrivate      ClutterDeformEffectPrivate;
-typedef struct _ClutterDeformEffectClass        ClutterDeformEffectClass;
-
-struct _ClutterDeformEffect
-{
-  /*< private >*/
-  ClutterOffscreenEffect parent_instance;
-
-  ClutterDeformEffectPrivate *priv;
-};
+CLUTTER_EXPORT
+G_DECLARE_DERIVABLE_TYPE (ClutterDeformEffect,
+                          clutter_deform_effect,
+                          CLUTTER,
+                          DEFORM_EFFECT,
+                          ClutterOffscreenEffect)
 
 /**
  * ClutterDeformEffectClass:
@@ -73,13 +63,10 @@ struct _ClutterDeformEffectClass
 };
 
 CLUTTER_EXPORT
-GType clutter_deform_effect_get_type (void) G_GNUC_CONST;
-
-CLUTTER_EXPORT
 void            clutter_deform_effect_set_back_material (ClutterDeformEffect *effect,
-                                                         CoglHandle           material);
+                                                         CoglPipeline        *material);
 CLUTTER_EXPORT
-CoglHandle      clutter_deform_effect_get_back_material (ClutterDeformEffect *effect);
+CoglPipeline*   clutter_deform_effect_get_back_material (ClutterDeformEffect *effect);
 CLUTTER_EXPORT
 void            clutter_deform_effect_set_n_tiles       (ClutterDeformEffect *effect,
                                                          guint                x_tiles,

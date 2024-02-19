@@ -48,7 +48,7 @@
 #include "core/meta-workspace-manager-private.h"
 #include "core/util-private.h"
 #include "meta/group.h"
-#include "meta/meta-x11-errors.h"
+#include "mtk/mtk-x11.h"
 #include "x11/meta-x11-display-private.h"
 #include "x11/window-x11-private.h"
 #include "x11/window-x11.h"
@@ -124,7 +124,7 @@ meta_window_reload_property (MetaWindow      *window,
                              gboolean         initial)
 {
   meta_window_reload_property_from_xwindow (window,
-                                            window->xwindow,
+                                            meta_window_x11_get_xwindow (window),
                                             property,
                                             initial);
 }
@@ -151,7 +151,8 @@ meta_window_load_initial_properties (MetaWindow *window)
     }
   n_properties = j;
 
-  meta_prop_get_values (window->display->x11_display, window->xwindow,
+  meta_prop_get_values (window->display->x11_display,
+                        meta_window_x11_get_xwindow (window),
                         values, n_properties);
 
   j = 0;
@@ -287,35 +288,6 @@ reload_net_wm_window_type (MetaWindow    *window,
 }
 
 static void
-reload_icon (MetaWindow    *window,
-             Atom           atom)
-{
-  MetaWindowX11 *window_x11 = META_WINDOW_X11 (window);
-  MetaWindowX11Private *priv = meta_window_x11_get_private (window_x11);
-
-  meta_icon_cache_property_changed (&priv->icon_cache,
-                                    window->display->x11_display,
-                                    atom);
-  meta_window_x11_queue_update_icon (window_x11);
-}
-
-static void
-reload_net_wm_icon (MetaWindow    *window,
-                    MetaPropValue *value,
-                    gboolean       initial)
-{
-  reload_icon (window, window->display->x11_display->atom__NET_WM_ICON);
-}
-
-static void
-reload_kwm_win_icon (MetaWindow    *window,
-                     MetaPropValue *value,
-                     gboolean       initial)
-{
-  reload_icon (window, window->display->x11_display->atom__KWM_WIN_ICON);
-}
-
-static void
 reload_icon_geometry (MetaWindow    *window,
                       MetaPropValue *value,
                       gboolean       initial)
@@ -447,17 +419,20 @@ reload_net_wm_user_time_window (MetaWindow    *window,
 {
   if (value->type != META_PROP_VALUE_INVALID)
     {
+      MetaWindowX11 *window_x11 = META_WINDOW_X11 (window);
+      MetaWindowX11Private *priv = meta_window_x11_get_private (window_x11);
       MetaWindow *prev_owner;
+      MetaWindowX11Private *prev_owner_priv;
 
       /* Unregister old NET_WM_USER_TIME_WINDOW */
-      if (window->user_time_window != None)
+      if (priv->user_time_window != None)
         {
           /* See the comment to the meta_display_register_x_window call below. */
           meta_x11_display_unregister_x_window (window->display->x11_display,
-                                                window->user_time_window);
+                                                priv->user_time_window);
           /* Don't get events on not-managed windows */
           XSelectInput (window->display->x11_display->xdisplay,
-                        window->user_time_window,
+                        priv->user_time_window,
                         NoEventMask);
         }
 
@@ -466,16 +441,17 @@ reload_net_wm_user_time_window (MetaWindow    *window,
        */
       prev_owner = meta_x11_display_lookup_x_window (window->display->x11_display,
                                                      value->v.xwindow);
-      if (prev_owner && prev_owner->user_time_window == value->v.xwindow)
+      prev_owner_priv = meta_window_x11_get_private (META_WINDOW_X11 (prev_owner));
+      if (prev_owner && prev_owner_priv->user_time_window == value->v.xwindow)
         {
           meta_x11_display_unregister_x_window (window->display->x11_display,
-                                               value->v.xwindow);
-          prev_owner->user_time_window = None;
+                                                value->v.xwindow);
+          prev_owner_priv->user_time_window = None;
         }
 
       /* Obtain the new NET_WM_USER_TIME_WINDOW and register it */
-      window->user_time_window = value->v.xwindow;
-      if (window->user_time_window != None)
+      priv->user_time_window = value->v.xwindow;
+      if (priv->user_time_window != None)
         {
           /* Kind of a hack; display.c:event_callback() ignores events
            * for unknown windows.  We make window->user_time_window
@@ -490,11 +466,11 @@ reload_net_wm_user_time_window (MetaWindow    *window,
            * and it's not specified in the spec anyway.
            */
           meta_x11_display_register_x_window (window->display->x11_display,
-                                              &window->user_time_window,
+                                              &priv->user_time_window,
                                               window);
           /* Just listen for property notify events */
           XSelectInput (window->display->x11_display->xdisplay,
-                        window->user_time_window,
+                        priv->user_time_window,
                         PropertyChangeMask);
 
           /* Manually load the _NET_WM_USER_TIME field from the given window
@@ -503,7 +479,7 @@ reload_net_wm_user_time_window (MetaWindow    *window,
            */
           meta_window_reload_property_from_xwindow (
             window,
-            window->user_time_window,
+            priv->user_time_window,
             window->display->x11_display->atom__NET_WM_USER_TIME,
             initial);
         }
@@ -554,17 +530,17 @@ set_title_text (MetaWindow  *window,
 
   if (modified && atom != None)
     meta_prop_set_utf8_string_hint (window->display->x11_display,
-                                    window->xwindow,
+                                    meta_window_x11_get_xwindow (window),
                                     atom, *target);
 
   /* Bug 330671 -- Don't forget to clear _NET_WM_VISIBLE_(ICON_)NAME */
   if (!modified && previous_was_modified)
     {
-      meta_x11_error_trap_push (window->display->x11_display);
+      mtk_x11_error_trap_push (window->display->x11_display->xdisplay);
       XDeleteProperty (window->display->x11_display->xdisplay,
-                       window->xwindow,
+                       meta_window_x11_get_xwindow (window),
                        atom);
-      meta_x11_error_trap_pop (window->display->x11_display);
+      mtk_x11_error_trap_pop (window->display->x11_display->xdisplay);
     }
 
   return modified;
@@ -646,16 +622,16 @@ reload_wm_name (MetaWindow    *window,
 }
 
 static void
-meta_window_set_opaque_region (MetaWindow     *window,
-                               cairo_region_t *region)
+meta_window_set_opaque_region (MetaWindow *window,
+                               MtkRegion  *region)
 {
-  if (cairo_region_equal (window->opaque_region, region))
+  if (mtk_region_equal (window->opaque_region, region))
     return;
 
-  g_clear_pointer (&window->opaque_region, cairo_region_destroy);
+  g_clear_pointer (&window->opaque_region, mtk_region_unref);
 
   if (region != NULL)
-    window->opaque_region = cairo_region_reference (region);
+    window->opaque_region = mtk_region_ref (region);
 
   meta_compositor_window_shape_changed (window->display->compositor, window);
 }
@@ -665,7 +641,7 @@ reload_opaque_region (MetaWindow    *window,
                       MetaPropValue *value,
                       gboolean       initial)
 {
-  cairo_region_t *opaque_region = NULL;
+  MtkRegion *opaque_region = NULL;
 
   if (value->type != META_PROP_VALUE_INVALID)
     {
@@ -703,18 +679,18 @@ reload_opaque_region (MetaWindow    *window,
           rect_index++;
         }
 
-      opaque_region = cairo_region_create_rectangles (rects, nrects);
+      opaque_region = mtk_region_create_rectangles (rects, nrects);
 
       g_free (rects);
     }
 
  out:
-  if (value->source_xwindow == window->xwindow)
+  if (value->source_xwindow == meta_window_x11_get_xwindow (window))
     meta_window_set_opaque_region (window, opaque_region);
   else if (window->frame && value->source_xwindow == window->frame->xwindow)
     meta_frame_set_opaque_region (window->frame, opaque_region);
 
-  g_clear_pointer (&opaque_region, cairo_region_destroy);
+  g_clear_pointer (&opaque_region, mtk_region_unref);
 }
 
 static void
@@ -1055,7 +1031,7 @@ reload_update_counter (MetaWindow    *window,
     {
       MetaSyncCounter *sync_counter;
 
-      if (value->source_xwindow == window->xwindow)
+      if (value->source_xwindow == meta_window_x11_get_xwindow (window))
         sync_counter = meta_window_x11_get_sync_counter (window);
       else if (window->frame && value->source_xwindow == window->frame->xwindow)
         sync_counter = meta_frame_get_sync_counter (window->frame);
@@ -1645,12 +1621,12 @@ reload_wm_hints (MetaWindow    *window,
   Window old_group_leader;
   gboolean urgent;
 
-  old_group_leader = window->xgroup_leader;
+  old_group_leader = priv->xgroup_leader;
 
   /* Fill in defaults */
   window->input = TRUE;
   window->initially_iconic = FALSE;
-  window->xgroup_leader = None;
+  priv->xgroup_leader = None;
   priv->wm_hints_pixmap = None;
   priv->wm_hints_mask = None;
   urgent = FALSE;
@@ -1666,7 +1642,7 @@ reload_wm_hints (MetaWindow    *window,
         window->initially_iconic = (hints->initial_state == IconicState);
 
       if (hints->flags & WindowGroupHint)
-        window->xgroup_leader = hints->window_group;
+        priv->xgroup_leader = hints->window_group;
 
       if (hints->flags & IconPixmapHint)
         priv->wm_hints_pixmap = hints->icon_pixmap;
@@ -1679,26 +1655,21 @@ reload_wm_hints (MetaWindow    *window,
 
       meta_verbose ("Read WM_HINTS input: %d iconic: %d group leader: 0x%lx pixmap: 0x%lx mask: 0x%lx",
                     window->input, window->initially_iconic,
-                    window->xgroup_leader,
+                    priv->xgroup_leader,
                     priv->wm_hints_pixmap,
                     priv->wm_hints_mask);
     }
 
-  if (window->xgroup_leader != old_group_leader)
+  if (priv->xgroup_leader != old_group_leader)
     {
       meta_verbose ("Window %s changed its group leader to 0x%lx",
-                    window->desc, window->xgroup_leader);
+                    window->desc, priv->xgroup_leader);
 
-      meta_window_group_leader_changed (window);
+      meta_window_x11_group_leader_changed (window);
     }
 
   meta_window_set_urgent (window, urgent);
 
-  meta_icon_cache_property_changed (&priv->icon_cache,
-                                    window->display->x11_display,
-                                    XA_WM_HINTS);
-
-  meta_window_x11_queue_update_icon (window_x11);
   meta_window_queue (window, META_QUEUE_MOVE_RESIZE);
 }
 
@@ -1712,7 +1683,7 @@ check_xtransient_for_loop (MetaWindow *window,
         return TRUE;
 
       parent = meta_x11_display_lookup_x_window (parent->display->x11_display,
-                                                 parent->xtransient_for);
+                                                 meta_window_x11_get_xtransient_for (parent));
     }
 
   return FALSE;
@@ -1724,7 +1695,7 @@ reload_transient_for (MetaWindow    *window,
                       gboolean       initial)
 {
   MetaWindow *parent = NULL;
-  Window transient_for;
+  Window transient_for, current_transient_for;
 
   if (value->type != META_PROP_VALUE_INVALID)
     {
@@ -1741,9 +1712,9 @@ reload_transient_for (MetaWindow    *window,
       else if (parent->override_redirect)
         {
           const gchar *window_kind = window->override_redirect ?
-            "override-redirect" : "top-level";
-
-          if (parent->xtransient_for != None)
+                                     "override-redirect" : "top-level";
+          Window parent_xtransient_for = meta_window_x11_get_xtransient_for (parent);
+          if (parent_xtransient_for != None)
             {
               /* We don't have to go through the parents, as per this code it is
                * not possible that a window has the WM_TRANSIENT_FOR set to an
@@ -1753,8 +1724,8 @@ reload_transient_for (MetaWindow    *window,
                             "according to the standard, so we'll fallback to "
                             "the first non-override-redirect window 0x%lx.",
                             parent->desc, window->desc, window_kind,
-                            parent->xtransient_for);
-              transient_for = parent->xtransient_for;
+                            parent_xtransient_for);
+              transient_for = parent_xtransient_for;
               parent =
                 meta_x11_display_lookup_x_window (parent->display->x11_display,
                                                   transient_for);
@@ -1782,18 +1753,19 @@ reload_transient_for (MetaWindow    *window,
   else
     transient_for = None;
 
-  if (transient_for == window->xtransient_for)
+  current_transient_for = meta_window_x11_get_xtransient_for (window);
+  if (transient_for == current_transient_for)
     return;
 
-  window->xtransient_for = transient_for;
 
-  if (window->xtransient_for != None)
-    meta_verbose ("Window %s transient for 0x%lx", window->desc, window->xtransient_for);
+  current_transient_for = transient_for;
+  if (current_transient_for != None)
+    meta_verbose ("Window %s transient for 0x%lx", window->desc, current_transient_for);
   else
     meta_verbose ("Window %s is not transient", window->desc);
 
-  if (window->xtransient_for == None ||
-      window->xtransient_for == window->display->x11_display->xroot)
+  if (current_transient_for == None ||
+      current_transient_for == window->display->x11_display->xroot)
     meta_window_set_transient_for (window, NULL);
   else
     {
@@ -1951,8 +1923,6 @@ meta_x11_display_init_window_prop_hooks (MetaX11Display *x11_display)
     { x11_display->atom__GTK_MENUBAR_OBJECT_PATH,          META_PROP_VALUE_UTF8,         reload_gtk_menubar_object_path,          LOAD_INIT },
     { x11_display->atom__GTK_FRAME_EXTENTS,                META_PROP_VALUE_CARDINAL_LIST,reload_gtk_frame_extents,                LOAD_INIT },
     { x11_display->atom__NET_WM_USER_TIME_WINDOW, META_PROP_VALUE_WINDOW, reload_net_wm_user_time_window, LOAD_INIT },
-    { x11_display->atom__NET_WM_ICON,      META_PROP_VALUE_INVALID,  reload_net_wm_icon,  NONE },
-    { x11_display->atom__KWM_WIN_ICON,     META_PROP_VALUE_INVALID,  reload_kwm_win_icon, NONE },
     { x11_display->atom__NET_WM_ICON_GEOMETRY, META_PROP_VALUE_CARDINAL_LIST, reload_icon_geometry, LOAD_INIT },
     { x11_display->atom_WM_CLIENT_LEADER,  META_PROP_VALUE_INVALID, complain_about_broken_client, NONE },
     { x11_display->atom_SM_CLIENT_ID,      META_PROP_VALUE_INVALID, complain_about_broken_client, NONE },

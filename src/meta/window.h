@@ -20,11 +20,10 @@
 #pragma once
 
 #include <glib-object.h>
-#include <cairo.h>
 #include <X11/Xlib.h>
 
-#include <meta/boxes.h>
-#include <meta/types.h>
+#include "meta/boxes.h"
+#include "meta/types.h"
 
 /**
  * MetaWindowType:
@@ -140,9 +139,6 @@ void meta_window_frame_rect_to_client_rect (MetaWindow   *window,
 
 META_EXPORT
 MetaDisplay *meta_window_get_display (MetaWindow *window);
-
-META_EXPORT
-Window meta_window_get_xwindow (MetaWindow *window);
 
 META_EXPORT
 MetaWindowType meta_window_get_window_type (MetaWindow *window);
@@ -314,7 +310,8 @@ void        meta_window_lower_with_transients (MetaWindow *window,
                                                uint32_t    timestamp);
 
 META_EXPORT
-void        meta_window_raise_and_make_recent (MetaWindow *window);
+void        meta_window_raise_and_make_recent_on_workspace (MetaWindow    *window,
+                                                            MetaWorkspace *workspace);
 
 META_EXPORT
 const char *meta_window_get_title (MetaWindow *window);
@@ -354,7 +351,7 @@ META_EXPORT
 MetaFrameType meta_window_get_frame_type (MetaWindow *window);
 
 META_EXPORT
-cairo_region_t *meta_window_get_frame_bounds (MetaWindow *window);
+MtkRegion *meta_window_get_frame_bounds (MetaWindow *window);
 
 META_EXPORT
 MetaWindow *meta_window_get_tile_match (MetaWindow *window);

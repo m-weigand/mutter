@@ -238,24 +238,8 @@ GList* meta_rectangle_find_nonintersected_monitor_edges (
                                            const GSList        *all_struts);
 
 META_EXPORT_TEST
-gboolean meta_rectangle_is_adjacent_to (MtkRectangle *rect,
-                                        MtkRectangle *other);
-
-META_EXPORT_TEST
-void meta_rectangle_scale_double (const MtkRectangle  *rect,
-                                  double               scale,
-                                  MtkRoundingStrategy  rounding_strategy,
-                                  MtkRectangle        *dest);
-
-META_EXPORT_TEST
 void meta_rectangle_transform (const MtkRectangle   *rect,
                                MetaMonitorTransform  transform,
                                int                   width,
                                int                   height,
                                MtkRectangle         *dest);
-
-void meta_rectangle_crop_and_scale (const MtkRectangle *rect,
-                                    graphene_rect_t    *src_rect,
-                                    int                 dst_width,
-                                    int                 dst_height,
-                                    MtkRectangle       *dest);

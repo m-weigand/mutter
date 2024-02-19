@@ -37,7 +37,7 @@
  * [method@Text.set_selectable].
  */
 
-#include "clutter/clutter-build-config.h"
+#include "config.h"
 
 #include <string.h>
 #include <math.h>
@@ -57,9 +57,7 @@
 #include "clutter/clutter-private.h"    /* includes <cogl-pango/cogl-pango.h> */
 #include "clutter/clutter-property-transition.h"
 #include "clutter/clutter-text-buffer.h"
-#include "clutter/clutter-units.h"
 #include "clutter/clutter-paint-volume-private.h"
-#include "clutter/clutter-scriptable.h"
 #include "clutter/clutter-input-focus.h"
 
 /* cursor width in pixels */
@@ -102,7 +100,7 @@ struct _ClutterTextInputFocus
   ClutterText *text;
 };
 
-struct _ClutterTextPrivate
+typedef struct _ClutterTextPrivate
 {
   PangoFontDescription *font_desc;
 
@@ -216,7 +214,7 @@ struct _ClutterTextPrivate
   guint show_password_hint      : 1;
   guint password_hint_visible   : 1;
   guint resolved_direction      : 4;
-};
+} ClutterTextPrivate;
 
 enum
 {
@@ -234,7 +232,6 @@ enum
   PROP_LINE_WRAP_MODE,
   PROP_JUSTIFY,
   PROP_ELLIPSIZE,
-  PROP_POSITION, /* XXX:2.0 - remove */
   PROP_SELECTION_BOUND,
   PROP_SELECTION_COLOR,
   PROP_SELECTION_COLOR_SET,
@@ -262,7 +259,6 @@ static GParamSpec *obj_props[PROP_LAST];
 enum
 {
   TEXT_CHANGED,
-  CURSOR_EVENT, /* XXX:2.0 - remove */
   ACTIVATE,
   INSERT_TEXT,
   DELETE_TEXT,
@@ -284,7 +280,6 @@ static const ClutterColor default_text_color      = {   0,   0,   0, 255 };
 static const ClutterColor default_selected_text_color = {   0,   0,   0, 255 };
 
 static ClutterAnimatableInterface *parent_animatable_iface = NULL;
-static ClutterScriptableIface *parent_scriptable_iface = NULL;
 
 /* ClutterTextInputFocus */
 #define CLUTTER_TYPE_TEXT_INPUT_FOCUS (clutter_text_input_focus_get_type ())
@@ -439,15 +434,12 @@ clutter_text_input_focus_new (ClutterText *text)
 }
 
 /* ClutterText */
-static void clutter_scriptable_iface_init (ClutterScriptableIface *iface);
 static void clutter_animatable_iface_init (ClutterAnimatableInterface *iface);
 
 G_DEFINE_TYPE_WITH_CODE (ClutterText,
                          clutter_text,
                          CLUTTER_TYPE_ACTOR,
                          G_ADD_PRIVATE (ClutterText)
-                         G_IMPLEMENT_INTERFACE (CLUTTER_TYPE_SCRIPTABLE,
-                                                clutter_scriptable_iface_init)
                          G_IMPLEMENT_INTERFACE (CLUTTER_TYPE_ANIMATABLE,
                                                 clutter_animatable_iface_init));
 
@@ -461,11 +453,11 @@ clutter_text_queue_redraw (ClutterActor *self)
 static gboolean
 clutter_text_should_draw_cursor (ClutterText *self)
 {
-  ClutterTextPrivate *priv = self->priv;
+  ClutterTextPrivate *priv = clutter_text_get_instance_private (self);
 
   return (priv->editable || priv->selectable) &&
-    priv->cursor_visible &&
-    priv->has_focus;
+         priv->cursor_visible &&
+         priv->has_focus;
 }
 
 #define offset_real(t,p)        ((p) == -1 ? g_utf8_strlen ((t), -1) : (p))
@@ -491,7 +483,7 @@ offset_to_bytes (const gchar *text,
 static inline void
 clutter_text_clear_selection (ClutterText *self)
 {
-  ClutterTextPrivate *priv = self->priv;
+  ClutterTextPrivate *priv = clutter_text_get_instance_private (self);
 
   if (priv->selection_bound != priv->position)
     {
@@ -504,10 +496,11 @@ clutter_text_clear_selection (ClutterText *self)
 static gboolean
 clutter_text_is_empty (ClutterText *self)
 {
-  if (self->priv->buffer == NULL)
+  ClutterTextPrivate *priv = clutter_text_get_instance_private (self);
+  if (priv->buffer == NULL)
     return TRUE;
 
-  if (clutter_text_buffer_get_length (self->priv->buffer) == 0)
+  if (clutter_text_buffer_get_length (priv->buffer) == 0)
     return TRUE;
 
   return FALSE;
@@ -516,7 +509,7 @@ clutter_text_is_empty (ClutterText *self)
 static gchar *
 clutter_text_get_display_text (ClutterText *self)
 {
-  ClutterTextPrivate *priv = self->priv;
+  ClutterTextPrivate *priv = clutter_text_get_instance_private (self);
   ClutterTextBuffer *buffer;
   const gchar *text;
 
@@ -581,7 +574,7 @@ static void
 ensure_effective_pango_scale_attribute (ClutterText *self)
 {
   float resource_scale;
-  ClutterTextPrivate *priv = self->priv;
+  ClutterTextPrivate *priv = clutter_text_get_instance_private (self);
 
   resource_scale = clutter_actor_get_resource_scale (CLUTTER_ACTOR (self));
 
@@ -614,7 +607,7 @@ static void
 set_effective_pango_attributes (ClutterText   *self,
                                 PangoAttrList *attributes)
 {
-  ClutterTextPrivate *priv = self->priv;
+  ClutterTextPrivate *priv = clutter_text_get_instance_private (self);
 
   if (attributes != NULL)
     {
@@ -635,7 +628,7 @@ set_effective_pango_attributes (ClutterText   *self,
 static inline void
 clutter_text_ensure_effective_attributes (ClutterText *self)
 {
-  ClutterTextPrivate *priv = self->priv;
+  ClutterTextPrivate *priv = clutter_text_get_instance_private (self);
 
   /* If we already have the effective attributes then we don't need to
      do anything */
@@ -699,7 +692,7 @@ clutter_text_create_layout_no_cache (ClutterText       *text,
 				     gint               height,
 				     PangoEllipsizeMode ellipsize)
 {
-  ClutterTextPrivate *priv = text->priv;
+  ClutterTextPrivate *priv = clutter_text_get_instance_private (text);
   PangoLayout *layout;
   gchar *contents;
   gsize contents_len;
@@ -739,17 +732,18 @@ clutter_text_create_layout_no_cache (ClutterText       *text,
     }
   else
     {
+      ClutterTextDirection dir;
       PangoDirection pango_dir;
+      PangoContext *context;
 
       if (priv->password_char != 0)
-        pango_dir = PANGO_DIRECTION_NEUTRAL;
+        dir = CLUTTER_TEXT_DIRECTION_DEFAULT;
       else
-        pango_dir = _clutter_pango_find_base_dir (contents, contents_len);
+        dir = _clutter_find_base_dir (contents, contents_len);
 
-      if (pango_dir == PANGO_DIRECTION_NEUTRAL)
+      if (dir == CLUTTER_TEXT_DIRECTION_DEFAULT)
         {
           ClutterBackend *backend = clutter_get_default_backend ();
-          ClutterTextDirection text_dir;
 
           if (clutter_actor_has_key_focus (CLUTTER_ACTOR (text)))
             {
@@ -758,22 +752,20 @@ clutter_text_create_layout_no_cache (ClutterText       *text,
 
               seat = clutter_backend_get_default_seat (backend);
               keymap = clutter_seat_get_keymap (seat);
-              pango_dir = clutter_keymap_get_direction (keymap);
+              dir = clutter_keymap_get_direction (keymap);
             }
           else
             {
-              text_dir = clutter_actor_get_text_direction (CLUTTER_ACTOR (text));
-
-              if (text_dir == CLUTTER_TEXT_DIRECTION_RTL)
-                pango_dir = PANGO_DIRECTION_RTL;
-              else
-                pango_dir = PANGO_DIRECTION_LTR;
-           }
+              dir = clutter_actor_get_text_direction (CLUTTER_ACTOR (text));
+            }
         }
 
-      pango_context_set_base_dir (clutter_actor_get_pango_context (CLUTTER_ACTOR (text)), pango_dir);
+      pango_dir = clutter_text_direction_to_pango_direction (dir);
+      context = clutter_actor_get_pango_context (CLUTTER_ACTOR (text));
 
-      priv->resolved_direction = pango_dir;
+      pango_context_set_base_dir (context, pango_dir);
+
+      priv->resolved_direction = dir;
 
       pango_layout_set_text (layout, contents, contents_len);
     }
@@ -802,7 +794,7 @@ clutter_text_create_layout_no_cache (ClutterText       *text,
 static void
 clutter_text_dirty_cache (ClutterText *text)
 {
-  ClutterTextPrivate *priv = text->priv;
+  ClutterTextPrivate *priv = clutter_text_get_instance_private (text);
   int i;
 
   /* Delete the cached layouts so they will be recreated the next time
@@ -810,8 +802,8 @@ clutter_text_dirty_cache (ClutterText *text)
   for (i = 0; i < N_CACHED_LAYOUTS; i++)
     if (priv->cached_layouts[i].layout)
       {
-	g_object_unref (priv->cached_layouts[i].layout);
-	priv->cached_layouts[i].layout = NULL;
+        g_object_unref (priv->cached_layouts[i].layout);
+        priv->cached_layouts[i].layout = NULL;
       }
 
   clutter_actor_invalidate_paint_volume (CLUTTER_ACTOR (text));
@@ -835,7 +827,7 @@ clutter_text_set_font_description_internal (ClutterText          *self,
                                             PangoFontDescription *desc,
                                             gboolean              is_default_font)
 {
-  ClutterTextPrivate *priv = self->priv;
+  ClutterTextPrivate *priv = clutter_text_get_instance_private (self);
 
   priv->is_default_font = is_default_font;
 
@@ -863,7 +855,7 @@ clutter_text_set_font_description_internal (ClutterText          *self,
 static void
 clutter_text_settings_changed_cb (ClutterText *text)
 {
-  ClutterTextPrivate *priv = text->priv;
+  ClutterTextPrivate *priv = clutter_text_get_instance_private (text);
   guint password_hint_time = 0;
   ClutterSettings *settings;
 
@@ -921,7 +913,7 @@ clutter_text_create_layout (ClutterText *text,
                             gfloat       allocation_width,
                             gfloat       allocation_height)
 {
-  ClutterTextPrivate *priv = text->priv;
+  ClutterTextPrivate *priv = clutter_text_get_instance_private (text);
   LayoutCache *oldest_cache = priv->cached_layouts;
   gboolean found_free_cache = FALSE;
   gint width = -1;
@@ -1135,16 +1127,18 @@ clutter_text_coords_to_position (ClutterText *self,
   gint px, py;
   gint trailing;
   gfloat resource_scale;
+  ClutterTextPrivate *priv;
 
   g_return_val_if_fail (CLUTTER_IS_TEXT (self), 0);
 
+  priv = clutter_text_get_instance_private (self);
   resource_scale = clutter_actor_get_resource_scale (CLUTTER_ACTOR (self));
 
   /* Take any offset due to scrolling into account, and normalize
    * the coordinates to PangoScale units
    */
-  px = logical_pixels_to_pango (x - self->priv->text_logical_x, resource_scale);
-  py = logical_pixels_to_pango (y - self->priv->text_logical_y, resource_scale);
+  px = logical_pixels_to_pango (x - priv->text_logical_x, resource_scale);
+  py = logical_pixels_to_pango (y - priv->text_logical_y, resource_scale);
 
   pango_layout_xy_to_index (clutter_text_get_layout (self),
                             px, py,
@@ -1169,7 +1163,7 @@ clutter_text_position_to_coords_internal (ClutterText *self,
 
   g_return_val_if_fail (CLUTTER_IS_TEXT (self), FALSE);
 
-  priv = self->priv;
+  priv = clutter_text_get_instance_private (self);
 
   n_chars = clutter_text_buffer_get_length (get_buffer (self));
   if (priv->preedit_set)
@@ -1284,7 +1278,7 @@ clutter_text_position_to_coords (ClutterText *self,
 static inline void
 update_cursor_location (ClutterText *self)
 {
-  ClutterTextPrivate *priv = self->priv;
+  ClutterTextPrivate *priv = clutter_text_get_instance_private (self);
   graphene_rect_t rect;
   float x, y;
 
@@ -1302,7 +1296,7 @@ static inline void
 clutter_text_ensure_cursor_position (ClutterText *self,
                                      float        scale)
 {
-  ClutterTextPrivate *priv = self->priv;
+  ClutterTextPrivate *priv = clutter_text_get_instance_private (self);
   gfloat x, y, cursor_height;
   graphene_rect_t cursor_rect = GRAPHENE_RECT_INIT_ZERO;
   gint position;
@@ -1337,7 +1331,6 @@ clutter_text_ensure_cursor_position (ClutterText *self,
     {
       priv->cursor_rect = cursor_rect;
 
-      g_signal_emit (self, text_signals[CURSOR_EVENT], 0, &cursor_rect);
       g_signal_emit (self, text_signals[CURSOR_CHANGED], 0);
 
       update_cursor_location (self);
@@ -1366,7 +1359,7 @@ clutter_text_delete_selection (ClutterText *self)
 
   g_return_val_if_fail (CLUTTER_IS_TEXT (self), FALSE);
 
-  priv = self->priv;
+  priv = clutter_text_get_instance_private (self);
 
   n_chars = clutter_text_buffer_get_length (get_buffer (self));
   if (n_chars == 0)
@@ -1396,8 +1389,6 @@ clutter_text_delete_selection (ClutterText *self)
   /* Not required to be guarded by g_object_freeze/thaw_notify */
   if (priv->position != old_position)
     {
-      /* XXX:2.0 - remove */
-      g_object_notify_by_pspec (G_OBJECT (self), obj_props[PROP_POSITION]);
       g_object_notify_by_pspec (G_OBJECT (self), obj_props[PROP_CURSOR_POSITION]);
       g_signal_emit (self, text_signals[CURSOR_CHANGED], 0);
     }
@@ -1427,7 +1418,7 @@ static inline void
 clutter_text_set_markup_internal (ClutterText *self,
                                   const gchar *str)
 {
-  ClutterTextPrivate *priv = self->priv;
+  ClutterTextPrivate *priv = clutter_text_get_instance_private (self);
   GError *error;
   gchar *text = NULL;
   PangoAttrList *attrs = NULL;
@@ -1486,6 +1477,7 @@ clutter_text_set_property (GObject      *gobject,
                            GParamSpec   *pspec)
 {
   ClutterText *self = CLUTTER_TEXT (gobject);
+  ClutterTextPrivate *priv = clutter_text_get_instance_private (self);
 
   switch (prop_id)
     {
@@ -1496,7 +1488,7 @@ clutter_text_set_property (GObject      *gobject,
     case PROP_TEXT:
       {
         const char *str = g_value_get_string (value);
-        if (self->priv->use_markup)
+        if (priv->use_markup)
           clutter_text_set_markup_internal (self, str ? str : "");
         else
           clutter_text_buffer_set_text (get_buffer (self), str ? str : "", -1);
@@ -1543,7 +1535,6 @@ clutter_text_set_property (GObject      *gobject,
       clutter_text_set_ellipsize (self, g_value_get_enum (value));
       break;
 
-    case PROP_POSITION: /* XXX:2.0: remove */
     case PROP_CURSOR_POSITION:
       clutter_text_set_cursor_position (self, g_value_get_int (value));
       break;
@@ -1616,7 +1607,7 @@ clutter_text_get_property (GObject    *gobject,
                            GParamSpec *pspec)
 {
   ClutterText *self = CLUTTER_TEXT (gobject);
-  ClutterTextPrivate *priv = self->priv;
+  ClutterTextPrivate *priv = clutter_text_get_instance_private (self);
 
   switch (prop_id)
     {
@@ -1660,7 +1651,6 @@ clutter_text_get_property (GObject    *gobject,
       g_value_set_int (value, priv->cursor_size);
       break;
 
-    case PROP_POSITION: /* XXX:2.0 - remove */
     case PROP_CURSOR_POSITION:
       g_value_set_int (value, priv->position);
       break;
@@ -1750,7 +1740,7 @@ static void
 clutter_text_dispose (GObject *gobject)
 {
   ClutterText *self = CLUTTER_TEXT (gobject);
-  ClutterTextPrivate *priv = self->priv;
+  ClutterTextPrivate *priv = clutter_text_get_instance_private (self);
 
   /* get rid of the entire cache */
   clutter_text_dirty_cache (self);
@@ -1770,7 +1760,7 @@ static void
 clutter_text_finalize (GObject *gobject)
 {
   ClutterText *self = CLUTTER_TEXT (gobject);
-  ClutterTextPrivate *priv = self->priv;
+  ClutterTextPrivate *priv = clutter_text_get_instance_private (self);
 
   if (priv->font_desc)
     pango_font_description_free (priv->font_desc);
@@ -1801,7 +1791,7 @@ clutter_text_foreach_selection_rectangle (ClutterText              *self,
                                           ClutterTextSelectionFunc  func,
                                           gpointer                  user_data)
 {
-  ClutterTextPrivate *priv = self->priv;
+  ClutterTextPrivate *priv = clutter_text_get_instance_private (self);
   PangoLayout *layout = clutter_text_get_layout (self);
   gchar *utf8 = clutter_text_get_display_text (self);
   gint lines;
@@ -1919,7 +1909,7 @@ paint_selection_rectangle (ClutterText           *self,
                            gpointer               user_data)
 {
   CoglFramebuffer *fb = user_data;
-  ClutterTextPrivate *priv = self->priv;
+  ClutterTextPrivate *priv = clutter_text_get_instance_private (self);
   ClutterActor *actor = CLUTTER_ACTOR (self);
   guint8 paint_opacity = clutter_actor_get_paint_opacity (actor);
   CoglPipeline *color_pipeline = create_color_pipeline ();
@@ -1964,7 +1954,7 @@ paint_selection_rectangle (ClutterText           *self,
   cogl_pango_show_layout (fb, layout, priv->text_x, 0, &cogl_color);
 
   cogl_framebuffer_pop_clip (fb);
-  cogl_object_unref (color_pipeline);
+  g_object_unref (color_pipeline);
 }
 
 /* Draws the selected text, its background, and the cursor */
@@ -1972,7 +1962,7 @@ static void
 selection_paint (ClutterText     *self,
                  CoglFramebuffer *fb)
 {
-  ClutterTextPrivate *priv = self->priv;
+  ClutterTextPrivate *priv = clutter_text_get_instance_private (self);
   ClutterActor *actor = CLUTTER_ACTOR (self);
   guint8 paint_opacity = clutter_actor_get_paint_opacity (actor);
   const ClutterColor *color;
@@ -2007,7 +1997,7 @@ selection_paint (ClutterText     *self,
                                        priv->cursor_rect.origin.x + priv->cursor_rect.size.width,
                                        priv->cursor_rect.origin.y + priv->cursor_rect.size.height);
 
-      g_clear_pointer (&color_pipeline, cogl_object_unref);
+      g_clear_object (&color_pipeline);
     }
   else
     {
@@ -2105,7 +2095,7 @@ static gint
 clutter_text_move_line_end (ClutterText *self,
                             gint         start)
 {
-  ClutterTextPrivate *priv = self->priv;
+  ClutterTextPrivate *priv = clutter_text_get_instance_private (self);
   PangoLayoutLine *layout_line;
   PangoLayout *layout;
   gint line_no;
@@ -2141,7 +2131,8 @@ clutter_text_move_line_end (ClutterText *self,
 static void
 clutter_text_select_word (ClutterText *self)
 {
-  gint cursor_pos = self->priv->position;
+  ClutterTextPrivate *priv = clutter_text_get_instance_private (self);
+  gint cursor_pos = priv->position;
   gint start_pos, end_pos;
 
   start_pos = clutter_text_move_word_backward (self, cursor_pos);
@@ -2153,7 +2144,7 @@ clutter_text_select_word (ClutterText *self)
 static void
 clutter_text_select_line (ClutterText *self)
 {
-  ClutterTextPrivate *priv = self->priv;
+  ClutterTextPrivate *priv = clutter_text_get_instance_private (self);
   gint cursor_pos = priv->position;
   gint start_pos, end_pos;
 
@@ -2175,7 +2166,7 @@ static int
 clutter_text_update_click_count (ClutterText        *self,
                                  const ClutterEvent *event)
 {
-  ClutterTextPrivate *priv = self->priv;
+  ClutterTextPrivate *priv = clutter_text_get_instance_private (self);
   ClutterSettings *settings;
   int double_click_time, double_click_distance;
   uint32_t evtime;
@@ -2209,7 +2200,7 @@ clutter_text_press (ClutterActor *actor,
                     ClutterEvent *event)
 {
   ClutterText *self = CLUTTER_TEXT (actor);
-  ClutterTextPrivate *priv = self->priv;
+  ClutterTextPrivate *priv = clutter_text_get_instance_private (self);
   ClutterEventType type = clutter_event_type (event);
   gboolean res = FALSE;
   gfloat x, y;
@@ -2303,7 +2294,7 @@ clutter_text_move (ClutterActor *actor,
                    ClutterEvent *event)
 {
   ClutterText *self = CLUTTER_TEXT (actor);
-  ClutterTextPrivate *priv = self->priv;
+  ClutterTextPrivate *priv = clutter_text_get_instance_private (self);
   gfloat x, y;
   gint index_, offset;
   gboolean res;
@@ -2335,7 +2326,7 @@ clutter_text_release (ClutterActor *actor,
                       ClutterEvent *event)
 {
   ClutterText *self = CLUTTER_TEXT (actor);
-  ClutterTextPrivate *priv = self->priv;
+  ClutterTextPrivate *priv = clutter_text_get_instance_private (self);
   ClutterEventType type = clutter_event_type (event);
 
   if (priv->in_select_drag)
@@ -2413,9 +2404,10 @@ static gboolean
 clutter_text_remove_password_hint (gpointer data)
 {
   ClutterText *self = data;
+  ClutterTextPrivate *priv = clutter_text_get_instance_private (self);
 
-  self->priv->password_hint_visible = FALSE;
-  self->priv->password_hint_id = 0;
+  priv->password_hint_visible = FALSE;
+  priv->password_hint_id = 0;
 
   clutter_text_dirty_cache (data);
   clutter_actor_queue_redraw (data); // paint volume was already invalidated by clutter_text_dirty_cache()
@@ -2428,7 +2420,7 @@ clutter_text_key_press (ClutterActor *actor,
                         ClutterEvent *event)
 {
   ClutterText *self = CLUTTER_TEXT (actor);
-  ClutterTextPrivate *priv = self->priv;
+  ClutterTextPrivate *priv = clutter_text_get_instance_private (self);
   ClutterBindingPool *pool;
   ClutterEventFlags flags;
   ClutterModifierType modifiers;
@@ -2517,7 +2509,7 @@ clutter_text_key_release (ClutterActor *actor,
                           ClutterEvent *event)
 {
   ClutterText *self = CLUTTER_TEXT (actor);
-  ClutterTextPrivate *priv = self->priv;
+  ClutterTextPrivate *priv = clutter_text_get_instance_private (self);
 
   if (clutter_input_focus_is_focused (priv->input_focus) &&
       clutter_input_focus_filter_event (priv->input_focus, event))
@@ -2602,7 +2594,7 @@ clutter_text_paint (ClutterActor        *self,
                     ClutterPaintContext *paint_context)
 {
   ClutterText *text = CLUTTER_TEXT (self);
-  ClutterTextPrivate *priv = text->priv;
+  ClutterTextPrivate *priv = clutter_text_get_instance_private (text);
   CoglFramebuffer *fb;
   PangoLayout *layout;
   ClutterActorBox alloc = { 0, };
@@ -2693,7 +2685,7 @@ clutter_text_paint (ClutterActor        *self,
       actor_width = alloc_width - 2 * TEXT_PADDING;
       text_width  = pango_to_pixels (logical_rect.width);
 
-      rtl = priv->resolved_direction == PANGO_DIRECTION_RTL;
+      rtl = priv->resolved_direction == CLUTTER_TEXT_DIRECTION_RTL;
 
       if (actor_width < text_width)
         {
@@ -2755,8 +2747,8 @@ clutter_text_paint (ClutterActor        *self,
     }
 
   real_opacity = clutter_actor_get_paint_opacity (self)
-               * priv->text_color.alpha
-               / 255;
+                 * priv->text_color.alpha
+                 / 255;
 
   CLUTTER_NOTE (PAINT, "painting text (text: '%s')",
                 clutter_text_buffer_get_text (get_buffer (text)));
@@ -2805,7 +2797,7 @@ clutter_text_get_paint_volume_for_cursor (ClutterText        *text,
                                           float               resource_scale,
                                           ClutterPaintVolume *volume)
 {
-  ClutterTextPrivate *priv = text->priv;
+  ClutterTextPrivate *priv = clutter_text_get_instance_private (text);
   graphene_point3d_t origin;
 
   clutter_text_ensure_cursor_position (text, resource_scale);
@@ -2838,7 +2830,7 @@ clutter_text_get_paint_volume (ClutterActor       *self,
                                ClutterPaintVolume *volume)
 {
   ClutterText *text = CLUTTER_TEXT (self);
-  ClutterTextPrivate *priv = text->priv;
+  ClutterTextPrivate *priv = clutter_text_get_instance_private (text);
   PangoLayout *layout;
   PangoRectangle ink_rect;
   graphene_point3d_t origin;
@@ -2907,7 +2899,7 @@ clutter_text_get_preferred_width (ClutterActor *self,
                                   gfloat       *natural_width_p)
 {
   ClutterText *text = CLUTTER_TEXT (self);
-  ClutterTextPrivate *priv = text->priv;
+  ClutterTextPrivate *priv = clutter_text_get_instance_private (text);
   PangoRectangle logical_rect = { 0, };
   PangoLayout *layout;
   gint logical_width;
@@ -2952,7 +2944,8 @@ clutter_text_get_preferred_height (ClutterActor *self,
                                    gfloat       *min_height_p,
                                    gfloat       *natural_height_p)
 {
-  ClutterTextPrivate *priv = CLUTTER_TEXT (self)->priv;
+  ClutterTextPrivate *priv =
+    clutter_text_get_instance_private (CLUTTER_TEXT (self));
 
   if (for_width == 0)
     {
@@ -3020,6 +3013,7 @@ clutter_text_allocate (ClutterActor           *self,
                        const ClutterActorBox  *box)
 {
   ClutterText *text = CLUTTER_TEXT (self);
+  ClutterTextPrivate *priv = clutter_text_get_instance_private (text);
   ClutterActorClass *parent_class;
 
   /* Ensure that there is a cached layout with the right width so
@@ -3029,7 +3023,7 @@ clutter_text_allocate (ClutterActor           *self,
    * to have any limit on the layout size, since the paint will clip
    * it to the allocation of the actor
    */
-  if (text->priv->editable && text->priv->single_line_mode)
+  if (priv->editable && priv->single_line_mode)
     clutter_text_create_layout (text, -1, -1);
   else
     maybe_create_text_layout_with_resource_scale (text,
@@ -3065,7 +3059,7 @@ static void
 clutter_text_resource_scale_changed (ClutterActor *actor)
 {
   ClutterText *text = CLUTTER_TEXT (actor);
-  ClutterTextPrivate *priv = text->priv;
+  ClutterTextPrivate *priv = clutter_text_get_instance_private (text);
 
   g_clear_pointer (&priv->effective_attrs, pango_attr_list_unref);
   clutter_text_dirty_cache (text);
@@ -3078,7 +3072,7 @@ clutter_text_event (ClutterActor *self,
                     ClutterEvent *event)
 {
   ClutterText *text = CLUTTER_TEXT (self);
-  ClutterTextPrivate *priv = text->priv;
+  ClutterTextPrivate *priv = clutter_text_get_instance_private (text);
   ClutterEventType event_type;
 
   event_type = clutter_event_type (event);
@@ -3097,7 +3091,7 @@ clutter_text_event (ClutterActor *self,
 static void
 clutter_text_im_focus (ClutterText *text)
 {
-  ClutterTextPrivate *priv = text->priv;
+  ClutterTextPrivate *priv = clutter_text_get_instance_private (text);
   ClutterBackend *backend = clutter_get_default_backend ();
   ClutterInputMethod *method = clutter_backend_get_input_method (backend);
 
@@ -3116,10 +3110,11 @@ clutter_text_im_focus (ClutterText *text)
 static void
 clutter_text_key_focus_in (ClutterActor *actor)
 {
-  ClutterTextPrivate *priv = CLUTTER_TEXT (actor)->priv;
+  ClutterText *text = CLUTTER_TEXT (actor);
+  ClutterTextPrivate *priv = clutter_text_get_instance_private (text);
 
   if (priv->editable)
-    clutter_text_im_focus (CLUTTER_TEXT (actor));
+    clutter_text_im_focus (text);
 
   priv->has_focus = TRUE;
 
@@ -3129,7 +3124,8 @@ clutter_text_key_focus_in (ClutterActor *actor)
 static void
 clutter_text_key_focus_out (ClutterActor *actor)
 {
-  ClutterTextPrivate *priv = CLUTTER_TEXT (actor)->priv;
+  ClutterTextPrivate *priv =
+    clutter_text_get_instance_private (CLUTTER_TEXT (actor));
   ClutterBackend *backend = clutter_get_default_backend ();
   ClutterInputMethod *method = clutter_backend_get_input_method (backend);
 
@@ -3150,7 +3146,7 @@ clutter_text_real_move_left (ClutterText         *self,
                              guint                keyval,
                              ClutterModifierType  modifiers)
 {
-  ClutterTextPrivate *priv = self->priv;
+  ClutterTextPrivate *priv = clutter_text_get_instance_private (self);
   gint pos = priv->position;
   gint new_pos = 0;
   gint len;
@@ -3193,7 +3189,7 @@ clutter_text_real_move_right (ClutterText         *self,
                               guint                keyval,
                               ClutterModifierType  modifiers)
 {
-  ClutterTextPrivate *priv = self->priv;
+  ClutterTextPrivate *priv = clutter_text_get_instance_private (self);
   gint pos = priv->position;
   gint len = clutter_text_buffer_get_length (get_buffer (self));
   gint new_pos = 0;
@@ -3230,7 +3226,7 @@ clutter_text_real_move_up (ClutterText         *self,
                            guint                keyval,
                            ClutterModifierType  modifiers)
 {
-  ClutterTextPrivate *priv = self->priv;
+  ClutterTextPrivate *priv = clutter_text_get_instance_private (self);
   PangoLayoutLine *layout_line;
   PangoLayout *layout;
   gint line_no;
@@ -3287,7 +3283,7 @@ clutter_text_real_move_down (ClutterText         *self,
                              guint                keyval,
                              ClutterModifierType  modifiers)
 {
-  ClutterTextPrivate *priv = self->priv;
+  ClutterTextPrivate *priv = clutter_text_get_instance_private (self);
   PangoLayoutLine *layout_line;
   PangoLayout *layout;
   gint line_no;
@@ -3340,7 +3336,7 @@ clutter_text_real_line_start (ClutterText         *self,
                               guint                keyval,
                               ClutterModifierType  modifiers)
 {
-  ClutterTextPrivate *priv = self->priv;
+  ClutterTextPrivate *priv = clutter_text_get_instance_private (self);
   gint position;
 
   g_object_freeze_notify (G_OBJECT (self));
@@ -3362,7 +3358,7 @@ clutter_text_real_line_end (ClutterText         *self,
                             guint                keyval,
                             ClutterModifierType  modifiers)
 {
-  ClutterTextPrivate *priv = self->priv;
+  ClutterTextPrivate *priv = clutter_text_get_instance_private (self);
   gint position;
 
   g_object_freeze_notify (G_OBJECT (self));
@@ -3396,7 +3392,7 @@ clutter_text_real_del_next (ClutterText         *self,
                             guint                keyval,
                             ClutterModifierType  modifiers)
 {
-  ClutterTextPrivate *priv = self->priv;
+  ClutterTextPrivate *priv = clutter_text_get_instance_private (self);
   gint pos;
   gint len;
 
@@ -3418,7 +3414,7 @@ clutter_text_real_del_word_next (ClutterText         *self,
                                  guint                keyval,
                                  ClutterModifierType  modifiers)
 {
-  ClutterTextPrivate *priv = self->priv;
+  ClutterTextPrivate *priv = clutter_text_get_instance_private (self);
   gint pos;
   gint len;
 
@@ -3454,7 +3450,7 @@ clutter_text_real_del_prev (ClutterText         *self,
                             guint                keyval,
                             ClutterModifierType  modifiers)
 {
-  ClutterTextPrivate *priv = self->priv;
+  ClutterTextPrivate *priv = clutter_text_get_instance_private (self);
   gint pos;
   gint len;
 
@@ -3489,7 +3485,7 @@ clutter_text_real_del_word_prev (ClutterText         *self,
                                  guint                keyval,
                                  ClutterModifierType  modifiers)
 {
-  ClutterTextPrivate *priv = self->priv;
+  ClutterTextPrivate *priv = clutter_text_get_instance_private (self);
   gint pos;
   gint len;
 
@@ -3573,33 +3569,13 @@ clutter_text_add_move_binding (ClutterBindingPool  *pool,
     }
 }
 
-static gboolean
-clutter_text_parse_custom_node (ClutterScriptable *scriptable,
-                                ClutterScript     *script,
-                                GValue            *value,
-                                const gchar       *name,
-                                JsonNode          *node)
-{
-  if (strncmp (name, "font-description", 16) == 0)
-    {
-      g_value_init (value, G_TYPE_STRING);
-      g_value_set_string (value, json_node_get_string (node));
-
-      return TRUE;
-    }
-
-  return parent_scriptable_iface->parse_custom_node (scriptable, script,
-                                                     value,
-                                                     name,
-                                                     node);
-}
-
 static void
 clutter_text_set_color_internal (ClutterText        *self,
                                  GParamSpec         *pspec,
                                  const ClutterColor *color)
 {
-  ClutterTextPrivate *priv = CLUTTER_TEXT (self)->priv;
+  ClutterTextPrivate *priv =
+    clutter_text_get_instance_private (self);
   GParamSpec *other = NULL;
 
   switch (pspec->param_id)
@@ -3662,7 +3638,7 @@ clutter_text_set_color_animated (ClutterText        *self,
                                  const ClutterColor *color)
 {
   ClutterActor *actor = CLUTTER_ACTOR (self);
-  ClutterTextPrivate *priv = self->priv;
+  ClutterTextPrivate *priv = clutter_text_get_instance_private (self);
   const ClutterAnimationInfo *info;
   ClutterTransition *transition;
 
@@ -3742,34 +3718,6 @@ clutter_text_set_color_animated (ClutterText        *self,
   /* ensure that we start from the beginning */
   clutter_timeline_rewind (CLUTTER_TIMELINE (transition));
   clutter_timeline_start (CLUTTER_TIMELINE (transition));
-}
-
-static void
-clutter_text_set_custom_property (ClutterScriptable *scriptable,
-                                  ClutterScript     *script,
-                                  const gchar       *name,
-                                  const GValue      *value)
-{
-  if (strncmp (name, "font-description", 16) == 0)
-    {
-      g_assert (G_VALUE_HOLDS (value, G_TYPE_STRING));
-      if (g_value_get_string (value) != NULL)
-        clutter_text_set_font_name (CLUTTER_TEXT (scriptable),
-                                    g_value_get_string (value));
-    }
-  else
-    parent_scriptable_iface->set_custom_property (scriptable, script,
-                                                  name,
-                                                  value);
-}
-
-static void
-clutter_scriptable_iface_init (ClutterScriptableIface *iface)
-{
-  parent_scriptable_iface = g_type_interface_peek_parent (iface);
-
-  iface->parse_custom_node = clutter_text_parse_custom_node;
-  iface->set_custom_property = clutter_text_set_custom_property;
 }
 
 static void
@@ -3856,7 +3804,8 @@ clutter_text_class_init (ClutterTextClass *klass)
    */
   pspec = g_param_spec_object ("buffer", NULL, NULL,
                                CLUTTER_TYPE_TEXT_BUFFER,
-                               CLUTTER_PARAM_READWRITE);
+                               G_PARAM_READWRITE |
+                               G_PARAM_STATIC_STRINGS);
   obj_props[PROP_BUFFER] = pspec;
   g_object_class_install_property (gobject_class, PROP_BUFFER, pspec);
 
@@ -3870,7 +3819,8 @@ clutter_text_class_init (ClutterTextClass *klass)
    */
   pspec = g_param_spec_string ("font-name", NULL, NULL,
                                NULL,
-                               CLUTTER_PARAM_READWRITE);
+                               G_PARAM_READWRITE |
+                               G_PARAM_STATIC_STRINGS);
   obj_props[PROP_FONT_NAME] = pspec;
   g_object_class_install_property (gobject_class, PROP_FONT_NAME, pspec);
 
@@ -3884,7 +3834,8 @@ clutter_text_class_init (ClutterTextClass *klass)
    */
   pspec = g_param_spec_boxed ("font-description", NULL, NULL,
                               PANGO_TYPE_FONT_DESCRIPTION,
-                              CLUTTER_PARAM_READWRITE);
+                              G_PARAM_READWRITE |
+                              G_PARAM_STATIC_STRINGS);
   obj_props[PROP_FONT_DESCRIPTION] = pspec;
   g_object_class_install_property (gobject_class,
                                    PROP_FONT_DESCRIPTION,
@@ -3897,7 +3848,8 @@ clutter_text_class_init (ClutterTextClass *klass)
    */
   pspec = g_param_spec_string ("text", NULL, NULL,
                                "",
-                               CLUTTER_PARAM_READWRITE);
+                               G_PARAM_READWRITE |
+                               G_PARAM_STATIC_STRINGS);
   obj_props[PROP_TEXT] = pspec;
   g_object_class_install_property (gobject_class, PROP_TEXT, pspec);
 
@@ -3908,7 +3860,8 @@ clutter_text_class_init (ClutterTextClass *klass)
    */
   pspec = clutter_param_spec_color ("color", NULL, NULL,
                                     &default_text_color,
-                                    CLUTTER_PARAM_READWRITE |
+                                    G_PARAM_READWRITE |
+                                    G_PARAM_STATIC_STRINGS |
                                     CLUTTER_PARAM_ANIMATABLE);
   obj_props[PROP_COLOR] = pspec;
   g_object_class_install_property (gobject_class, PROP_COLOR, pspec);
@@ -3961,7 +3914,8 @@ clutter_text_class_init (ClutterTextClass *klass)
    */
   pspec = g_param_spec_boolean ("cursor-visible", NULL, NULL,
                                 TRUE,
-                                CLUTTER_PARAM_READWRITE);
+                                G_PARAM_READWRITE |
+                                G_PARAM_STATIC_STRINGS);
   obj_props[PROP_CURSOR_VISIBLE] = pspec;
   g_object_class_install_property (gobject_class, PROP_CURSOR_VISIBLE, pspec);
 
@@ -3972,7 +3926,8 @@ clutter_text_class_init (ClutterTextClass *klass)
    */
   pspec = clutter_param_spec_color ("cursor-color", NULL, NULL,
                                     &default_cursor_color,
-                                    CLUTTER_PARAM_READWRITE |
+                                    G_PARAM_READWRITE |
+                                    G_PARAM_STATIC_STRINGS |
                                     CLUTTER_PARAM_ANIMATABLE);
   obj_props[PROP_CURSOR_COLOR] = pspec;
   g_object_class_install_property (gobject_class, PROP_CURSOR_COLOR, pspec);
@@ -3984,7 +3939,8 @@ clutter_text_class_init (ClutterTextClass *klass)
    */
   pspec = g_param_spec_boolean ("cursor-color-set", NULL, NULL,
                                 FALSE,
-                                CLUTTER_PARAM_READABLE);
+                                G_PARAM_READABLE |
+                                G_PARAM_STATIC_STRINGS);
   obj_props[PROP_CURSOR_COLOR_SET] = pspec;
   g_object_class_install_property (gobject_class, PROP_CURSOR_COLOR_SET, pspec);
 
@@ -3996,25 +3952,10 @@ clutter_text_class_init (ClutterTextClass *klass)
    */
   pspec = g_param_spec_int ("cursor-size", NULL, NULL,
                             -1, G_MAXINT, DEFAULT_CURSOR_SIZE,
-                            CLUTTER_PARAM_READWRITE);
+                            G_PARAM_READWRITE |
+                            G_PARAM_STATIC_STRINGS);
   obj_props[PROP_CURSOR_SIZE] = pspec;
   g_object_class_install_property (gobject_class, PROP_CURSOR_SIZE, pspec);
-
-  /**
-   * ClutterText:position:
-   *
-   * The current input cursor position. -1 is taken to be the end of the text
-   *
-   * Deprecated: 1.12: Use [property@Text:cursor-position] instead.
-   */
-  pspec = g_param_spec_int ("position", NULL, NULL,
-                            -1, G_MAXINT,
-                            -1,
-                            G_PARAM_READWRITE |
-                            G_PARAM_STATIC_STRINGS |
-                            G_PARAM_DEPRECATED);
-  obj_props[PROP_POSITION] = pspec;
-  g_object_class_install_property (gobject_class, PROP_POSITION, pspec);
 
   /**
    * ClutterText:cursor-position:
@@ -4024,7 +3965,8 @@ clutter_text_class_init (ClutterTextClass *klass)
   pspec = g_param_spec_int ("cursor-position", NULL, NULL,
                             -1, G_MAXINT,
                             -1,
-                            CLUTTER_PARAM_READWRITE);
+                            G_PARAM_READWRITE |
+                            G_PARAM_STATIC_STRINGS);
   obj_props[PROP_CURSOR_POSITION] = pspec;
   g_object_class_install_property (gobject_class, PROP_CURSOR_POSITION, pspec);
 
@@ -4036,7 +3978,8 @@ clutter_text_class_init (ClutterTextClass *klass)
   pspec = g_param_spec_int ("selection-bound", NULL, NULL,
                             -1, G_MAXINT,
                             -1,
-                            CLUTTER_PARAM_READWRITE);
+                            G_PARAM_READWRITE |
+                            G_PARAM_STATIC_STRINGS);
   obj_props[PROP_SELECTION_BOUND] = pspec;
   g_object_class_install_property (gobject_class, PROP_SELECTION_BOUND, pspec);
 
@@ -4047,7 +3990,8 @@ clutter_text_class_init (ClutterTextClass *klass)
    */
   pspec = clutter_param_spec_color ("selection-color", NULL, NULL,
                                     &default_selection_color,
-                                    CLUTTER_PARAM_READWRITE |
+                                    G_PARAM_READWRITE |
+                                    G_PARAM_STATIC_STRINGS |
                                     CLUTTER_PARAM_ANIMATABLE);
   obj_props[PROP_SELECTION_COLOR] = pspec;
   g_object_class_install_property (gobject_class, PROP_SELECTION_COLOR, pspec);
@@ -4059,7 +4003,8 @@ clutter_text_class_init (ClutterTextClass *klass)
    */
   pspec = g_param_spec_boolean ("selection-color-set", NULL, NULL,
                                 FALSE,
-                                CLUTTER_PARAM_READABLE);
+                                G_PARAM_READABLE |
+                                G_PARAM_STATIC_STRINGS);
   obj_props[PROP_SELECTION_COLOR_SET] = pspec;
   g_object_class_install_property (gobject_class, PROP_SELECTION_COLOR_SET, pspec);
 
@@ -4071,7 +4016,8 @@ clutter_text_class_init (ClutterTextClass *klass)
    */
   pspec = g_param_spec_boxed ("attributes", NULL, NULL,
                               PANGO_TYPE_ATTR_LIST,
-                              CLUTTER_PARAM_READWRITE);
+                              G_PARAM_READWRITE |
+                              G_PARAM_STATIC_STRINGS);
   obj_props[PROP_ATTRIBUTES] = pspec;
   g_object_class_install_property (gobject_class, PROP_ATTRIBUTES, pspec);
 
@@ -4090,7 +4036,8 @@ clutter_text_class_init (ClutterTextClass *klass)
    */
   pspec = g_param_spec_boolean ("use-markup", NULL, NULL,
                                 FALSE,
-                                CLUTTER_PARAM_READWRITE);
+                                G_PARAM_READWRITE |
+                                G_PARAM_STATIC_STRINGS);
   obj_props[PROP_USE_MARKUP] = pspec;
   g_object_class_install_property (gobject_class, PROP_USE_MARKUP, pspec);
 
@@ -4103,7 +4050,8 @@ clutter_text_class_init (ClutterTextClass *klass)
    */
   pspec = g_param_spec_boolean ("line-wrap", NULL, NULL,
                                 FALSE,
-                                CLUTTER_PARAM_READWRITE);
+                                G_PARAM_READWRITE |
+                                G_PARAM_STATIC_STRINGS);
   obj_props[PROP_LINE_WRAP] = pspec;
   g_object_class_install_property (gobject_class, PROP_LINE_WRAP, pspec);
 
@@ -4116,7 +4064,8 @@ clutter_text_class_init (ClutterTextClass *klass)
   pspec = g_param_spec_enum ("line-wrap-mode", NULL, NULL,
                              PANGO_TYPE_WRAP_MODE,
                              PANGO_WRAP_WORD,
-                             CLUTTER_PARAM_READWRITE);
+                             G_PARAM_READWRITE |
+                             G_PARAM_STATIC_STRINGS);
   obj_props[PROP_LINE_WRAP_MODE] = pspec;
   g_object_class_install_property (gobject_class, PROP_LINE_WRAP_MODE, pspec);
 
@@ -4128,7 +4077,8 @@ clutter_text_class_init (ClutterTextClass *klass)
   pspec = g_param_spec_enum ("ellipsize", NULL, NULL,
                              PANGO_TYPE_ELLIPSIZE_MODE,
                              PANGO_ELLIPSIZE_NONE,
-                             CLUTTER_PARAM_READWRITE);
+                             G_PARAM_READWRITE |
+                             G_PARAM_STATIC_STRINGS);
   obj_props[PROP_ELLIPSIZE] = pspec;
   g_object_class_install_property (gobject_class, PROP_ELLIPSIZE, pspec);
 
@@ -4141,7 +4091,8 @@ clutter_text_class_init (ClutterTextClass *klass)
   pspec = g_param_spec_enum ("line-alignment", NULL, NULL,
                              PANGO_TYPE_ALIGNMENT,
                              PANGO_ALIGN_LEFT,
-                             CLUTTER_PARAM_READWRITE);
+                             G_PARAM_READWRITE |
+                             G_PARAM_STATIC_STRINGS);
   obj_props[PROP_LINE_ALIGNMENT] = pspec;
   g_object_class_install_property (gobject_class, PROP_LINE_ALIGNMENT, pspec);
 
@@ -4153,7 +4104,8 @@ clutter_text_class_init (ClutterTextClass *klass)
    */
   pspec = g_param_spec_boolean ("justify", NULL, NULL,
                                 FALSE,
-                                CLUTTER_PARAM_READWRITE);
+                                G_PARAM_READWRITE |
+                                G_PARAM_STATIC_STRINGS);
   obj_props[PROP_JUSTIFY] = pspec;
   g_object_class_install_property (gobject_class, PROP_JUSTIFY, pspec);
 
@@ -4165,7 +4117,8 @@ clutter_text_class_init (ClutterTextClass *klass)
    */
   pspec = g_param_spec_unichar ("password-char", NULL, NULL,
                                 0,
-                                CLUTTER_PARAM_READWRITE);
+                                G_PARAM_READWRITE |
+                                G_PARAM_STATIC_STRINGS);
   obj_props[PROP_PASSWORD_CHAR] = pspec;
   g_object_class_install_property (gobject_class, PROP_PASSWORD_CHAR, pspec);
 
@@ -4176,7 +4129,8 @@ clutter_text_class_init (ClutterTextClass *klass)
    */
   pspec = g_param_spec_int ("max-length", NULL, NULL,
                             -1, G_MAXINT, 0,
-                            CLUTTER_PARAM_READWRITE);
+                            G_PARAM_READWRITE |
+                            G_PARAM_STATIC_STRINGS);
   obj_props[PROP_MAX_LENGTH] = pspec;
   g_object_class_install_property (gobject_class, PROP_MAX_LENGTH, pspec);
 
@@ -4196,7 +4150,8 @@ clutter_text_class_init (ClutterTextClass *klass)
    */
   pspec = g_param_spec_boolean ("single-line-mode", NULL, NULL,
                                 FALSE,
-                                CLUTTER_PARAM_READWRITE);
+                                G_PARAM_READWRITE |
+                                G_PARAM_STATIC_STRINGS);
   obj_props[PROP_SINGLE_LINE_MODE] = pspec;
   g_object_class_install_property (gobject_class, PROP_SINGLE_LINE_MODE, pspec);
 
@@ -4207,7 +4162,8 @@ clutter_text_class_init (ClutterTextClass *klass)
    */
   pspec = clutter_param_spec_color ("selected-text-color", NULL, NULL,
                                     &default_selected_text_color,
-                                    CLUTTER_PARAM_READWRITE |
+                                    G_PARAM_READWRITE |
+                                    G_PARAM_STATIC_STRINGS |
                                     CLUTTER_PARAM_ANIMATABLE);
   obj_props[PROP_SELECTED_TEXT_COLOR] = pspec;
   g_object_class_install_property (gobject_class, PROP_SELECTED_TEXT_COLOR, pspec);
@@ -4219,19 +4175,24 @@ clutter_text_class_init (ClutterTextClass *klass)
    */
   pspec = g_param_spec_boolean ("selected-text-color-set", NULL, NULL,
                                 FALSE,
-                                CLUTTER_PARAM_READABLE);
+                                G_PARAM_READABLE |
+                                G_PARAM_STATIC_STRINGS);
   obj_props[PROP_SELECTED_TEXT_COLOR_SET] = pspec;
   g_object_class_install_property (gobject_class, PROP_SELECTED_TEXT_COLOR_SET, pspec);
 
   pspec = g_param_spec_flags ("input-hints", NULL, NULL,
                               CLUTTER_TYPE_INPUT_CONTENT_HINT_FLAGS,
-                              0, CLUTTER_PARAM_READWRITE);
+                              0,
+                              G_PARAM_READWRITE |
+                              G_PARAM_STATIC_STRINGS);
   obj_props[PROP_INPUT_HINTS] = pspec;
   g_object_class_install_property (gobject_class, PROP_INPUT_HINTS, pspec);
 
   pspec = g_param_spec_enum ("input-purpose", NULL, NULL,
                              CLUTTER_TYPE_INPUT_CONTENT_PURPOSE,
-                             0, CLUTTER_PARAM_READWRITE);
+                             0,
+                             G_PARAM_READWRITE |
+                             G_PARAM_STATIC_STRINGS);
   obj_props[PROP_INPUT_PURPOSE] = pspec;
   g_object_class_install_property (gobject_class, PROP_INPUT_PURPOSE, pspec);
 
@@ -4294,27 +4255,6 @@ clutter_text_class_init (ClutterTextClass *klass)
                   G_TYPE_NONE, 2,
                   G_TYPE_INT,
                   G_TYPE_INT);
-
-  /**
-   * ClutterText::cursor-event:
-   * @self: the #ClutterText that emitted the signal
-   * @rect: the coordinates of the cursor
-   *
-   * The signal is emitted whenever the cursor position
-   * changes inside a #ClutterText actor. Inside @rect it is stored
-   * the current position and size of the cursor, relative to the actor
-   * itself.
-   *
-   * Deprecated: 1.16: Use the [signal@Text::cursor-changed] signal instead
-   */
-  text_signals[CURSOR_EVENT] =
-    g_signal_new (I_("cursor-event"),
-		  G_TYPE_FROM_CLASS (gobject_class),
-		  G_SIGNAL_RUN_LAST | G_SIGNAL_DEPRECATED,
-		  G_STRUCT_OFFSET (ClutterTextClass, cursor_event),
-		  NULL, NULL, NULL,
-		  G_TYPE_NONE, 1,
-		  GRAPHENE_TYPE_RECT | G_SIGNAL_TYPE_STATIC_SCOPE);
 
   /**
    * ClutterText::cursor-changed:
@@ -4450,15 +4390,15 @@ clutter_text_init (ClutterText *self)
   gchar *font_name;
   int i, password_hint_time;
 
-  self->priv = priv = clutter_text_get_instance_private (self);
+  priv = clutter_text_get_instance_private (self);
 
-  priv->alignment     = PANGO_ALIGN_LEFT;
-  priv->wrap          = FALSE;
-  priv->wrap_mode     = PANGO_WRAP_WORD;
-  priv->ellipsize     = PANGO_ELLIPSIZE_NONE;
+  priv->alignment = PANGO_ALIGN_LEFT;
+  priv->wrap = FALSE;
+  priv->wrap_mode = PANGO_WRAP_WORD;
+  priv->ellipsize = PANGO_ELLIPSIZE_NONE;
   priv->use_underline = FALSE;
-  priv->use_markup    = FALSE;
-  priv->justify       = FALSE;
+  priv->use_markup = FALSE;
+  priv->justify = FALSE;
 
   for (i = 0; i < N_CACHED_LAYOUTS; i++)
     priv->cached_layouts[i].layout = NULL;
@@ -4591,7 +4531,7 @@ clutter_text_new_with_text (const gchar *font_name,
 static ClutterTextBuffer*
 get_buffer (ClutterText *self)
 {
-  ClutterTextPrivate *priv = self->priv;
+  ClutterTextPrivate *priv = clutter_text_get_instance_private (self);
 
   if (priv->buffer == NULL)
     {
@@ -4617,7 +4557,7 @@ buffer_inserted_text (ClutterTextBuffer *buffer,
   gint new_position;
   gint new_selection_bound;
 
-  priv = self->priv;
+  priv = clutter_text_get_instance_private (self);
   if (priv->position >= 0 || priv->selection_bound >= 0)
     {
       new_position = priv->position;
@@ -4645,7 +4585,7 @@ buffer_deleted_text (ClutterTextBuffer *buffer,
   gint new_position;
   gint new_selection_bound;
 
-  priv = self->priv;
+  priv = clutter_text_get_instance_private (self);
   if (priv->position >= 0 || priv->selection_bound >= 0)
     {
       new_position = priv->position;
@@ -4713,7 +4653,7 @@ buffer_notify_max_length (ClutterTextBuffer *buffer,
 static void
 buffer_connect_signals (ClutterText *self)
 {
-  ClutterTextPrivate *priv = self->priv;
+  ClutterTextPrivate *priv = clutter_text_get_instance_private (self);
   g_signal_connect (priv->buffer, "inserted-text", G_CALLBACK (buffer_inserted_text), self);
   g_signal_connect (priv->buffer, "deleted-text", G_CALLBACK (buffer_deleted_text), self);
   g_signal_connect (priv->buffer, "notify::text", G_CALLBACK (buffer_notify_text), self);
@@ -4723,7 +4663,7 @@ buffer_connect_signals (ClutterText *self)
 static void
 buffer_disconnect_signals (ClutterText *self)
 {
-  ClutterTextPrivate *priv = self->priv;
+  ClutterTextPrivate *priv = clutter_text_get_instance_private (self);
   g_signal_handlers_disconnect_by_func (priv->buffer, buffer_inserted_text, self);
   g_signal_handlers_disconnect_by_func (priv->buffer, buffer_deleted_text, self);
   g_signal_handlers_disconnect_by_func (priv->buffer, buffer_notify_text, self);
@@ -4779,7 +4719,7 @@ clutter_text_set_buffer (ClutterText       *self,
 
   g_return_if_fail (CLUTTER_IS_TEXT (self));
 
-  priv = self->priv;
+  priv = clutter_text_get_instance_private (self);
 
   if (buffer)
     {
@@ -4827,7 +4767,7 @@ clutter_text_set_editable (ClutterText *self,
 
   g_return_if_fail (CLUTTER_IS_TEXT (self));
 
-  priv = self->priv;
+  priv = clutter_text_get_instance_private (self);
 
   if (priv->editable != editable)
     {
@@ -4858,9 +4798,12 @@ clutter_text_set_editable (ClutterText *self,
 gboolean
 clutter_text_get_editable (ClutterText *self)
 {
+  ClutterTextPrivate *priv;
+
   g_return_val_if_fail (CLUTTER_IS_TEXT (self), FALSE);
 
-  return self->priv->editable;
+  priv = clutter_text_get_instance_private (self);
+  return priv->editable;
 }
 
 /**
@@ -4881,7 +4824,7 @@ clutter_text_set_selectable (ClutterText *self,
 
   g_return_if_fail (CLUTTER_IS_TEXT (self));
 
-  priv = self->priv;
+  priv = clutter_text_get_instance_private (self);
 
   if (priv->selectable != selectable)
     {
@@ -4904,9 +4847,12 @@ clutter_text_set_selectable (ClutterText *self,
 gboolean
 clutter_text_get_selectable (ClutterText *self)
 {
+  ClutterTextPrivate *priv;
+
   g_return_val_if_fail (CLUTTER_IS_TEXT (self), TRUE);
 
-  return self->priv->selectable;
+  priv = clutter_text_get_instance_private (self);
+  return priv->selectable;
 }
 
 /**
@@ -4931,7 +4877,7 @@ clutter_text_set_activatable (ClutterText *self,
 
   g_return_if_fail (CLUTTER_IS_TEXT (self));
 
-  priv = self->priv;
+  priv = clutter_text_get_instance_private (self);
 
   if (priv->activatable != activatable)
     {
@@ -4954,9 +4900,12 @@ clutter_text_set_activatable (ClutterText *self,
 gboolean
 clutter_text_get_activatable (ClutterText *self)
 {
+  ClutterTextPrivate *priv;
+
   g_return_val_if_fail (CLUTTER_IS_TEXT (self), TRUE);
 
-  return self->priv->activatable;
+  priv = clutter_text_get_instance_private (self);
+  return priv->activatable;
 }
 
 /**
@@ -4981,7 +4930,7 @@ clutter_text_activate (ClutterText *self)
 
   g_return_val_if_fail (CLUTTER_IS_TEXT (self), FALSE);
 
-  priv = self->priv;
+  priv = clutter_text_get_instance_private (self);
 
   if (priv->activatable)
     {
@@ -5016,7 +4965,7 @@ clutter_text_set_cursor_visible (ClutterText *self,
 
   g_return_if_fail (CLUTTER_IS_TEXT (self));
 
-  priv = self->priv;
+  priv = clutter_text_get_instance_private (self);
 
   cursor_visible = !!cursor_visible;
 
@@ -5041,9 +4990,12 @@ clutter_text_set_cursor_visible (ClutterText *self,
 gboolean
 clutter_text_get_cursor_visible (ClutterText *self)
 {
+  ClutterTextPrivate *priv;
+
   g_return_val_if_fail (CLUTTER_IS_TEXT (self), TRUE);
 
-  return self->priv->cursor_visible;
+  priv = clutter_text_get_instance_private (self);
+  return priv->cursor_visible;
 }
 
 /**
@@ -5081,7 +5033,7 @@ clutter_text_get_cursor_color (ClutterText  *self,
   g_return_if_fail (CLUTTER_IS_TEXT (self));
   g_return_if_fail (color != NULL);
 
-  priv = self->priv;
+  priv = clutter_text_get_instance_private (self);
 
   *color = priv->cursor_color;
 }
@@ -5138,7 +5090,7 @@ clutter_text_get_selection (ClutterText *self)
 
   g_return_val_if_fail (CLUTTER_IS_TEXT (self), NULL);
 
-  priv = self->priv;
+  priv = clutter_text_get_instance_private (self);
 
   start_index = priv->position;
   end_index = priv->selection_bound;
@@ -5183,7 +5135,7 @@ clutter_text_set_selection_bound (ClutterText *self,
 
   g_return_if_fail (CLUTTER_IS_TEXT (self));
 
-  priv = self->priv;
+  priv = clutter_text_get_instance_private (self);
 
   if (priv->selection_bound != selection_bound)
     {
@@ -5212,9 +5164,12 @@ clutter_text_set_selection_bound (ClutterText *self,
 gint
 clutter_text_get_selection_bound (ClutterText *self)
 {
+  ClutterTextPrivate *priv;
+
   g_return_val_if_fail (CLUTTER_IS_TEXT (self), -1);
 
-  return self->priv->selection_bound;
+  priv = clutter_text_get_instance_private (self);
+  return priv->selection_bound;
 }
 
 /**
@@ -5254,7 +5209,7 @@ clutter_text_get_selection_color (ClutterText  *self,
   g_return_if_fail (CLUTTER_IS_TEXT (self));
   g_return_if_fail (color != NULL);
 
-  priv = self->priv;
+  priv = clutter_text_get_instance_private (self);
 
   *color = priv->selection_color;
 }
@@ -5295,7 +5250,7 @@ clutter_text_get_selected_text_color (ClutterText  *self,
   g_return_if_fail (CLUTTER_IS_TEXT (self));
   g_return_if_fail (color != NULL);
 
-  priv = self->priv;
+  priv = clutter_text_get_instance_private (self);
 
   *color = priv->selected_text_color;
 }
@@ -5333,9 +5288,12 @@ clutter_text_set_font_description (ClutterText          *self,
 PangoFontDescription *
 clutter_text_get_font_description (ClutterText *self)
 {
+  ClutterTextPrivate *priv;
+
   g_return_val_if_fail (CLUTTER_IS_TEXT (self), NULL);
 
-  return self->priv->font_desc;
+  priv = clutter_text_get_instance_private (self);
+  return priv->font_desc;
 }
 
 /**
@@ -5351,9 +5309,12 @@ clutter_text_get_font_description (ClutterText *self)
 const gchar *
 clutter_text_get_font_name (ClutterText *text)
 {
+  ClutterTextPrivate *priv;
+
   g_return_val_if_fail (CLUTTER_IS_TEXT (text), NULL);
 
-  return text->priv->font_name;
+  priv = clutter_text_get_instance_private (text);
+  return priv->font_name;
 }
 
 /**
@@ -5409,7 +5370,7 @@ clutter_text_set_font_name (ClutterText *self,
   else
     is_default_font = FALSE;
 
-  priv = self->priv;
+  priv = clutter_text_get_instance_private (self);
 
   if (g_strcmp0 (priv->font_name, font_name) == 0)
     goto out;
@@ -5470,7 +5431,7 @@ static inline void
 clutter_text_set_use_markup_internal (ClutterText *self,
                                       gboolean     use_markup)
 {
-  ClutterTextPrivate *priv = self->priv;
+  ClutterTextPrivate *priv = clutter_text_get_instance_private (self);
 
   if (priv->use_markup != use_markup)
     {
@@ -5512,13 +5473,16 @@ void
 clutter_text_set_text (ClutterText *self,
                        const gchar *text)
 {
+  ClutterTextPrivate *priv;
+
   g_return_if_fail (CLUTTER_IS_TEXT (self));
 
   /* if the text is editable (i.e. there is not markup flag to reset) then
    * changing the contents will result in selection and cursor changes that
    * we should avoid
    */
-  if (self->priv->editable)
+  priv = clutter_text_get_instance_private (self);
+  if (priv->editable)
     {
       if (g_strcmp0 (clutter_text_buffer_get_text (get_buffer (self)), text) == 0)
         return;
@@ -5572,10 +5536,12 @@ clutter_text_get_layout (ClutterText *self)
 {
   PangoLayout *layout;
   gfloat width, height;
+  ClutterTextPrivate *priv;
 
   g_return_val_if_fail (CLUTTER_IS_TEXT (self), NULL);
 
-  if (self->priv->editable && self->priv->single_line_mode)
+  priv = clutter_text_get_instance_private (self);
+  if (priv->editable && priv->single_line_mode)
     return clutter_text_create_layout (self, -1, -1);
 
   clutter_actor_get_size (CLUTTER_ACTOR (self), &width, &height);
@@ -5625,7 +5591,7 @@ clutter_text_get_color (ClutterText  *self,
   g_return_if_fail (CLUTTER_IS_TEXT (self));
   g_return_if_fail (color != NULL);
 
-  priv = self->priv;
+  priv = clutter_text_get_instance_private (self);
 
   *color = priv->text_color;
 }
@@ -5649,7 +5615,7 @@ clutter_text_set_ellipsize (ClutterText        *self,
   g_return_if_fail (mode >= PANGO_ELLIPSIZE_NONE &&
 		    mode <= PANGO_ELLIPSIZE_END);
 
-  priv = self->priv;
+  priv = clutter_text_get_instance_private (self);
 
   if ((PangoEllipsizeMode) priv->ellipsize != mode)
     {
@@ -5675,9 +5641,12 @@ clutter_text_set_ellipsize (ClutterText        *self,
 PangoEllipsizeMode
 clutter_text_get_ellipsize (ClutterText *self)
 {
+  ClutterTextPrivate *priv;
+
   g_return_val_if_fail (CLUTTER_IS_TEXT (self), PANGO_ELLIPSIZE_NONE);
 
-  return self->priv->ellipsize;
+  priv = clutter_text_get_instance_private (self);
+  return priv->ellipsize;
 }
 
 /**
@@ -5692,9 +5661,12 @@ clutter_text_get_ellipsize (ClutterText *self)
 gboolean
 clutter_text_get_line_wrap (ClutterText *self)
 {
+  ClutterTextPrivate *priv;
+
   g_return_val_if_fail (CLUTTER_IS_TEXT (self), FALSE);
 
-  return self->priv->wrap;
+  priv = clutter_text_get_instance_private (self);
+  return priv->wrap;
 }
 
 /**
@@ -5713,7 +5685,7 @@ clutter_text_set_line_wrap (ClutterText *self,
 
   g_return_if_fail (CLUTTER_IS_TEXT (self));
 
-  priv = self->priv;
+  priv = clutter_text_get_instance_private (self);
 
   if (priv->wrap != line_wrap)
     {
@@ -5744,7 +5716,7 @@ clutter_text_set_line_wrap_mode (ClutterText   *self,
 
   g_return_if_fail (CLUTTER_IS_TEXT (self));
 
-  priv = self->priv;
+  priv = clutter_text_get_instance_private (self);
 
   if (priv->wrap_mode != wrap_mode)
     {
@@ -5771,9 +5743,12 @@ clutter_text_set_line_wrap_mode (ClutterText   *self,
 PangoWrapMode
 clutter_text_get_line_wrap_mode (ClutterText *self)
 {
+  ClutterTextPrivate *priv;
+
   g_return_val_if_fail (CLUTTER_IS_TEXT (self), PANGO_WRAP_WORD);
 
-  return self->priv->wrap_mode;
+  priv = clutter_text_get_instance_private (self);
+  return priv->wrap_mode;
 }
 
 /**
@@ -5795,7 +5770,7 @@ clutter_text_set_attributes (ClutterText   *self,
 
   g_return_if_fail (CLUTTER_IS_TEXT (self));
 
-  priv = self->priv;
+  priv = clutter_text_get_instance_private (self);
 
   if (pango_attr_list_equal (priv->attrs, attrs))
     return;
@@ -5834,9 +5809,12 @@ clutter_text_set_attributes (ClutterText   *self,
 PangoAttrList *
 clutter_text_get_attributes (ClutterText *self)
 {
+  ClutterTextPrivate *priv;
+
   g_return_val_if_fail (CLUTTER_IS_TEXT (self), NULL);
 
-  return self->priv->attrs;
+  priv = clutter_text_get_instance_private (self);
+  return priv->attrs;
 }
 
 /**
@@ -5859,7 +5837,7 @@ clutter_text_set_line_alignment (ClutterText    *self,
 
   g_return_if_fail (CLUTTER_IS_TEXT (self));
 
-  priv = self->priv;
+  priv = clutter_text_get_instance_private (self);
 
   if (priv->alignment != alignment)
     {
@@ -5883,9 +5861,12 @@ clutter_text_set_line_alignment (ClutterText    *self,
 PangoAlignment
 clutter_text_get_line_alignment (ClutterText *self)
 {
+  ClutterTextPrivate *priv;
+
   g_return_val_if_fail (CLUTTER_IS_TEXT (self), PANGO_ALIGN_LEFT);
 
-  return self->priv->alignment;
+  priv = clutter_text_get_instance_private (self);
+  return priv->alignment;
 }
 
 /**
@@ -5931,9 +5912,12 @@ clutter_text_set_use_markup (ClutterText *self,
 gboolean
 clutter_text_get_use_markup (ClutterText *self)
 {
+  ClutterTextPrivate *priv;
+
   g_return_val_if_fail (CLUTTER_IS_TEXT (self), FALSE);
 
-  return self->priv->use_markup;
+  priv = clutter_text_get_instance_private (self);
+  return priv->use_markup;
 }
 
 /**
@@ -5953,7 +5937,7 @@ clutter_text_set_justify (ClutterText *self,
 
   g_return_if_fail (CLUTTER_IS_TEXT (self));
 
-  priv = self->priv;
+  priv = clutter_text_get_instance_private (self);
 
   if (priv->justify != justify)
     {
@@ -5977,9 +5961,12 @@ clutter_text_set_justify (ClutterText *self,
 gboolean
 clutter_text_get_justify (ClutterText *self)
 {
+  ClutterTextPrivate *priv;
+
   g_return_val_if_fail (CLUTTER_IS_TEXT (self), FALSE);
 
-  return self->priv->justify;
+  priv = clutter_text_get_instance_private (self);
+  return priv->justify;
 }
 
 /**
@@ -5993,9 +5980,12 @@ clutter_text_get_justify (ClutterText *self)
 gint
 clutter_text_get_cursor_position (ClutterText *self)
 {
+  ClutterTextPrivate *priv;
+
   g_return_val_if_fail (CLUTTER_IS_TEXT (self), -1);
 
-  return self->priv->position;
+  priv = clutter_text_get_instance_private (self);
+  return priv->position;
 }
 
 /**
@@ -6016,7 +6006,7 @@ clutter_text_set_cursor_position (ClutterText *self,
 
   g_return_if_fail (CLUTTER_IS_TEXT (self));
 
-  priv = self->priv;
+  priv = clutter_text_get_instance_private (self);
 
   if (priv->position == position)
     return;
@@ -6034,8 +6024,6 @@ clutter_text_set_cursor_position (ClutterText *self,
 
   clutter_text_queue_redraw (CLUTTER_ACTOR (self));
 
-  /* XXX:2.0 - remove */
-  g_object_notify_by_pspec (G_OBJECT (self), obj_props[PROP_POSITION]);
   g_object_notify_by_pspec (G_OBJECT (self), obj_props[PROP_CURSOR_POSITION]);
   g_signal_emit (self, text_signals[CURSOR_CHANGED], 0);
 }
@@ -6058,7 +6046,7 @@ clutter_text_set_cursor_size (ClutterText *self,
 
   g_return_if_fail (CLUTTER_IS_TEXT (self));
 
-  priv = self->priv;
+  priv = clutter_text_get_instance_private (self);
 
   if (priv->cursor_size != size)
     {
@@ -6084,9 +6072,12 @@ clutter_text_set_cursor_size (ClutterText *self,
 guint
 clutter_text_get_cursor_size (ClutterText *self)
 {
+  ClutterTextPrivate *priv;
+
   g_return_val_if_fail (CLUTTER_IS_TEXT (self), DEFAULT_CURSOR_SIZE);
 
-  return self->priv->cursor_size;
+  priv = clutter_text_get_instance_private (self);
+  return priv->cursor_size;
 }
 
 /**
@@ -6108,7 +6099,7 @@ clutter_text_set_password_char (ClutterText *self,
 
   g_return_if_fail (CLUTTER_IS_TEXT (self));
 
-  priv = self->priv;
+  priv = clutter_text_get_instance_private (self);
 
   if (priv->password_char != wc)
     {
@@ -6134,9 +6125,12 @@ clutter_text_set_password_char (ClutterText *self,
 gunichar
 clutter_text_get_password_char (ClutterText *self)
 {
+  ClutterTextPrivate *priv;
+
   g_return_val_if_fail (CLUTTER_IS_TEXT (self), 0);
 
-  return self->priv->password_char;
+  priv = clutter_text_get_instance_private (self);
+  return priv->password_char;
 }
 
 /**
@@ -6217,7 +6211,7 @@ clutter_text_insert_unichar (ClutterText *self,
   ClutterTextPrivate *priv;
   GString *new;
 
-  priv = self->priv;
+  priv = clutter_text_get_instance_private (self);
 
   new = g_string_new ("");
   g_string_append_unichar (new, wc);
@@ -6316,7 +6310,7 @@ clutter_text_delete_chars (ClutterText *self,
 
   g_return_if_fail (CLUTTER_IS_TEXT (self));
 
-  priv = self->priv;
+  priv = clutter_text_get_instance_private (self);
 
   clutter_text_real_delete_text (self, priv->position, priv->position + n_chars);
 
@@ -6392,7 +6386,7 @@ clutter_text_set_single_line_mode (ClutterText *self,
 
   g_return_if_fail (CLUTTER_IS_TEXT (self));
 
-  priv = self->priv;
+  priv = clutter_text_get_instance_private (self);
 
   if (priv->single_line_mode != single_line)
     {
@@ -6427,9 +6421,12 @@ clutter_text_set_single_line_mode (ClutterText *self,
 gboolean
 clutter_text_get_single_line_mode (ClutterText *self)
 {
+  ClutterTextPrivate *priv;
+
   g_return_val_if_fail (CLUTTER_IS_TEXT (self), FALSE);
 
-  return self->priv->single_line_mode;
+  priv = clutter_text_get_instance_private (self);
+  return priv->single_line_mode;
 }
 
 /**
@@ -6459,7 +6456,7 @@ clutter_text_set_preedit_string (ClutterText   *self,
 
   g_return_if_fail (CLUTTER_IS_TEXT (self));
 
-  priv = self->priv;
+  priv = clutter_text_get_instance_private (self);
 
   g_free (priv->preedit_str);
   priv->preedit_str = NULL;
@@ -6515,7 +6512,7 @@ clutter_text_get_layout_offsets (ClutterText *self,
 
   g_return_if_fail (CLUTTER_IS_TEXT (self));
 
-  priv = self->priv;
+  priv = clutter_text_get_instance_private (self);
 
   if (x != NULL)
     *x = priv->text_logical_x;
@@ -6539,13 +6536,15 @@ clutter_text_get_cursor_rect (ClutterText     *self,
                               graphene_rect_t *rect)
 {
   float inverse_scale;
+  ClutterTextPrivate *priv;
 
   g_return_if_fail (CLUTTER_IS_TEXT (self));
   g_return_if_fail (rect != NULL);
 
   inverse_scale = 1.f / clutter_actor_get_resource_scale (CLUTTER_ACTOR (self));
+  priv = clutter_text_get_instance_private (self);
 
-  graphene_rect_scale (&self->priv->cursor_rect,
+  graphene_rect_scale (&priv->cursor_rect,
                        inverse_scale,
                        inverse_scale,
                        rect);
@@ -6555,48 +6554,63 @@ void
 clutter_text_set_input_hints (ClutterText                  *self,
                               ClutterInputContentHintFlags  hints)
 {
+  ClutterTextPrivate *priv;
+
   g_return_if_fail (CLUTTER_IS_TEXT (self));
 
-  self->priv->input_hints = hints;
+  priv = clutter_text_get_instance_private (self);
+  priv->input_hints = hints;
 
-  if (clutter_input_focus_is_focused (self->priv->input_focus))
-    clutter_input_focus_set_content_hints (self->priv->input_focus, hints);
+  if (clutter_input_focus_is_focused (priv->input_focus))
+    clutter_input_focus_set_content_hints (priv->input_focus, hints);
   g_object_notify_by_pspec (G_OBJECT (self), obj_props[PROP_INPUT_HINTS]);
 }
 
 ClutterInputContentHintFlags
 clutter_text_get_input_hints (ClutterText *self)
 {
+  ClutterTextPrivate *priv;
+
   g_return_val_if_fail (CLUTTER_IS_TEXT (self), 0);
 
-  return self->priv->input_hints;
+  priv = clutter_text_get_instance_private (self);
+  return priv->input_hints;
 }
 
 void
 clutter_text_set_input_purpose (ClutterText                *self,
                                 ClutterInputContentPurpose  purpose)
 {
+  ClutterTextPrivate *priv;
+
   g_return_if_fail (CLUTTER_IS_TEXT (self));
 
-  self->priv->input_purpose = purpose;
+  priv = clutter_text_get_instance_private (self);
+  priv->input_purpose = purpose;
 
-  if (clutter_input_focus_is_focused (self->priv->input_focus))
-    clutter_input_focus_set_content_purpose (self->priv->input_focus, purpose);
+  if (clutter_input_focus_is_focused (priv->input_focus))
+    clutter_input_focus_set_content_purpose (priv->input_focus, purpose);
   g_object_notify_by_pspec (G_OBJECT (self), obj_props[PROP_INPUT_PURPOSE]);
 }
 
 ClutterInputContentPurpose
 clutter_text_get_input_purpose (ClutterText *self)
 {
+  ClutterTextPrivate *priv;
+
   g_return_val_if_fail (CLUTTER_IS_TEXT (self), 0);
 
-  return self->priv->input_purpose;
+  priv = clutter_text_get_instance_private (self);
+  return priv->input_purpose;
 }
 
 gboolean
 clutter_text_has_preedit (ClutterText *self)
 {
+  ClutterTextPrivate *priv;
+
   g_return_val_if_fail (CLUTTER_IS_TEXT (self), FALSE);
 
-  return self->priv->preedit_set;
+  priv = clutter_text_get_instance_private (self);
+  return priv->preedit_set;
 }

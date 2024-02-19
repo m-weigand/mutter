@@ -46,6 +46,15 @@ struct _MetaCrtcClass
 
   void (* set_gamma_lut) (MetaCrtc           *crtc,
                           const MetaGammaLut *lut);
+
+  gboolean (* assign_extra) (MetaCrtc            *crtc,
+                             MetaCrtcAssignment  *crtc_assignment,
+                             GPtrArray           *crtc_assignments,
+                             GError             **error);
+
+  void (* set_config) (MetaCrtc             *crtc,
+                       const MetaCrtcConfig *config,
+                       gpointer              backend_private);
 };
 
 META_EXPORT_TEST
@@ -70,16 +79,20 @@ void meta_crtc_unassign_output (MetaCrtc   *crtc,
 MetaMonitorTransform meta_crtc_get_all_transforms (MetaCrtc *crtc);
 
 META_EXPORT_TEST
-void meta_crtc_set_config (MetaCrtc             *crtc,
-                           graphene_rect_t      *layout,
-                           MetaCrtcMode         *mode,
-                           MetaMonitorTransform  transform);
+void meta_crtc_set_config (MetaCrtc       *crtc,
+                           MetaCrtcConfig *config,
+                           gpointer        backend_private);
 
 META_EXPORT_TEST
 void meta_crtc_unset_config (MetaCrtc *crtc);
 
 META_EXPORT_TEST
 const MetaCrtcConfig * meta_crtc_get_config (MetaCrtc *crtc);
+
+gboolean meta_crtc_assign_extra (MetaCrtc            *crtc,
+                                 MetaCrtcAssignment  *crtc_assignment,
+                                 GPtrArray           *crtc_assignments,
+                                 GError             **error);
 
 size_t meta_crtc_get_gamma_lut_size (MetaCrtc *crtc);
 
@@ -109,5 +122,9 @@ META_EXPORT_TEST
 gboolean meta_gamma_lut_equal (const MetaGammaLut *gamma,
                                const MetaGammaLut *other_gamma);
 
-G_DEFINE_AUTOPTR_CLEANUP_FUNC (MetaGammaLut, meta_gamma_lut_free)
+META_EXPORT_TEST
+MetaCrtcConfig * meta_crtc_config_new (graphene_rect_t      *layout,
+                                       MetaCrtcMode         *mode,
+                                       MetaMonitorTransform  transform);
 
+G_DEFINE_AUTOPTR_CLEANUP_FUNC (MetaGammaLut, meta_gamma_lut_free)

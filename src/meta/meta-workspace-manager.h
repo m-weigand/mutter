@@ -24,10 +24,10 @@
 
 #include <glib-object.h>
 
-#include <meta/common.h>
-#include <meta/display.h>
-#include <meta/prefs.h>
-#include <meta/types.h>
+#include "meta/common.h"
+#include "meta/display.h"
+#include "meta/prefs.h"
+#include "meta/types.h"
 
 #define META_TYPE_WORKSPACE_MANAGER (meta_workspace_manager_get_type ())
 
@@ -74,3 +74,9 @@ void meta_workspace_manager_override_workspace_layout (MetaWorkspaceManager *wor
                                                        gboolean              vertical_layout,
                                                        int                   n_rows,
                                                        int                   n_columns);
+
+META_EXPORT
+int meta_workspace_manager_get_layout_columns (MetaWorkspaceManager *workspace_manager);
+
+META_EXPORT
+int meta_workspace_manager_get_layout_rows (MetaWorkspaceManager *workspace_manager);

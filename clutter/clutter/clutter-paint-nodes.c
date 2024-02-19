@@ -23,7 +23,7 @@
  */
 
 
-#include "clutter/clutter-build-config.h"
+#include "config.h"
 
 #include "clutter/clutter-paint-node-private.h"
 
@@ -280,30 +280,6 @@ clutter_dummy_node_pre_draw (ClutterPaintNode    *node,
   return TRUE;
 }
 
-static JsonNode *
-clutter_dummy_node_serialize (ClutterPaintNode *node)
-{
-  ClutterDummyNode *dnode = (ClutterDummyNode *) node;
-  JsonBuilder *builder;
-  JsonNode *res;
-
-  if (dnode->actor == NULL)
-    return json_node_new (JSON_NODE_NULL);
-
-  builder = json_builder_new ();
-  json_builder_begin_object (builder);
-
-  json_builder_set_member_name (builder, "actor");
-  json_builder_add_string_value (builder, _clutter_actor_get_debug_name (dnode->actor));
-
-  json_builder_end_object (builder);
-
-  res = json_builder_get_root (builder);
-  g_object_unref (builder);
-
-  return res;
-}
-
 static CoglFramebuffer *
 clutter_dummy_node_get_framebuffer (ClutterPaintNode *node)
 {
@@ -328,7 +304,6 @@ clutter_dummy_node_class_init (ClutterDummyNodeClass *klass)
   ClutterPaintNodeClass *node_class = CLUTTER_PAINT_NODE_CLASS (klass);
 
   node_class->pre_draw = clutter_dummy_node_pre_draw;
-  node_class->serialize = clutter_dummy_node_serialize;
   node_class->get_framebuffer = clutter_dummy_node_get_framebuffer;
   node_class->finalize = clutter_dummy_node_finalize;
 }
@@ -383,8 +358,7 @@ clutter_pipeline_node_finalize (ClutterPaintNode *node)
 {
   ClutterPipelineNode *pnode = CLUTTER_PIPELINE_NODE (node);
 
-  if (pnode->pipeline != NULL)
-    cogl_object_unref (pnode->pipeline);
+  g_clear_object (&pnode->pipeline);
 
   CLUTTER_PAINT_NODE_CLASS (clutter_pipeline_node_parent_class)->finalize (node);
 }
@@ -488,46 +462,6 @@ clutter_pipeline_node_post_draw (ClutterPaintNode    *node,
 {
 }
 
-static JsonNode *
-clutter_pipeline_node_serialize (ClutterPaintNode *node)
-{
-  ClutterPipelineNode *pnode = CLUTTER_PIPELINE_NODE (node);
-  JsonBuilder *builder;
-  CoglColor color;
-  JsonNode *res;
-
-  if (pnode->pipeline == NULL)
-    return json_node_new (JSON_NODE_NULL);
-
-  builder = json_builder_new ();
-  json_builder_begin_object (builder);
-
-  cogl_pipeline_get_color (pnode->pipeline, &color);
-  json_builder_set_member_name (builder, "color");
-  json_builder_begin_array (builder);
-  json_builder_add_double_value (builder, cogl_color_get_red (&color));
-  json_builder_add_double_value (builder, cogl_color_get_green (&color));
-  json_builder_add_double_value (builder, cogl_color_get_blue (&color));
-  json_builder_add_double_value (builder, cogl_color_get_alpha (&color));
-  json_builder_end_array (builder);
-
-#if 0
-  json_builder_set_member_name (builder, "layers");
-  json_builder_begin_array (builder);
-  cogl_pipeline_foreach_layer (pnode->pipeline,
-                               clutter_pipeline_node_serialize_layer,
-                               builder);
-  json_builder_end_array (builder);
-#endif
-
-  json_builder_end_object (builder);
-
-  res = json_builder_get_root (builder);
-  g_object_unref (builder);
-
-  return res;
-}
-
 static void
 clutter_pipeline_node_class_init (ClutterPipelineNodeClass *klass)
 {
@@ -538,7 +472,6 @@ clutter_pipeline_node_class_init (ClutterPipelineNodeClass *klass)
   node_class->draw = clutter_pipeline_node_draw;
   node_class->post_draw = clutter_pipeline_node_post_draw;
   node_class->finalize = clutter_pipeline_node_finalize;
-  node_class->serialize = clutter_pipeline_node_serialize;
 }
 
 static void
@@ -554,7 +487,7 @@ clutter_pipeline_node_init (ClutterPipelineNode *self)
  * paint its contents.
  *
  * This function will acquire a reference on the passed @pipeline,
- * so it is safe to call cogl_object_unref() when it returns.
+ * so it is safe to call g_object_unref() when it returns.
  *
  * Return value: (transfer full): the newly created #ClutterPaintNode.
  *   Use clutter_paint_node_unref() when done.
@@ -564,12 +497,12 @@ clutter_pipeline_node_new (CoglPipeline *pipeline)
 {
   ClutterPipelineNode *res;
 
-  g_return_val_if_fail (pipeline == NULL || cogl_is_pipeline (pipeline), NULL);
+  g_return_val_if_fail (pipeline == NULL || COGL_IS_PIPELINE (pipeline), NULL);
 
   res = _clutter_paint_node_create (CLUTTER_TYPE_PIPELINE_NODE);
 
   if (pipeline != NULL)
-    res->pipeline = cogl_object_ref (pipeline);
+    res->pipeline = g_object_ref (pipeline);
 
   return (ClutterPaintNode *) res;
 }
@@ -710,7 +643,7 @@ clutter_scaling_filter_to_cogl_pipeline_filter (ClutterScalingFilter filter)
  * Creates a new #ClutterPaintNode that will paint the passed @texture.
  *
  * This function will take a reference on @texture, so it is safe to
- * call cogl_object_unref() on @texture when it returns.
+ * call g_object_unref() on @texture when it returns.
  *
  * The @color must not be pre-multiplied with its #ClutterColor.alpha
  * channel value; if @color is %NULL, a fully opaque white color will
@@ -729,7 +662,7 @@ clutter_texture_node_new (CoglTexture          *texture,
   CoglColor cogl_color;
   CoglPipelineFilter min_f, mag_f;
 
-  g_return_val_if_fail (cogl_is_texture (texture), NULL);
+  g_return_val_if_fail (COGL_IS_TEXTURE (texture), NULL);
 
   tnode = _clutter_paint_node_create (CLUTTER_TYPE_TEXTURE_NODE);
 
@@ -786,8 +719,7 @@ clutter_text_node_finalize (ClutterPaintNode *node)
 {
   ClutterTextNode *tnode = CLUTTER_TEXT_NODE (node);
 
-  if (tnode->layout != NULL)
-    g_object_unref (tnode->layout);
+  g_clear_object (&tnode->layout);
 
   CLUTTER_PAINT_NODE_CLASS (clutter_text_node_parent_class)->finalize (node);
 }
@@ -865,47 +797,6 @@ clutter_text_node_draw (ClutterPaintNode    *node,
     }
 }
 
-static JsonNode *
-clutter_text_node_serialize (ClutterPaintNode *node)
-{
-  ClutterTextNode *tnode = CLUTTER_TEXT_NODE (node);
-  JsonBuilder *builder;
-  JsonNode *res;
-
-  builder = json_builder_new ();
-
-  json_builder_begin_object (builder);
-
-  json_builder_set_member_name (builder, "layout");
-
-  if (pango_layout_get_character_count (tnode->layout) > 12)
-    {
-      const char *text = pango_layout_get_text (tnode->layout);
-      char *str;
-
-      str = g_strndup (text, 12);
-      json_builder_add_string_value (builder, str);
-      g_free (str);
-    }
-  else
-    json_builder_add_string_value (builder, pango_layout_get_text (tnode->layout));
-
-  json_builder_set_member_name (builder, "color");
-  json_builder_begin_array (builder);
-  json_builder_add_double_value (builder, cogl_color_get_red (&tnode->color));
-  json_builder_add_double_value (builder, cogl_color_get_green (&tnode->color));
-  json_builder_add_double_value (builder, cogl_color_get_blue (&tnode->color));
-  json_builder_add_double_value (builder, cogl_color_get_alpha (&tnode->color));
-  json_builder_end_array (builder);
-
-  json_builder_end_object (builder);
-
-  res = json_builder_get_root (builder);
-  g_object_unref (builder);
-
-  return res;
-}
-
 static void
 clutter_text_node_class_init (ClutterTextNodeClass *klass)
 {
@@ -914,7 +805,6 @@ clutter_text_node_class_init (ClutterTextNodeClass *klass)
   node_class->pre_draw = clutter_text_node_pre_draw;
   node_class->draw = clutter_text_node_draw;
   node_class->finalize = clutter_text_node_finalize;
-  node_class->serialize = clutter_text_node_serialize;
 }
 
 static void
@@ -1151,25 +1041,6 @@ clutter_actor_node_post_draw (ClutterPaintNode    *node,
     }
 }
 
-static JsonNode *
-clutter_actor_node_serialize (ClutterPaintNode *node)
-{
-  ClutterActorNode *actor_node = CLUTTER_ACTOR_NODE (node);
-  g_autoptr (JsonBuilder) builder = NULL;
-  const char *debug_name;
-
-  debug_name = _clutter_actor_get_debug_name (actor_node->actor);
-
-  builder = json_builder_new ();
-
-  json_builder_begin_object (builder);
-  json_builder_set_member_name (builder, "actor");
-  json_builder_add_string_value (builder, debug_name);
-  json_builder_end_object (builder);
-
-  return json_builder_get_root (builder);
-}
-
 static void
 clutter_actor_node_class_init (ClutterActorNodeClass *klass)
 {
@@ -1179,7 +1050,6 @@ clutter_actor_node_class_init (ClutterActorNodeClass *klass)
   node_class->pre_draw = clutter_actor_node_pre_draw;
   node_class->draw = clutter_actor_node_draw;
   node_class->post_draw = clutter_actor_node_post_draw;
-  node_class->serialize = clutter_actor_node_serialize;
 }
 
 static void
@@ -1235,43 +1105,9 @@ struct _ClutterEffectNodeClass
 
 G_DEFINE_TYPE (ClutterEffectNode, clutter_effect_node, CLUTTER_TYPE_PAINT_NODE)
 
-static JsonNode *
-clutter_effect_node_serialize (ClutterPaintNode *node)
-{
-  ClutterEffectNode *effect_node = CLUTTER_EFFECT_NODE (node);
-  ClutterActorMeta *effect_meta = CLUTTER_ACTOR_META (effect_node->effect);
-  g_autoptr (JsonBuilder) builder = NULL;
-  g_autoptr (GString) string = NULL;
-  const char *meta_name;
-
-  meta_name = clutter_actor_meta_get_name (effect_meta);
-
-  string = g_string_new (NULL);
-  g_string_append (string, G_OBJECT_TYPE_NAME (effect_node->effect));
-  g_string_append (string, " (");
-  if (meta_name)
-    g_string_append_printf (string, "\"%s\"", meta_name);
-  else
-    g_string_append (string, "unnamed");
-  g_string_append (string, ")");
-
-  builder = json_builder_new ();
-
-  json_builder_begin_object (builder);
-  json_builder_set_member_name (builder, "effect");
-  json_builder_add_string_value (builder, string->str);
-  json_builder_end_object (builder);
-
-  return json_builder_get_root (builder);
-}
-
 static void
 clutter_effect_node_class_init (ClutterEffectNodeClass *klass)
 {
-  ClutterPaintNodeClass *node_class;
-
-  node_class = CLUTTER_PAINT_NODE_CLASS (klass);
-  node_class->serialize = clutter_effect_node_serialize;
 }
 
 static void
@@ -1309,10 +1145,6 @@ struct _ClutterLayerNode
 {
   ClutterPaintNode parent_instance;
 
-  cairo_rectangle_t viewport;
-
-  graphene_matrix_t projection;
-
   float fbo_width;
   float fbo_height;
 
@@ -1320,8 +1152,6 @@ struct _ClutterLayerNode
   CoglFramebuffer *offscreen;
 
   guint8 opacity;
-
-  gboolean needs_fbo_setup : 1;
 };
 
 struct _ClutterLayerNodeClass
@@ -1336,33 +1166,12 @@ clutter_layer_node_pre_draw (ClutterPaintNode *node,
                              ClutterPaintContext *paint_context)
 {
   ClutterLayerNode *lnode = (ClutterLayerNode *) node;
-  CoglFramebuffer *framebuffer;
-  graphene_matrix_t matrix;
 
   /* if we were unable to create an offscreen buffer for this node, then
    * we simply ignore it
    */
   if (lnode->offscreen == NULL)
     return FALSE;
-
-  if (lnode->needs_fbo_setup)
-    {
-      /* copy the same modelview from the current framebuffer to the one we
-       * are going to use
-       */
-      framebuffer = clutter_paint_context_get_framebuffer (paint_context);
-      cogl_framebuffer_get_modelview_matrix (framebuffer, &matrix);
-      cogl_framebuffer_set_modelview_matrix (lnode->offscreen, &matrix);
-
-      cogl_framebuffer_set_viewport (lnode->offscreen,
-                                     lnode->viewport.x,
-                                     lnode->viewport.y,
-                                     lnode->viewport.width,
-                                     lnode->viewport.height);
-
-      cogl_framebuffer_set_projection_matrix (lnode->offscreen,
-                                              &lnode->projection);
-    }
 
   clutter_paint_context_push_framebuffer (paint_context, lnode->offscreen);
 
@@ -1453,31 +1262,10 @@ clutter_layer_node_finalize (ClutterPaintNode *node)
 {
   ClutterLayerNode *lnode = CLUTTER_LAYER_NODE (node);
 
-  if (lnode->pipeline != NULL)
-    cogl_object_unref (lnode->pipeline);
-
+  g_clear_object (&lnode->pipeline);
   g_clear_object (&lnode->offscreen);
 
   CLUTTER_PAINT_NODE_CLASS (clutter_layer_node_parent_class)->finalize (node);
-}
-
-static JsonNode *
-clutter_layer_node_serialize (ClutterPaintNode *node)
-{
-  ClutterLayerNode *layer_node = CLUTTER_LAYER_NODE (node);
-  g_autoptr (JsonBuilder) builder = NULL;
-  g_autofree char *framebuffer_ptr = NULL;
-
-  builder = json_builder_new ();
-
-  framebuffer_ptr = g_strdup_printf ("%p", layer_node->offscreen);
-
-  json_builder_begin_object (builder);
-  json_builder_set_member_name (builder, "framebuffer");
-  json_builder_add_string_value (builder, framebuffer_ptr);
-  json_builder_end_object (builder);
-
-  return json_builder_get_root (builder);
 }
 
 static void
@@ -1489,93 +1277,13 @@ clutter_layer_node_class_init (ClutterLayerNodeClass *klass)
   node_class->pre_draw = clutter_layer_node_pre_draw;
   node_class->post_draw = clutter_layer_node_post_draw;
   node_class->finalize = clutter_layer_node_finalize;
-  node_class->serialize = clutter_layer_node_serialize;
 }
 
 static void
 clutter_layer_node_init (ClutterLayerNode *self)
 {
-  graphene_matrix_init_identity (&self->projection);
 }
 
-/*
- * clutter_layer_node_new:
- * @projection: the projection matrix to use to set up the layer
- * @viewport: (type cairo.Rectangle): the viewport to use to set up the layer
- * @width: the width of the layer
- * @height: the height of the layer
- * @opacity: the opacity to be used when drawing the layer
- *
- * Creates a new #ClutterLayerNode.
- *
- * All children of this node will be painted inside a separate
- * framebuffer; the framebuffer will then be painted using the
- * given @opacity.
- *
- * Return value: (transfer full): the newly created #ClutterLayerNode.
- *   Use clutter_paint_node_unref() when done.
- */
-ClutterPaintNode *
-clutter_layer_node_new (const graphene_matrix_t *projection,
-                        const cairo_rectangle_t *viewport,
-                        float                    width,
-                        float                    height,
-                        guint8                   opacity)
-{
-  ClutterLayerNode *lnode;
-  CoglContext *context;
-  CoglTexture2D *tex_2d;
-  CoglTexture *texture;
-  CoglColor color;
-  g_autoptr (CoglOffscreen) offscreen = NULL;
-  g_autoptr (GError) error = NULL;
-
-  lnode = _clutter_paint_node_create (CLUTTER_TYPE_LAYER_NODE);
-
-  lnode->needs_fbo_setup = TRUE;
-  lnode->projection = *projection;
-  lnode->viewport = *viewport;
-  lnode->fbo_width = width;
-  lnode->fbo_height = height;
-  lnode->opacity = opacity;
-
-  /* the texture backing the FBO */
-  context = clutter_backend_get_cogl_context (clutter_get_default_backend ());
-
-  tex_2d = cogl_texture_2d_new_with_size (context,
-                                          MAX (lnode->fbo_width, 1),
-                                          MAX (lnode->fbo_height, 1));
-  texture = COGL_TEXTURE (tex_2d);
-  cogl_texture_set_premultiplied (texture, TRUE);
-
-  offscreen = cogl_offscreen_new_with_texture (texture);
-  if (!cogl_framebuffer_allocate (COGL_FRAMEBUFFER (offscreen), &error))
-    {
-      g_warning ("Unable to create an allocate paint node offscreen: %s",
-                 error->message);
-      cogl_object_unref (texture);
-      return NULL;
-    }
-
-  lnode->offscreen = COGL_FRAMEBUFFER (g_steal_pointer (&offscreen));
-
-  cogl_color_init_from_4ub (&color, opacity, opacity, opacity, opacity);
-
-  /* the pipeline used to paint the texture; we use nearest
-   * interpolation filters because the texture is always
-   * going to be painted at a 1:1 texel:pixel ratio
-   */
-  lnode->pipeline = cogl_pipeline_copy (default_texture_pipeline);
-  cogl_pipeline_set_layer_filters (lnode->pipeline, 0,
-                                   COGL_PIPELINE_FILTER_NEAREST,
-                                   COGL_PIPELINE_FILTER_NEAREST);
-  cogl_pipeline_set_layer_texture (lnode->pipeline, 0, texture);
-  cogl_pipeline_set_color (lnode->pipeline, &color);
-
-  cogl_object_unref (texture);
-
-  return (ClutterPaintNode *) lnode;
-}
 
 /**
  * clutter_layer_node_new_to_framebuffer:
@@ -1600,11 +1308,10 @@ clutter_layer_node_new_to_framebuffer (CoglFramebuffer *framebuffer,
   ClutterLayerNode *res;
 
   g_return_val_if_fail (COGL_IS_FRAMEBUFFER (framebuffer), NULL);
-  g_return_val_if_fail (cogl_is_pipeline (pipeline), NULL);
+  g_return_val_if_fail (COGL_IS_PIPELINE (pipeline), NULL);
 
   res = _clutter_paint_node_create (CLUTTER_TYPE_LAYER_NODE);
 
-  res->needs_fbo_setup = FALSE;
   res->fbo_width = cogl_framebuffer_get_width (framebuffer);
   res->fbo_height = cogl_framebuffer_get_height (framebuffer);
   res->offscreen = g_object_ref (framebuffer);
@@ -1698,24 +1405,6 @@ clutter_blit_node_finalize (ClutterPaintNode *node)
   CLUTTER_PAINT_NODE_CLASS (clutter_blit_node_parent_class)->finalize (node);
 }
 
-static JsonNode *
-clutter_blit_node_serialize (ClutterPaintNode *node)
-{
-  ClutterBlitNode *blit_node = CLUTTER_BLIT_NODE (node);
-  g_autoptr (JsonBuilder) builder = NULL;
-  g_autofree char *src_ptr = NULL;
-
-  src_ptr = g_strdup_printf ("%p", blit_node->src);
-
-  builder = json_builder_new ();
-  json_builder_begin_object (builder);
-  json_builder_set_member_name (builder, "source");
-  json_builder_add_string_value (builder, src_ptr);
-  json_builder_end_object (builder);
-
-  return json_builder_get_root (builder);
-}
-
 static void
 clutter_blit_node_class_init (ClutterBlitNodeClass *klass)
 {
@@ -1725,7 +1414,6 @@ clutter_blit_node_class_init (ClutterBlitNodeClass *klass)
   node_class->pre_draw = clutter_blit_node_pre_draw;
   node_class->draw = clutter_blit_node_draw;
   node_class->finalize = clutter_blit_node_finalize;
-  node_class->serialize = clutter_blit_node_serialize;
 }
 
 static void
@@ -1804,7 +1492,7 @@ struct _ClutterBlurNode
   ClutterLayerNode parent_instance;
 
   ClutterBlur *blur;
-  unsigned int sigma;
+  unsigned int radius;
 };
 
 G_DEFINE_TYPE (ClutterBlurNode, clutter_blur_node, CLUTTER_TYPE_LAYER_NODE)
@@ -1832,24 +1520,6 @@ clutter_blur_node_finalize (ClutterPaintNode *node)
   CLUTTER_PAINT_NODE_CLASS (clutter_blur_node_parent_class)->finalize (node);
 }
 
-static JsonNode *
-clutter_blur_node_serialize (ClutterPaintNode *node)
-{
-  ClutterBlurNode *blur_node = CLUTTER_BLUR_NODE (node);
-  g_autoptr (JsonBuilder) builder = NULL;
-  g_autofree char *src_ptr = NULL;
-
-  src_ptr = g_strdup_printf ("%d", blur_node->sigma);
-
-  builder = json_builder_new ();
-  json_builder_begin_object (builder);
-  json_builder_set_member_name (builder, "sigma");
-  json_builder_add_string_value (builder, src_ptr);
-  json_builder_end_object (builder);
-
-  return json_builder_get_root (builder);
-}
-
 static void
 clutter_blur_node_class_init (ClutterBlurNodeClass *klass)
 {
@@ -1858,7 +1528,6 @@ clutter_blur_node_class_init (ClutterBlurNodeClass *klass)
   node_class = CLUTTER_PAINT_NODE_CLASS (klass);
   node_class->post_draw = clutter_blur_node_post_draw;
   node_class->finalize = clutter_blur_node_finalize;
-  node_class->serialize = clutter_blur_node_serialize;
 }
 
 static void
@@ -1870,7 +1539,7 @@ clutter_blur_node_init (ClutterBlurNode *blur_node)
  * clutter_blur_node_new:
  * @width width of the blur layer
  * @height: height of the blur layer
- * @sigma: sigma value of the blur
+ * @radius: radius (in pixels) of the blur
  *
  * Creates a new #ClutterBlurNode.
  *
@@ -1883,29 +1552,27 @@ clutter_blur_node_init (ClutterBlurNode *blur_node)
 ClutterPaintNode *
 clutter_blur_node_new (unsigned int width,
                        unsigned int height,
-                       float        sigma)
+                       float        radius)
 {
   g_autoptr (CoglOffscreen) offscreen = NULL;
   g_autoptr (GError) error = NULL;
   ClutterLayerNode *layer_node;
   ClutterBlurNode *blur_node;
-  CoglTexture2D *tex_2d;
   CoglContext *context;
   CoglTexture *texture;
   ClutterBlur *blur;
 
-  g_return_val_if_fail (sigma >= 0.0, NULL);
+  g_return_val_if_fail (radius >= 0.0, NULL);
 
   blur_node = _clutter_paint_node_create (CLUTTER_TYPE_BLUR_NODE);
-  blur_node->sigma = sigma;
+  blur_node->radius = radius;
   context = clutter_backend_get_cogl_context (clutter_get_default_backend ());
-  tex_2d = cogl_texture_2d_new_with_size (context, width, height);
+  texture = cogl_texture_2d_new_with_size (context, width, height);
 
-  texture = COGL_TEXTURE (tex_2d);
   cogl_texture_set_premultiplied (texture, TRUE);
 
   offscreen = cogl_offscreen_new_with_texture (texture);
-  cogl_object_unref (tex_2d);
+  g_object_unref (texture);
   if (!cogl_framebuffer_allocate (COGL_FRAMEBUFFER (offscreen), &error))
     {
       g_warning ("Unable to allocate paint node offscreen: %s",
@@ -1913,7 +1580,7 @@ clutter_blur_node_new (unsigned int width,
       goto out;
     }
 
-  blur = clutter_blur_new (texture, sigma);
+  blur = clutter_blur_new (texture, radius);
   blur_node->blur = blur;
 
   if (!blur)
