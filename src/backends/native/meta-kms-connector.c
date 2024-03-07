@@ -138,23 +138,6 @@ meta_kms_connector_get_name (MetaKmsConnector *connector)
   return connector->name;
 }
 
-gboolean
-meta_kms_connector_can_clone (MetaKmsConnector *connector,
-                              MetaKmsConnector *other_connector)
-{
-  MetaKmsConnectorState *state = connector->current_state;
-  MetaKmsConnectorState *other_state = other_connector->current_state;
-
-  if (state->common_possible_clones == 0 ||
-      other_state->common_possible_clones == 0)
-    return FALSE;
-
-  if (state->encoder_device_idxs != other_state->encoder_device_idxs)
-    return FALSE;
-
-  return TRUE;
-}
-
 MetaKmsMode *
 meta_kms_connector_get_preferred_mode (MetaKmsConnector *connector)
 {
@@ -181,43 +164,11 @@ meta_kms_connector_get_current_state (MetaKmsConnector *connector)
   return connector->current_state;
 }
 
-gboolean
-meta_kms_connector_is_underscanning_supported (MetaKmsConnector *connector)
-{
-  uint32_t underscan_prop_id;
-
-  underscan_prop_id =
-    meta_kms_connector_get_prop_id (connector,
-                                    META_KMS_CONNECTOR_PROP_UNDERSCAN);
-
-  return underscan_prop_id != 0;
-}
-
-gboolean
-meta_kms_connector_is_privacy_screen_supported (MetaKmsConnector *connector)
-{
-  return meta_kms_connector_get_prop_id (connector,
-    META_KMS_CONNECTOR_PROP_PRIVACY_SCREEN_HW_STATE) != 0;
-}
-
 static gboolean
 has_privacy_screen_software_toggle (MetaKmsConnector *connector)
 {
   return meta_kms_connector_get_prop_id (connector,
     META_KMS_CONNECTOR_PROP_PRIVACY_SCREEN_SW_STATE) != 0;
-}
-
-const MetaKmsRange *
-meta_kms_connector_get_max_bpc (MetaKmsConnector *connector)
-{
-  const MetaKmsRange *range = NULL;
-
-  if (connector->current_state &&
-      meta_kms_connector_get_prop_id (connector,
-                                      META_KMS_CONNECTOR_PROP_MAX_BPC))
-    range = &connector->current_state->max_bpc;
-
-  return range;
 }
 
 static void
@@ -239,26 +190,6 @@ sync_fd_held (MetaKmsConnector  *connector,
     meta_kms_impl_device_unhold_fd (impl_device);
 
   connector->fd_held = should_hold_fd;
-}
-
-gboolean
-meta_kms_connector_is_color_space_supported (MetaKmsConnector     *connector,
-                                             MetaOutputColorspace  color_space)
-{
-  return !!(connector->current_state->colorspace.supported & (1 << color_space));
-}
-
-gboolean
-meta_kms_connector_is_hdr_metadata_supported (MetaKmsConnector *connector)
-{
-  return connector->current_state->hdr.supported;
-}
-
-gboolean
-meta_kms_connector_is_broadcast_rgb_supported (MetaKmsConnector   *connector,
-                                               MetaOutputRGBRange  broadcast_rgb)
-{
-  return !!(connector->current_state->broadcast_rgb.supported & (1 << broadcast_rgb));
 }
 
 static void
@@ -287,39 +218,23 @@ set_panel_orientation (MetaKmsConnectorState *state,
   state->panel_orientation_transform = transform;
 }
 
-static void
-set_privacy_screen (MetaKmsConnectorState *state,
-                    MetaKmsConnector      *connector,
-                    MetaKmsProp           *hw_state)
+static MetaPrivacyScreenState
+privacy_screen_state_hw (MetaKmsConnectorPrivacyScreen privacy_screen)
 {
-  MetaKmsConnectorPrivacyScreen privacy_screen = hw_state->value;
-
-  if (!meta_kms_connector_is_privacy_screen_supported (connector))
-    return;
-
   switch (privacy_screen)
     {
     case META_KMS_PRIVACY_SCREEN_HW_STATE_DISABLED:
-      state->privacy_screen_state = META_PRIVACY_SCREEN_DISABLED;
-      break;
+      return META_PRIVACY_SCREEN_DISABLED;
     case META_KMS_PRIVACY_SCREEN_HW_STATE_DISABLED_LOCKED:
-      state->privacy_screen_state = META_PRIVACY_SCREEN_DISABLED;
-      state->privacy_screen_state |= META_PRIVACY_SCREEN_LOCKED;
-      break;
+      return META_PRIVACY_SCREEN_DISABLED | META_PRIVACY_SCREEN_LOCKED;
     case META_KMS_PRIVACY_SCREEN_HW_STATE_ENABLED:
-      state->privacy_screen_state = META_PRIVACY_SCREEN_ENABLED;
-      break;
+      return META_PRIVACY_SCREEN_ENABLED;
     case META_KMS_PRIVACY_SCREEN_HW_STATE_ENABLED_LOCKED:
-      state->privacy_screen_state = META_PRIVACY_SCREEN_ENABLED;
-      state->privacy_screen_state |= META_PRIVACY_SCREEN_LOCKED;
-      break;
+      return META_PRIVACY_SCREEN_ENABLED | META_PRIVACY_SCREEN_LOCKED;
     default:
-      state->privacy_screen_state = META_PRIVACY_SCREEN_DISABLED;
       g_warning ("Unknown privacy screen state: %u", privacy_screen);
+      return META_PRIVACY_SCREEN_DISABLED;
     }
-
-  if (!has_privacy_screen_software_toggle (connector))
-    state->privacy_screen_state |= META_PRIVACY_SCREEN_LOCKED;
 }
 
 static MetaOutputColorspace
@@ -445,11 +360,17 @@ state_set_properties (MetaKmsConnectorState *state,
 
   prop = &props[META_KMS_CONNECTOR_PROP_PRIVACY_SCREEN_HW_STATE];
   if (prop->prop_id)
-    set_privacy_screen (state, connector, prop);
+    {
+      state->privacy_screen_state = privacy_screen_state_hw (prop->value);
+
+      if (!has_privacy_screen_software_toggle (connector))
+        state->privacy_screen_state |= META_PRIVACY_SCREEN_LOCKED;
+    }
 
   prop = &props[META_KMS_CONNECTOR_PROP_MAX_BPC];
   if (prop->prop_id)
     {
+      state->max_bpc.supported = TRUE;
       state->max_bpc.value = prop->value;
       state->max_bpc.min_value = prop->range_min;
       state->max_bpc.max_value = prop->range_max;
@@ -472,6 +393,14 @@ state_set_properties (MetaKmsConnectorState *state,
       state->broadcast_rgb.supported =
         supported_drm_broadcast_rgb_to_output_rgb_range (prop->supported_variants);
     }
+
+  prop = &props[META_KMS_CONNECTOR_PROP_UNDERSCAN];
+  if (prop->prop_id)
+    state->underscan.supported = TRUE;
+
+  prop = &props[META_KMS_CONNECTOR_PROP_VRR_CAPABLE];
+  if (prop->prop_id)
+    state->vrr_capable = !!prop->value;
 }
 
 static CoglSubpixelOrder
@@ -904,6 +833,7 @@ meta_kms_connector_state_new (void)
   state = g_new0 (MetaKmsConnectorState, 1);
   state->suggested_x = -1;
   state->suggested_y = -1;
+  state->vrr_capable = FALSE;
 
   return state;
 }
@@ -1063,7 +993,8 @@ meta_kms_connector_state_changes (MetaKmsConnectorState *state,
   if (!kms_modes_equal (state->modes, new_state->modes))
     return META_KMS_RESOURCE_CHANGE_FULL;
 
-  if (state->max_bpc.value != new_state->max_bpc.value ||
+  if (state->max_bpc.supported != new_state->max_bpc.supported ||
+      state->max_bpc.value != new_state->max_bpc.value ||
       state->max_bpc.min_value != new_state->max_bpc.min_value ||
       state->max_bpc.max_value != new_state->max_bpc.max_value)
     return META_KMS_RESOURCE_CHANGE_FULL;
@@ -1079,6 +1010,9 @@ meta_kms_connector_state_changes (MetaKmsConnectorState *state,
 
   if (state->broadcast_rgb.value != new_state->broadcast_rgb.value ||
       state->broadcast_rgb.supported != new_state->broadcast_rgb.supported)
+    return META_KMS_RESOURCE_CHANGE_FULL;
+
+  if (state->vrr_capable != new_state->vrr_capable)
     return META_KMS_RESOURCE_CHANGE_FULL;
 
   if (state->privacy_screen_state != new_state->privacy_screen_state)
@@ -1280,24 +1214,21 @@ meta_kms_connector_predict_state_in_impl (MetaKmsConnector *connector,
 
       if (connector_update->colorspace.has_update)
         {
-          g_warn_if_fail (meta_kms_connector_is_color_space_supported (
-                          connector,
-                          connector_update->colorspace.value));
+          g_warn_if_fail (current_state->colorspace.supported &
+                          (1 << connector_update->colorspace.value));
           current_state->colorspace.value = connector_update->colorspace.value;
         }
 
       if (connector_update->hdr.has_update)
         {
-          g_warn_if_fail (meta_kms_connector_is_hdr_metadata_supported (
-                          connector));
+          g_warn_if_fail (current_state->hdr.supported);
           current_state->hdr.value = connector_update->hdr.value;
         }
 
       if (connector_update->broadcast_rgb.has_update)
         {
-          g_warn_if_fail (meta_kms_connector_is_broadcast_rgb_supported (
-                          connector,
-                          connector_update->broadcast_rgb.value));
+          g_warn_if_fail (current_state->broadcast_rgb.supported &
+                          (1 << connector_update->broadcast_rgb.value));
           current_state->broadcast_rgb.value = connector_update->broadcast_rgb.value;
         }
     }
@@ -1433,6 +1364,11 @@ init_properties (MetaKmsConnector  *connector,
           .enum_values = prop_table->broadcast_rgb_enum,
           .num_enum_values = META_KMS_CONNECTOR_BROADCAST_RGB_N_PROPS,
           .default_value = META_KMS_CONNECTOR_BROADCAST_RGB_UNKNOWN,
+        },
+      [META_KMS_CONNECTOR_PROP_VRR_CAPABLE] =
+        {
+          .name = "vrr_capable",
+          .type = DRM_MODE_PROP_RANGE,
         },
     },
     .dpms_enum = {

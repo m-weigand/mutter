@@ -1925,11 +1925,11 @@ paint_selection_rectangle (ClutterText           *self,
   else
     color = &priv->text_color;
 
-  cogl_color_init_from_4ub (&cogl_color,
-                            color->red,
-                            color->green,
-                            color->blue,
-                            paint_opacity * color->alpha / 255);
+  cogl_color_init_from_4f (&cogl_color,
+                           color->red / 255.0,
+                           color->green / 255.0,
+                           color->blue / 255.0,
+                           paint_opacity / 255.0 * color->alpha / 255.0);
   cogl_color_premultiply (&cogl_color);
   cogl_pipeline_set_color (color_pipeline, &cogl_color);
 
@@ -1945,11 +1945,11 @@ paint_selection_rectangle (ClutterText           *self,
   else
     color = &priv->text_color;
 
-  cogl_color_init_from_4ub (&cogl_color,
-                            color->red,
-                            color->green,
-                            color->blue,
-                            paint_opacity * color->alpha / 255);
+  cogl_color_init_from_4f (&cogl_color,
+                           color->red / 255.0,
+                           color->green / 255.0,
+                           color->blue / 255.0,
+                           paint_opacity / 255.0 * color->alpha / 255.0);
 
   cogl_pango_show_layout (fb, layout, priv->text_x, 0, &cogl_color);
 
@@ -1982,11 +1982,11 @@ selection_paint (ClutterText     *self,
         color = &priv->text_color;
 
 
-      cogl_color_init_from_4ub (&cogl_color,
-                                color->red,
-                                color->green,
-                                color->blue,
-                                paint_opacity * color->alpha / 255);
+      cogl_color_init_from_4f (&cogl_color,
+                               color->red / 255.0,
+                               color->green / 255.0,
+                               color->blue / 255.0,
+                               paint_opacity / 255.0 * color->alpha / 255.0);
       cogl_color_premultiply (&cogl_color);
       cogl_pipeline_set_color (color_pipeline, &cogl_color);
 
@@ -2753,11 +2753,11 @@ clutter_text_paint (ClutterActor        *self,
   CLUTTER_NOTE (PAINT, "painting text (text: '%s')",
                 clutter_text_buffer_get_text (get_buffer (text)));
 
-  cogl_color_init_from_4ub (&color,
-                            priv->text_color.red,
-                            priv->text_color.green,
-                            priv->text_color.blue,
-                            real_opacity);
+  cogl_color_init_from_4f (&color,
+                           priv->text_color.red / 255.0,
+                           priv->text_color.green / 255.0,
+                           priv->text_color.blue / 255.0,
+                           real_opacity / 255.0);
   cogl_pango_show_layout (fb, layout, priv->text_x, priv->text_y, &color);
 
   selection_paint (text, fb);
@@ -2988,12 +2988,13 @@ clutter_text_get_preferred_height (ClutterActor *self,
           if ((priv->ellipsize && priv->wrap) && !priv->single_line_mode)
             {
               PangoLayoutLine *line;
+              PangoRectangle logical_line_rect = { 0, };
               gfloat line_height;
 
               line = pango_layout_get_line_readonly (layout, 0);
-              pango_layout_line_get_extents (line, NULL, &logical_rect);
+              pango_layout_line_get_extents (line, NULL, &logical_line_rect);
 
-              logical_height = logical_rect.y + logical_rect.height;
+              logical_height = logical_rect.y + logical_line_rect.height;
               line_height = pango_to_logical_pixels (logical_height,
                                                      resource_scale);
 

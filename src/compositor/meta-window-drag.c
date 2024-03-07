@@ -56,6 +56,8 @@ struct _MetaWindowDrag {
   MetaGrabOp grab_op;
   ClutterGrab *grab;
 
+  graphene_point_t pos_hint;
+
   ClutterInputDevice *leading_device;
   ClutterEventSequence *leading_touch_sequence;
   double anchor_rel_x;
@@ -79,6 +81,7 @@ struct _MetaWindowDrag {
 
   guint tile_preview_timeout_id;
   guint preview_tile_mode : 2;
+  guint pos_hint_set : 1;
 };
 
 G_DEFINE_FINAL_TYPE (MetaWindowDrag, meta_window_drag, G_TYPE_OBJECT)
@@ -178,7 +181,7 @@ meta_window_drag_finalize (GObject *object)
 
   hide_tile_preview (window_drag);
   g_clear_pointer (&window_drag->handler, clutter_actor_destroy);
-  g_clear_pointer (&window_drag->grab, clutter_grab_unref);
+  g_clear_object (&window_drag->grab);
   g_clear_object (&window_drag->effective_grab_window);
 
   G_OBJECT_CLASS (meta_window_drag_parent_class)->finalize (object);
@@ -331,6 +334,8 @@ meta_cursor_for_grab_op (MetaGrabOp op)
       return META_CURSOR_EAST_RESIZE;
       break;
     case META_GRAB_OP_MOVING:
+      return META_CURSOR_DEFAULT;
+      break;
     case META_GRAB_OP_KEYBOARD_MOVING:
     case META_GRAB_OP_KEYBOARD_RESIZING_UNKNOWN:
       return META_CURSOR_MOVE_OR_RESIZE_WINDOW;
@@ -1781,6 +1786,11 @@ meta_window_drag_begin (MetaWindowDrag       *window_drag,
     {
       warp_grab_pointer (window_drag, window, grab_op, &root_x, &root_y);
     }
+  else if (window_drag->pos_hint_set)
+    {
+      root_x = window_drag->pos_hint.x;
+      root_y = window_drag->pos_hint.y;
+    }
   else
     {
       ClutterBackend *clutter_backend = meta_backend_get_clutter_backend (backend);
@@ -1916,4 +1926,13 @@ void
 meta_window_drag_update_edges (MetaWindowDrag *window_drag)
 {
   meta_window_drag_edge_resistance_cleanup (window_drag);
+}
+
+void
+meta_window_drag_set_position_hint (MetaWindowDrag   *window_drag,
+                                    graphene_point_t *pos_hint)
+{
+  window_drag->pos_hint_set = pos_hint != NULL;
+  if (pos_hint)
+    window_drag->pos_hint = *pos_hint;
 }

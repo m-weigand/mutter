@@ -31,8 +31,6 @@
 
 #pragma once
 
-#include <X11/Xutil.h>
-
 #include "backends/meta-logical-monitor.h"
 #include "clutter/clutter.h"
 #include "core/stack.h"
@@ -41,7 +39,6 @@
 #include "meta/util.h"
 #include "meta/window.h"
 #include "wayland/meta-wayland-types.h"
-#include "x11/group-private.h"
 
 typedef struct _MetaWindowQueue MetaWindowQueue;
 
@@ -164,6 +161,49 @@ typedef enum
   META_EDGE_RESISTANCE_WINDOWS     = 1 << 2,
 } MetaEdgeResistanceFlags;
 
+typedef enum
+{
+  /* Equivalent to USPosition */
+  META_SIZE_HINTS_USER_POSITION = (1L << 0),
+  /* Equivalent to USSize */
+  META_SIZE_HINTS_USER_SIZE = (1L << 1),
+  /* Equivalent to PPosition */
+  META_SIZE_HINTS_PROGRAM_POSITION = (1L << 2),
+  /* Equivalent to PSize */
+  META_SIZE_HINTS_PROGRAM_SIZE = (1L << 3),
+  /* Equivalent to PMinSize */
+  META_SIZE_HINTS_PROGRAM_MIN_SIZE = (1L << 4),
+  /* Equivalent to PMaxSize */
+  META_SIZE_HINTS_PROGRAM_MAX_SIZE = (1L << 5),
+  /* Equivalent to PResizeInc */
+  META_SIZE_HINTS_PROGRAM_RESIZE_INCREMENTS = (1L << 6),
+  /* Equivalent to PAspect */
+  META_SIZE_HINTS_PROGRAM_ASPECT = (1L << 7),
+  /* Equivalent to PBaseSize */
+  META_SIZE_HINTS_PROGRAM_BASE_SIZE = (1L << 8),
+  /* Equivalent to PWinGravity */
+  META_SIZE_HINTS_PROGRAM_WIN_GRAVITY = (1L << 9),
+} MetaSizeHintsFlags;
+
+/**
+ * A copy of XSizeHints that is meant to stay ABI compatible
+ * with XSizeHints for x11 code paths usages
+ */
+typedef struct _MetaSizeHints {
+  long flags; /* MetaSizeHintsFlags but kept as long to be able to cast between XSizeHints and MetaSizeHints */
+  int x, y;
+  int width, height;
+  int min_width, min_height;
+  int max_width, max_height;
+  int width_inc, height_inc;
+  struct {
+    int x;  /* numerator */
+    int y;  /* denominator */
+  } min_aspect, max_aspect;
+  int base_width, base_height;
+  int win_gravity;
+} MetaSizeHints;
+
 struct _MetaWindow
 {
   GObject parent_instance;
@@ -189,8 +229,6 @@ struct _MetaWindow
   char *res_class;
   char *res_name;
   char *role;
-  char *sm_client_id;
-  char *wm_client_machine;
 
   char *startup_id;
   char *mutter_hints;
@@ -240,16 +278,6 @@ struct _MetaWindow
 
   /* if non-NULL, the bounds of the window frame */
   MtkRegion *frame_bounds;
-
-  /* if non-NULL, the bounding shape region of the window. Relative to
-   * the server-side client window. */
-  MtkRegion *shape_region;
-
-  /* if non-NULL, the opaque region _NET_WM_OPAQUE_REGION */
-  MtkRegion *opaque_region;
-
-  /* the input shape region for picking */
-  MtkRegion *input_region;
 
   /* _NET_WM_WINDOW_OPACITY rescaled to 0xFF */
   guint8 opacity;
@@ -312,7 +340,7 @@ struct _MetaWindow
   MtkRectangle icon_geometry;
 
   /* x/y/w/h here get filled with ConfigureRequest values */
-  XSizeHints size_hints;
+  MetaSizeHints size_hints;
 
   /* Managed by stack.c */
   MetaStackLayer layer;
@@ -346,7 +374,6 @@ struct _MetaWindow
     } current;
   } placement;
 
-  guint unmanage_idle_id;
   guint close_dialog_timeout_id;
 
   pid_t client_pid;
@@ -400,7 +427,6 @@ struct _MetaWindow
 
   /* Minimize is the state controlled by the minimize button */
   guint minimized : 1;
-  guint tab_unminimized : 1;
 
   /* Whether the window is mapped; actual server-side state
    * see also unmaps_pending
@@ -505,10 +531,6 @@ struct _MetaWindow
 
   /* Are we in meta_window_new()? */
   guint constructing : 1;
-
-  /* Used by keybindings.c */
-  guint keys_grabbed : 1;     /* normal keybindings grabbed */
-  guint grab_on_frame : 1;    /* grabs are on the frame */
 
   /* Set if the reason for unmanaging the window is that
    * it was withdrawn
@@ -685,6 +707,9 @@ void        meta_window_get_session_geometry (MetaWindow  *window,
                                               int         *width,
                                               int         *height);
 
+gboolean    meta_window_geometry_contains_rect (MetaWindow   *window,
+                                                MtkRectangle *rect);
+
 void        meta_window_update_appears_focused (MetaWindow *window);
 
 void     meta_window_set_focused_internal (MetaWindow *window,
@@ -844,9 +869,6 @@ void meta_window_update_layout (MetaWindow *window);
 gboolean meta_window_calculate_bounds (MetaWindow *window,
                                        int        *bounds_width,
                                        int        *bounds_height);
-
-void meta_window_set_frame_xwindow (MetaWindow *window,
-                                    Window      xframe);
 
 void meta_window_maybe_apply_size_hints (MetaWindow   *window,
                                          MtkRectangle *target_rect);

@@ -80,7 +80,7 @@
  *  clutter_actor_set_size (actor, 480, 640);
  *
  *  // set the background color of the actor
- *  clutter_actor_set_background_color (actor, CLUTTER_COLOR_Orange);
+ *  clutter_actor_set_background_color (actor, &CLUTTER_COLOR_INIT (0xf5, 0x79, 0x00, 0xff));
  *
  *  // set the bounding box of the child, relative to the parent
  *  ClutterActor *child = clutter_actor_new ();
@@ -88,7 +88,7 @@
  *  clutter_actor_set_size (child, 80, 240);
  *
  *  // set the background color of the child
- *  clutter_actor_set_background_color (child, CLUTTER_COLOR_Blue);
+ *  clutter_actor_set_background_color (child, &CLUTTER_COLOR_INIT (0x00, 0x00, 0xff, 0xff));
  *
  *  // add the child to the actor
  *  clutter_actor_add_child (actor, child);
@@ -154,7 +154,7 @@
  *   clutter_actor_get_allocation_box (actor, &box);
  *
  *   // the cogl_texture variable is set elsewhere
- *   node = clutter_texture_node_new (cogl_texture, CLUTTER_COLOR_White,
+ *   node = clutter_texture_node_new (cogl_texture, &CLUTTER_COLOR_INIT (255, 255, 255, 255),
  *                                    CLUTTER_SCALING_FILTER_TRILINEAR,
  *                                    CLUTTER_SCALING_FILTER_LINEAR);
  *
@@ -492,7 +492,6 @@
 #include "clutter/clutter-actor-meta-private.h"
 #include "clutter/clutter-animatable.h"
 #include "clutter/clutter-color-state.h"
-#include "clutter/clutter-color-static.h"
 #include "clutter/clutter-color.h"
 #include "clutter/clutter-constraint-private.h"
 #include "clutter/clutter-content-private.h"
@@ -517,6 +516,9 @@
 #include "clutter/clutter-stage-view-private.h"
 #include "clutter/clutter-timeline.h"
 #include "clutter/clutter-transition.h"
+
+
+static const ClutterColor transparent = { 0x00, 0x00, 0x00, 0x00 };
 
 /* Internal enum used to control mapped state update.  This is a hint
  * which indicates when to do something other than just enforce
@@ -1500,13 +1502,14 @@ maybe_unset_key_focus (ClutterActor *self)
 {
   ClutterActor *stage;
 
-  if (!self->priv->has_key_focus)
+  stage = _clutter_actor_get_stage_internal (self);
+  if (!stage)
     return;
 
-  stage = _clutter_actor_get_stage_internal (self);
+  if (self != clutter_stage_get_key_focus (CLUTTER_STAGE (stage)))
+    return;
 
-  if (stage)
-    clutter_stage_set_key_focus (CLUTTER_STAGE (stage), NULL);
+  clutter_stage_set_key_focus (CLUTTER_STAGE (stage), NULL);
 }
 
 static void
@@ -3054,11 +3057,11 @@ _clutter_actor_draw_paint_volume_full (ClutterActor       *self,
                                 n_vertices,
                                 (CoglVertexP3 *)line_ends);
 
-  cogl_color_init_from_4ub (&cogl_color,
-                            color->red,
-                            color->green,
-                            color->blue,
-                            color->alpha);
+  cogl_color_init_from_4f (&cogl_color,
+                           color->red / 255.0,
+                           color->green / 255.0,
+                           color->blue / 255.0,
+                           color->alpha / 255.0);
   cogl_pipeline_set_color (outline, &cogl_color);
 
   pipeline_node = clutter_pipeline_node_new (outline);
@@ -3360,7 +3363,7 @@ clutter_actor_paint_node (ClutterActor        *actor,
 
   if (!CLUTTER_ACTOR_IS_TOPLEVEL (actor) &&
       priv->bg_color_set &&
-      !clutter_color_equal (&priv->bg_color, CLUTTER_COLOR_Transparent))
+      !clutter_color_equal (&priv->bg_color, &transparent))
     {
       ClutterPaintNode *node;
 
@@ -6620,7 +6623,7 @@ clutter_actor_class_init (ClutterActorClass *klass)
    */
   obj_props[PROP_BACKGROUND_COLOR] =
     clutter_param_spec_color ("background-color", NULL, NULL,
-                              CLUTTER_COLOR_Transparent,
+                              &transparent,
                               G_PARAM_READWRITE |
                               G_PARAM_STATIC_STRINGS |
                               G_PARAM_EXPLICIT_NOTIFY |

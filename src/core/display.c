@@ -69,6 +69,7 @@
 #include "backends/x11/cm/meta-backend-x11-cm.h"
 #include "backends/x11/nested/meta-backend-x11-nested.h"
 #include "compositor/meta-compositor-x11.h"
+#include "meta/group.h"
 #include "x11/meta-startup-notification-x11.h"
 #include "x11/meta-x11-display-private.h"
 #include "x11/window-x11.h"
@@ -2493,6 +2494,7 @@ meta_display_sanity_check_timestamps (MetaDisplay *display,
               meta_warning ("%s appears to be one of the offending windows "
                             "with a timestamp of %u.  Working around...",
                             window->desc, window->net_wm_user_time);
+              window->net_wm_user_time_set = FALSE;
               meta_window_set_user_time (window, timestamp);
             }
 

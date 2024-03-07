@@ -59,10 +59,9 @@ typedef enum
 
 struct _MetaEdidHdrStaticMetadata
 {
-  int available;
-  int max_luminance;
-  int min_luminance;
-  int max_fal;
+  float max_luminance;
+  float min_luminance;
+  float max_fal;
   MetaEdidTransferFunction tf;
   MetaEdidStaticMetadataType sm;
 };
@@ -87,6 +86,8 @@ struct _MetaEdidInfo
   /* Optional product description */
   char *dsc_serial_number;
   char *dsc_product_name;
+
+  int32_t min_vert_rate_hz;
 
   MetaEdidColorimetry colorimetry;
   MetaEdidHdrStaticMetadata hdr_static_metadata;

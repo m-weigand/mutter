@@ -344,15 +344,6 @@ cogl_onscreen_glx_bind (CoglOnscreen *onscreen)
 }
 
 static void
-_cogl_winsys_wait_for_gpu (CoglOnscreen *onscreen)
-{
-  CoglFramebuffer *framebuffer = COGL_FRAMEBUFFER (onscreen);
-  CoglContext *ctx = cogl_framebuffer_get_context (framebuffer);
-
-  ctx->glFinish ();
-}
-
-static void
 ensure_ust_type (CoglRenderer *renderer,
                  GLXDrawable   drawable)
 {
@@ -702,10 +693,10 @@ cogl_onscreen_glx_swap_region (CoglOnscreen  *onscreen,
    * we only need it to throttle redraws.
    */
   gboolean blit_sub_buffer_is_synchronized =
-     _cogl_winsys_has_feature (COGL_WINSYS_FEATURE_SWAP_REGION_SYNCHRONIZED);
+    _cogl_winsys_has_feature (COGL_WINSYS_FEATURE_SWAP_REGION_SYNCHRONIZED);
 
-  int framebuffer_width =  cogl_framebuffer_get_width (framebuffer);
-  int framebuffer_height =  cogl_framebuffer_get_height (framebuffer);
+  int framebuffer_width = cogl_framebuffer_get_width (framebuffer);
+  int framebuffer_height = cogl_framebuffer_get_height (framebuffer);
   int *rectangles = g_alloca (sizeof (int) * n_rectangles * 4);
   int i;
 
@@ -764,22 +755,13 @@ cogl_onscreen_glx_swap_region (CoglOnscreen  *onscreen,
    * the GPU, only the CPU so we have to resort to synchronizing the
    * GPU with the CPU to throttle it.
    *
-   * Note: since calling glFinish() and synchronizing the CPU with
-   * the GPU is far from ideal, we hope that this is only a short
-   * term solution.
-   * - One idea is to using sync objects to track render
-   *   completion so we can throttle the backlog (ideally with an
-   *   additional extension that lets us get notifications in our
-   *   mainloop instead of having to busy wait for the
-   *   completion.)
-   * - Another option is to support clipped redraws by reusing the
-   *   contents of old back buffers such that we can flip instead
-   *   of using a blit and then we can use GLX_INTEL_swap_events
-   *   to throttle. For this though we would still probably want an
-   *   additional extension so we can report the limited region of
-   *   the window damage to X/compositors.
+   * Note: calling glFinish() and synchronizing the CPU with the GPU is far
+   * from ideal. One idea is to use sync objects to track render completion
+   * so we can throttle the backlog (ideally with an additional extension that
+   * lets us get notifications in our mainloop instead of having to busy wait
+   * for the completion).
    */
-  _cogl_winsys_wait_for_gpu (onscreen);
+  cogl_framebuffer_finish (framebuffer);
 
   if (blit_sub_buffer_is_synchronized && have_counter && can_wait)
     {
@@ -944,7 +926,7 @@ cogl_onscreen_glx_swap_buffers_with_damage (CoglOnscreen  *onscreen,
        * obviously does not happen when we use _GLX_SWAP and let
        * the driver do the right thing
        */
-      _cogl_winsys_wait_for_gpu (onscreen);
+      cogl_framebuffer_finish (framebuffer);
 
       if (have_counter && can_wait)
         {

@@ -39,6 +39,7 @@
 #include "core/meta-workspace-manager-private.h"
 #include "core/window-private.h"
 #include "core/workspace-private.h"
+#include "meta/group.h"
 #include "meta/meta-backend.h"
 #include "meta/meta-context.h"
 #include "mtk/mtk-x11.h"
@@ -1484,8 +1485,8 @@ handle_other_xevent (MetaX11Display *x11_display,
 
               if (window != NULL && window->decorated && !window->frame)
                 {
-                  meta_window_set_frame_xwindow (window,
-                                                 event->xmaprequest.window);
+                  meta_window_x11_set_frame_xwindow (window,
+                                                     event->xmaprequest.window);
                   meta_window_x11_initialize_state (window);
                   meta_window_update_visibility (window);
                 }

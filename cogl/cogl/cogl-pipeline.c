@@ -194,8 +194,8 @@ create_default_big_state (void)
   blend_state->blend_equation_alpha = GL_FUNC_ADD;
   blend_state->blend_src_factor_alpha = GL_ONE;
   blend_state->blend_dst_factor_alpha = GL_ONE_MINUS_SRC_ALPHA;
-  cogl_color_init_from_4ub (&blend_state->blend_constant,
-                            0x00, 0x00, 0x00, 0x00);
+  cogl_color_init_from_4f (&blend_state->blend_constant,
+                            0.0, 0.0, 0.0, 0.0);
   blend_state->blend_src_factor_rgb = GL_ONE;
   blend_state->blend_dst_factor_rgb = GL_ONE_MINUS_SRC_ALPHA;
 
@@ -229,7 +229,7 @@ _cogl_pipeline_init_default_pipeline (CoglContext *context)
   pipeline->has_big_state = TRUE;
 
   /* Use the same defaults as the GL spec... */
-  cogl_color_init_from_4ub (&pipeline->color, 0xff, 0xff, 0xff, 0xff);
+  cogl_color_init_from_4f (&pipeline->color, 1.0, 1.0, 1.0, 1.0);
 
 #ifdef COGL_ENABLE_DEBUG
   pipeline->static_breadcrumb = "default pipeline";
@@ -639,14 +639,15 @@ _cogl_pipeline_change_implies_transparency (CoglPipeline *pipeline,
   if (unknown_color_alpha)
     return TRUE;
 
-  if ((override_color && cogl_color_get_alpha_byte (override_color) != 0xff))
+  if (override_color &&
+      !G_APPROX_VALUE (cogl_color_get_alpha (override_color), 1.0, FLT_EPSILON))
     return TRUE;
 
   if (changes & COGL_PIPELINE_STATE_COLOR)
     {
       CoglColor tmp;
       cogl_pipeline_get_color (pipeline, &tmp);
-      if (cogl_color_get_alpha_byte (&tmp) != 0xff)
+      if (!G_APPROX_VALUE (cogl_color_get_alpha (&tmp), 1.0, FLT_EPSILON))
         return TRUE;
     }
 

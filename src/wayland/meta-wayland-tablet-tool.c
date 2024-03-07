@@ -38,6 +38,35 @@
 
 #define TABLET_AXIS_MAX 65535
 
+struct _MetaWaylandTabletTool
+{
+  MetaWaylandTabletSeat *seat;
+  ClutterInputDevice *device;
+  ClutterInputDeviceTool *device_tool;
+  struct wl_list resource_list;
+  struct wl_list focus_resource_list;
+
+  MetaWaylandSurface *focus_surface;
+  struct wl_listener focus_surface_destroy_listener;
+
+  MetaWaylandSurface *cursor_surface;
+  struct wl_listener cursor_surface_destroy_listener;
+  MetaCursorRenderer *cursor_renderer;
+  MetaCursorSpriteXcursor *default_sprite;
+
+  MetaWaylandSurface *current;
+  guint32 pressed_buttons;
+  guint32 button_count;
+
+  guint32 proximity_serial;
+  guint32 down_serial;
+  guint32 button_serial;
+
+  float grab_x, grab_y;
+
+  MetaWaylandTablet *current_tablet;
+};
+
 static MetaBackend *
 backend_from_tool (MetaWaylandTabletTool *tool)
 {
@@ -304,7 +333,7 @@ meta_wayland_tablet_tool_set_focus (MetaWaylandTabletTool *tool,
       tool->focus_surface = NULL;
     }
 
-  if (surface != NULL && tool->current_tablet)
+  if (surface != NULL && surface->resource != NULL && tool->current_tablet)
     {
       struct wl_client *client;
       struct wl_list *l;
@@ -569,15 +598,6 @@ static void
 sync_focus_surface (MetaWaylandTabletTool *tool,
                     const ClutterEvent    *event)
 {
-  MetaBackend *backend = backend_from_tool (tool);
-  ClutterStage *stage = CLUTTER_STAGE (meta_backend_get_stage (backend));
-
-  if (clutter_stage_get_grab_actor (stage))
-    {
-      meta_wayland_tablet_tool_set_focus (tool, NULL, event);
-      return;
-    }
-
   meta_wayland_tablet_tool_set_focus (tool, tool->current, event);
 }
 
@@ -801,9 +821,7 @@ static void
 handle_motion_event (MetaWaylandTabletTool *tool,
                      const ClutterEvent    *event)
 {
-  if (!tool->focus_surface)
-    return;
-
+  g_assert (tool->focus_surface);
   broadcast_motion (tool, event);
   broadcast_axes (tool, event);
   broadcast_frame (tool, event);
@@ -816,8 +834,7 @@ handle_button_event (MetaWaylandTabletTool *tool,
   ClutterEventType event_type;
   int button;
 
-  if (!tool->focus_surface)
-    return;
+  g_assert (tool->focus_surface);
 
   event_type = clutter_event_type (event);
   button = clutter_event_get_button (event);
@@ -878,6 +895,9 @@ gboolean
 meta_wayland_tablet_tool_handle_event (MetaWaylandTabletTool *tool,
                                        const ClutterEvent    *event)
 {
+  if (!tool->focus_surface)
+    return CLUTTER_EVENT_PROPAGATE;
+
   switch (clutter_event_type (event))
     {
     case CLUTTER_PROXIMITY_IN:
@@ -922,7 +942,7 @@ tablet_tool_can_grab_surface (MetaWaylandTabletTool *tool,
   return FALSE;
 }
 
-gboolean
+static gboolean
 meta_wayland_tablet_tool_can_grab_surface (MetaWaylandTabletTool *tool,
                                            MetaWaylandSurface    *surface,
                                            uint32_t               serial)
@@ -932,8 +952,54 @@ meta_wayland_tablet_tool_can_grab_surface (MetaWaylandTabletTool *tool,
 }
 
 gboolean
+meta_wayland_tablet_tool_get_grab_info (MetaWaylandTabletTool *tool,
+                                        MetaWaylandSurface    *surface,
+                                        uint32_t               serial,
+                                        gboolean               require_pressed,
+                                        ClutterInputDevice   **device_out,
+                                        float                 *x,
+                                        float                 *y)
+{
+  if ((!require_pressed || tool->button_count > 0) &&
+      meta_wayland_tablet_tool_can_grab_surface (tool, surface, serial))
+    {
+      if (device_out)
+        *device_out = tool->device;
+
+      if (x)
+        *x = tool->grab_x;
+      if (y)
+        *y = tool->grab_y;
+
+      return TRUE;
+    }
+
+  return FALSE;
+}
+
+gboolean
 meta_wayland_tablet_tool_can_popup (MetaWaylandTabletTool *tool,
                                     uint32_t               serial)
 {
   return tool->down_serial == serial || tool->button_serial == serial;
+}
+
+gboolean
+meta_wayland_tablet_tool_has_current_tablet (MetaWaylandTabletTool *tool,
+                                             MetaWaylandTablet     *tablet)
+{
+  return tool->current_tablet == tablet;
+}
+
+MetaWaylandSurface *
+meta_wayland_tablet_tool_get_current_surface (MetaWaylandTabletTool *tool)
+{
+  return tool->current;
+}
+
+void
+meta_wayland_tablet_tool_focus_surface (MetaWaylandTabletTool *tool,
+                                        MetaWaylandSurface    *surface)
+{
+  meta_wayland_tablet_tool_set_focus (tool, surface, NULL);
 }

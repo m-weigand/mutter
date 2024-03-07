@@ -58,6 +58,7 @@
 #include "meta/meta-cursor-tracker.h"
 #include "meta/util.h"
 #include "mtk/mtk-x11.h"
+#include "x11/window-x11.h"
 
 struct _MetaBackendX11Private
 {
@@ -347,9 +348,7 @@ handle_host_xevent (MetaBackend *backend,
   MetaBackendX11Private *priv = meta_backend_x11_get_instance_private (x11);
   ClutterBackend *clutter_backend = meta_backend_get_clutter_backend (backend);
   ClutterSeat *seat = clutter_backend_get_default_seat (clutter_backend);
-  MetaContext *context = meta_backend_get_context (backend);
   gboolean bypass_clutter = FALSE;
-  MetaDisplay *display;
 
   switch (event->type)
     {
@@ -364,19 +363,7 @@ handle_host_xevent (MetaBackend *backend,
 
   XGetEventData (priv->xdisplay, &event->xcookie);
 
-  display = meta_context_get_display (context);
-  if (display)
-    {
-      MetaCompositor *compositor = display->compositor;
-      MetaPluginManager *plugin_mgr =
-        meta_compositor_get_plugin_manager (compositor);
-
-      if (meta_plugin_manager_xevent_filter (plugin_mgr, event))
-        bypass_clutter = TRUE;
-    }
-
-  bypass_clutter = (meta_backend_x11_handle_host_xevent (x11, event) ||
-                    bypass_clutter);
+  bypass_clutter = meta_backend_x11_handle_host_xevent (x11, event);
 
   if (event->type == (priv->xsync_event_base + XSyncAlarmNotify))
     handle_alarm_notify (backend, (XSyncAlarmNotifyEvent *) event);
@@ -704,6 +691,71 @@ meta_backend_x11_ungrab_device (MetaBackend *backend,
 }
 
 static void
+meta_backend_x11_freeze_keyboard (MetaBackend *backend,
+                                  uint32_t     timestamp)
+{
+  MetaBackendX11 *backend_x11;
+  Window xwindow;
+  Display *xdisplay;
+
+  unsigned char mask_bits[XIMaskLen (XI_LASTEVENT)] = { 0 };
+  XIEventMask mask = { XIAllMasterDevices, sizeof (mask_bits), mask_bits };
+
+  XISetMask (mask.mask, XI_KeyPress);
+  XISetMask (mask.mask, XI_KeyRelease);
+
+  /* Grab the keyboard, so we get key releases and all key
+   * presses
+   */
+
+  backend_x11 = META_BACKEND_X11 (backend);
+  xwindow = meta_backend_x11_get_xwindow (backend_x11);
+  xdisplay = meta_backend_x11_get_xdisplay (backend_x11);
+
+  /* Strictly, we only need to set grab_mode on the keyboard device
+   * while the pointer should always be XIGrabModeAsync. Unfortunately
+   * there is a bug in the X server, only fixed (link below) in 1.15,
+   * which swaps these arguments for keyboard devices. As such, we set
+   * both the device and the paired device mode which works around
+   * that bug and also works on fixed X servers.
+   *
+   * http://cgit.freedesktop.org/xorg/xserver/commit/?id=9003399708936481083424b4ff8f18a16b88b7b3
+   */
+  XIGrabDevice (xdisplay,
+                META_VIRTUAL_CORE_KEYBOARD_ID,
+                xwindow,
+                timestamp,
+                None,
+                XIGrabModeSync, XIGrabModeSync,
+                False, /* owner_events */
+                &mask);
+}
+
+static void
+meta_backend_x11_unfreeze_keyboard (MetaBackend *backend,
+                                    uint32_t     timestamp)
+{
+  Display *xdisplay = meta_backend_x11_get_xdisplay (META_BACKEND_X11 (backend));
+
+  XIAllowEvents (xdisplay, META_VIRTUAL_CORE_KEYBOARD_ID,
+                 XIAsyncDevice, timestamp);
+  /* We shouldn't need to unfreeze the pointer device here, however we
+   * have to, due to the workaround we do in grab_keyboard().
+   */
+  XIAllowEvents (xdisplay, META_VIRTUAL_CORE_POINTER_ID,
+                 XIAsyncDevice, timestamp);
+}
+
+static void
+meta_backend_x11_ungrab_keyboard (MetaBackend *backend,
+                                  uint32_t     timestamp)
+{
+  Display *xdisplay = meta_backend_x11_get_xdisplay (META_BACKEND_X11 (backend));
+
+  XIUngrabDevice (xdisplay, META_VIRTUAL_CORE_KEYBOARD_ID, timestamp);
+}
+
+static void
 meta_backend_x11_finish_touch_sequence (MetaBackend          *backend,
                                         ClutterEventSequence *sequence,
                                         MetaSequenceState     state)
@@ -993,6 +1045,9 @@ meta_backend_x11_class_init (MetaBackendX11Class *klass)
   backend_class->post_init = meta_backend_x11_post_init;
   backend_class->grab_device = meta_backend_x11_grab_device;
   backend_class->ungrab_device = meta_backend_x11_ungrab_device;
+  backend_class->freeze_keyboard = meta_backend_x11_freeze_keyboard;
+  backend_class->unfreeze_keyboard = meta_backend_x11_unfreeze_keyboard;
+  backend_class->ungrab_keyboard = meta_backend_x11_ungrab_keyboard;
   backend_class->finish_touch_sequence = meta_backend_x11_finish_touch_sequence;
   backend_class->get_current_logical_monitor = meta_backend_x11_get_current_logical_monitor;
   backend_class->get_keymap = meta_backend_x11_get_keymap;

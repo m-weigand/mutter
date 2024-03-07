@@ -188,7 +188,7 @@ update_sm_hints (MetaWindow *window)
   Window leader;
 
   priv->xclient_leader = None;
-  window->sm_client_id = NULL;
+  priv->sm_client_id = NULL;
 
   /* If not on the current window, we can get the client
    * leader from transient parents. If we find a client
@@ -211,7 +211,7 @@ update_sm_hints (MetaWindow *window)
 
       meta_prop_get_latin1_string (window->display->x11_display, leader,
                                    window->display->x11_display->atom_SM_CLIENT_ID,
-                                   &window->sm_client_id);
+                                   &priv->sm_client_id);
     }
   else
     {
@@ -225,9 +225,9 @@ update_sm_hints (MetaWindow *window)
           meta_prop_get_latin1_string (window->display->x11_display,
                                        priv->xwindow,
                                        window->display->x11_display->atom_SM_CLIENT_ID,
-                                       &window->sm_client_id);
+                                       &priv->sm_client_id);
 
-          if (window->sm_client_id)
+          if (priv->sm_client_id)
             meta_warning ("Window %s sets SM_CLIENT_ID on itself, instead of on the WM_CLIENT_LEADER window as specified in the ICCCM.",
                           window->desc);
         }
@@ -235,7 +235,7 @@ update_sm_hints (MetaWindow *window)
 
   meta_verbose ("Window %s client leader: 0x%lx SM_CLIENT_ID: '%s'",
                 window->desc, priv->xclient_leader,
-                window->sm_client_id ? window->sm_client_id : "none");
+                priv->sm_client_id ? priv->sm_client_id : "none");
 }
 
 static void
@@ -1423,16 +1423,16 @@ meta_window_x11_move_resize_internal (MetaWindow                *window,
       !(need_resize_client || need_resize_frame))
     need_configure_notify = TRUE;
 
-  /* MapRequest events with a PPosition or UPosition hint with a frame
+  /* MapRequest events with a PROGRAM_POSITION or USER_POSITION hint with a frame
    * are moved by mutter without resizing; send a configure notify
    * in such cases.  See #322840.  (Note that window->constructing is
    * only true iff this call is due to a MapRequest, and when
-   * PPosition/UPosition hints aren't set, mutter seems to send a
+   * PROGRAM_POSITION/USER_POSITION hints aren't set, mutter seems to send a
    * ConfigureNotify anyway due to the above code.)
    */
   if (window->constructing && window->frame &&
-      ((window->size_hints.flags & PPosition) ||
-       (window->size_hints.flags & USPosition)))
+      ((window->size_hints.flags & META_SIZE_HINTS_PROGRAM_POSITION) ||
+       (window->size_hints.flags & META_SIZE_HINTS_USER_POSITION)))
     need_configure_notify = TRUE;
 
   /* If resizing, freeze commits - This is for Xwayland, and a no-op on Xorg */
@@ -1846,14 +1846,6 @@ get_standalone_layer (MetaWindow *window)
 
   switch (window->type)
     {
-    case META_WINDOW_DOCK:
-      if (window->wm_state_below ||
-          (window->monitor && window->monitor->in_fullscreen))
-        layer = META_LAYER_BOTTOM;
-      else
-        layer = META_LAYER_DOCK;
-      break;
-
     case META_WINDOW_DROPDOWN_MENU:
     case META_WINDOW_POPUP_MENU:
     case META_WINDOW_TOOLTIP:
@@ -2087,6 +2079,9 @@ meta_window_x11_constructed (GObject *object)
   priv->border_width = attrs.border_width;
   priv->xclient_leader = None;
 
+  priv->keys_grabbed = FALSE;
+  priv->grab_on_frame = FALSE;
+
   g_signal_connect (window, "notify::decorated",
                     G_CALLBACK (meta_window_x11_update_input_region),
                     window);
@@ -2141,6 +2136,21 @@ meta_window_x11_set_property (GObject      *object,
 }
 
 static void
+meta_window_x11_finalize (GObject *object)
+{
+  MetaWindowX11 *win = META_WINDOW_X11 (object);
+  MetaWindowX11Private *priv = meta_window_x11_get_instance_private (win);
+
+  g_clear_pointer (&priv->shape_region, mtk_region_unref);
+  g_clear_pointer (&priv->input_region, mtk_region_unref);
+  g_clear_pointer (&priv->opaque_region, mtk_region_unref);
+  g_clear_pointer (&priv->wm_client_machine, g_free);
+  g_clear_pointer (&priv->sm_client_id, g_free);
+
+  G_OBJECT_CLASS (meta_window_x11_parent_class)->finalize (object);
+}
+
+static void
 meta_window_x11_class_init (MetaWindowX11Class *klass)
 {
   GObjectClass *object_class = G_OBJECT_CLASS (klass);
@@ -2149,6 +2159,7 @@ meta_window_x11_class_init (MetaWindowX11Class *klass)
   object_class->get_property = meta_window_x11_get_property;
   object_class->set_property = meta_window_x11_set_property;
   object_class->constructed = meta_window_x11_constructed;
+  object_class->finalize = meta_window_x11_finalize;
 
   window_class->manage = meta_window_x11_manage;
   window_class->unmanage = meta_window_x11_unmanage;
@@ -2347,13 +2358,16 @@ static void
 meta_window_set_input_region (MetaWindow *window,
                               MtkRegion  *region)
 {
-  if (mtk_region_equal (window->input_region, region))
+  MetaWindowX11Private *priv =
+    meta_window_x11_get_private (META_WINDOW_X11 (window));
+
+  if (mtk_region_equal (priv->input_region, region))
     return;
 
-  g_clear_pointer (&window->input_region, mtk_region_unref);
+  g_clear_pointer (&priv->input_region, mtk_region_unref);
 
   if (region != NULL)
-    window->input_region = mtk_region_ref (region);
+    priv->input_region = mtk_region_ref (region);
 
   meta_compositor_window_shape_changed (window->display->compositor, window);
 }
@@ -2392,7 +2406,7 @@ meta_window_x11_update_input_region (MetaWindow *window)
     {
       if (!window->frame)
         {
-          if (window->input_region)
+          if (priv->input_region)
             meta_window_set_input_region (window, NULL);
           return;
         }
@@ -2486,13 +2500,16 @@ static void
 meta_window_set_shape_region (MetaWindow *window,
                               MtkRegion  *region)
 {
-  if (mtk_region_equal (window->shape_region, region))
+  MetaWindowX11Private *priv =
+    meta_window_x11_get_instance_private (META_WINDOW_X11 (window));
+
+  if (mtk_region_equal (priv->shape_region, region))
     return;
 
-  g_clear_pointer (&window->shape_region, mtk_region_unref);
+  g_clear_pointer (&priv->shape_region, mtk_region_unref);
 
   if (region != NULL)
-    window->shape_region = mtk_region_ref (region);
+    priv->shape_region = mtk_region_ref (region);
 
   meta_compositor_window_shape_changed (window->display->compositor, window);
 }
@@ -2635,11 +2652,11 @@ meta_window_move_resize_request (MetaWindow  *window,
           window->type == META_WINDOW_MODAL_DIALOG ||
           window->type == META_WINDOW_SPLASHSCREEN)
         ; /* No position change for these */
-      else if ((window->size_hints.flags & PPosition) ||
-               /* USPosition is just stale if window is placed;
+      else if ((window->size_hints.flags & META_SIZE_HINTS_PROGRAM_POSITION) ||
+               /* USER_POSITION is just stale if window is placed;
                 * no --geometry involved here.
                 */
-               ((window->size_hints.flags & USPosition) &&
+               ((window->size_hints.flags & META_SIZE_HINTS_USER_POSITION) &&
                 !window->placed))
         allow_position_change = TRUE;
     }
@@ -2668,9 +2685,9 @@ meta_window_move_resize_request (MetaWindow  *window,
   else
     {
       meta_topic (META_DEBUG_GEOMETRY,
-		  "Not allowing position change for window %s PPosition 0x%lx USPosition 0x%lx type %u",
-		  window->desc, window->size_hints.flags & PPosition,
-		  window->size_hints.flags & USPosition,
+		  "Not allowing position change for window %s PROGRAM_POSITION 0x%lx USER_POSITION 0x%lx type %u",
+		  window->desc, window->size_hints.flags & META_SIZE_HINTS_PROGRAM_POSITION,
+		  window->size_hints.flags & META_SIZE_HINTS_USER_POSITION,
 		  window->type);
     }
 
@@ -3389,7 +3406,8 @@ meta_window_x11_client_message (MetaWindow *window,
           meta_window_begin_grab_op (window, op,
                                      clutter_seat_get_pointer (seat),
                                      NULL,
-                                     timestamp);
+                                     timestamp,
+                                     NULL);
         }
       else if (op != META_GRAB_OP_NONE &&
                ((window->has_move_func && op == META_GRAB_OP_MOVING) ||
@@ -3424,7 +3442,8 @@ meta_window_x11_client_message (MetaWindow *window,
           meta_window_begin_grab_op (window, op,
                                      device,
                                      sequence,
-                                     timestamp);
+                                     timestamp,
+                                     &GRAPHENE_POINT_INIT (x_root, y_root));
 
           window_drag =
             meta_compositor_get_current_window_drag (window->display->compositor);
@@ -4301,6 +4320,8 @@ gboolean
 meta_window_x11_can_unredirect (MetaWindowX11 *window_x11)
 {
   MetaWindow *window = META_WINDOW (window_x11);
+  MetaWindowX11Private *priv =
+    meta_window_x11_get_instance_private (window_x11);
 
   if (has_requested_dont_bypass_compositor (window_x11))
     return FALSE;
@@ -4308,7 +4329,7 @@ meta_window_x11_can_unredirect (MetaWindowX11 *window_x11)
   if (window->opacity != 0xFF)
     return FALSE;
 
-  if (window->shape_region != NULL)
+  if (priv->shape_region != NULL)
     return FALSE;
 
   if (!window->monitor)

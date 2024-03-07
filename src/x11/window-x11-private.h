@@ -69,6 +69,16 @@ struct _MetaWindowX11Private
    * relative to the frame. */
   MtkRectangle client_rect;
 
+  /* if non-NULL, the opaque region _NET_WM_OPAQUE_REGION */
+  MtkRegion *opaque_region;
+
+  /* the input shape region for picking */
+  MtkRegion *input_region;
+
+  /* if non-NULL, the bounding shape region of the window. Relative to
+   * the server-side client window. */
+  MtkRegion *shape_region;
+
   Pixmap wm_hints_pixmap;
   Pixmap wm_hints_mask;
 
@@ -91,6 +101,13 @@ struct _MetaWindowX11Private
   MetaGroup *group;
 
   MetaSyncCounter sync_counter;
+
+  /* Used by keybindings.c */
+  gboolean keys_grabbed;     /* normal keybindings grabbed */
+  gboolean grab_on_frame;    /* grabs are on the frame */
+
+  char *wm_client_machine;
+  char *sm_client_id;
 };
 
 MetaWindowX11Private * meta_window_x11_get_private (MetaWindowX11 *window_x11);
@@ -113,4 +130,6 @@ void meta_window_x11_shutdown_group (MetaWindow *window);
 META_EXPORT
 void meta_window_x11_group_leader_changed (MetaWindow *window);
 
+void meta_window_x11_set_frame_xwindow (MetaWindow *window,
+                                        Window      xframe);
 G_END_DECLS

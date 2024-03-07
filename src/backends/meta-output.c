@@ -468,13 +468,6 @@ meta_output_get_privacy_screen_state (MetaOutput *output)
 }
 
 gboolean
-meta_output_is_privacy_screen_supported (MetaOutput *output)
-{
-  return !(meta_output_get_privacy_screen_state (output) ==
-           META_PRIVACY_SCREEN_UNAVAILABLE);
-}
-
-gboolean
 meta_output_is_privacy_screen_enabled (MetaOutput *output)
 {
   MetaOutputPrivate *priv = meta_output_get_instance_private (output);
@@ -517,37 +510,22 @@ meta_output_set_privacy_screen_enabled (MetaOutput  *output,
 }
 
 gboolean
-meta_output_info_is_color_space_supported (const MetaOutputInfo *output_info,
-                                           MetaOutputColorspace  color_space)
+meta_output_info_get_min_refresh_rate (const MetaOutputInfo *output_info,
+                                       int                  *min_refresh_rate)
 {
-  MetaEdidColorimetry colorimetry;
+  int min_vert_rate_hz;
 
   if (!output_info->edid_info)
     return FALSE;
 
-  colorimetry = output_info->edid_info->colorimetry;
+  min_vert_rate_hz = output_info->edid_info->min_vert_rate_hz;
 
-  switch (color_space)
-    {
-    case META_OUTPUT_COLORSPACE_DEFAULT:
-      return TRUE;
-    case META_OUTPUT_COLORSPACE_BT2020:
-      return !!(colorimetry & META_EDID_COLORIMETRY_BT2020RGB);
-    default:
-      return FALSE;
-    }
-}
-
-gboolean
-meta_output_is_color_space_supported (MetaOutput           *output,
-                                      MetaOutputColorspace  color_space)
-{
-  MetaOutputClass *output_class = META_OUTPUT_GET_CLASS (output);
-
-  if (!output_class->is_color_space_supported)
+  if (min_vert_rate_hz <= 0)
     return FALSE;
 
-  return output_class->is_color_space_supported (output, color_space);
+  *min_refresh_rate = min_vert_rate_hz;
+
+  return TRUE;
 }
 
 void
@@ -582,47 +560,6 @@ meta_output_colorspace_get_name (MetaOutputColorspace color_space)
       return "bt.2020";
     }
   g_assert_not_reached ();
-}
-
-gboolean
-meta_output_is_hdr_metadata_supported (MetaOutput *output,
-                                       MetaOutputHdrMetadataEOTF eotf)
-{
-  MetaOutputClass *output_class = META_OUTPUT_GET_CLASS (output);
-  const MetaOutputInfo *output_info = meta_output_get_info (output);
-  MetaEdidTransferFunction tf = 0;
-
-  g_assert (output_info != NULL);
-  if (!output_info->edid_info)
-    return FALSE;
-
-  if ((output_info->edid_info->hdr_static_metadata.sm &
-       META_EDID_STATIC_METADATA_TYPE1) == 0)
-    return FALSE;
-
-  switch (eotf)
-    {
-    case META_OUTPUT_HDR_METADATA_EOTF_TRADITIONAL_GAMMA_SDR:
-      tf = META_EDID_TF_TRADITIONAL_GAMMA_SDR;
-      break;
-    case META_OUTPUT_HDR_METADATA_EOTF_TRADITIONAL_GAMMA_HDR:
-      tf = META_EDID_TF_TRADITIONAL_GAMMA_HDR;
-      break;
-    case META_OUTPUT_HDR_METADATA_EOTF_PQ:
-      tf = META_EDID_TF_PQ;
-      break;
-    case META_OUTPUT_HDR_METADATA_EOTF_HLG:
-      tf = META_EDID_TF_HLG;
-      break;
-    }
-
-  if ((output_info->edid_info->hdr_static_metadata.tf & tf) == 0)
-    return FALSE;
-
-  if (!output_class->is_hdr_metadata_supported)
-    return FALSE;
-
-  return output_class->is_hdr_metadata_supported (output);
 }
 
 void

@@ -1,5 +1,5 @@
 project('mutter', 'c',
-  version: '46.beta',
+  version: '46.rc',
   meson_version: '>= 0.60.0',
   license: 'GPLv2+'
 )
@@ -168,10 +168,9 @@ if have_x11_client
   xau_dep = dependency('xau')
 endif
 
-have_libdisplay_info = get_option('libdisplay_info')
-if have_libdisplay_info
-  libdisplay_info_dep = dependency('libdisplay-info')
-endif
+use_libdisplay_info = get_option('libdisplay_info')
+libdisplay_info_dep = dependency('libdisplay-info', required: use_libdisplay_info)
+have_libdisplay_info = libdisplay_info_dep.found()
 
 have_gnome_desktop = get_option('libgnome_desktop')
 if have_gnome_desktop

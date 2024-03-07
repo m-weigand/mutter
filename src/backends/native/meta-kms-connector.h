@@ -57,7 +57,12 @@ typedef struct _MetaKmsConnectorState
 
   MetaMonitorTransform panel_orientation_transform;
 
-  MetaKmsRange max_bpc;
+  struct {
+    uint64_t value;
+    uint64_t min_value;
+    uint64_t max_value;
+    gboolean supported;
+  } max_bpc;
 
   struct {
     MetaOutputColorspace value;
@@ -74,6 +79,12 @@ typedef struct _MetaKmsConnectorState
     MetaOutputRGBRange value;
     uint64_t supported;
   } broadcast_rgb;
+
+  struct {
+    gboolean supported;
+  } underscan;
+
+  gboolean vrr_capable;
 } MetaKmsConnectorState;
 
 META_EXPORT_TEST
@@ -85,25 +96,8 @@ uint32_t meta_kms_connector_get_id (MetaKmsConnector *connector);
 
 const char * meta_kms_connector_get_name (MetaKmsConnector *connector);
 
-gboolean meta_kms_connector_can_clone (MetaKmsConnector *connector,
-                                       MetaKmsConnector *other_connector);
-
 META_EXPORT_TEST
 MetaKmsMode * meta_kms_connector_get_preferred_mode (MetaKmsConnector *connector);
 
 META_EXPORT_TEST
 const MetaKmsConnectorState * meta_kms_connector_get_current_state (MetaKmsConnector *connector);
-
-gboolean meta_kms_connector_is_underscanning_supported (MetaKmsConnector *connector);
-
-gboolean meta_kms_connector_is_privacy_screen_supported (MetaKmsConnector *connector);
-
-const MetaKmsRange * meta_kms_connector_get_max_bpc (MetaKmsConnector *connector);
-
-gboolean meta_kms_connector_is_color_space_supported (MetaKmsConnector     *connector,
-                                                      MetaOutputColorspace  color_space);
-
-gboolean meta_kms_connector_is_broadcast_rgb_supported (MetaKmsConnector   *connector,
-                                                        MetaOutputRGBRange  broadcast_rgb);
-
-gboolean meta_kms_connector_is_hdr_metadata_supported (MetaKmsConnector *connector);

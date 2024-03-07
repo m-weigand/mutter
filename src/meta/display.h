@@ -20,7 +20,6 @@
 #pragma once
 
 #include <glib-object.h>
-#include <X11/Xlib.h>
 
 #include "meta/types.h"
 #include "meta/prefs.h"
@@ -172,18 +171,6 @@ GSList *meta_display_sort_windows_by_stacking (MetaDisplay *display,
 
 META_EXPORT
 void meta_display_clear_mouse_mode (MetaDisplay *display);
-
-META_EXPORT
-void meta_display_freeze_keyboard (MetaDisplay *display,
-                                   guint32      timestamp);
-
-META_EXPORT
-void meta_display_ungrab_keyboard (MetaDisplay *display,
-                                   guint32      timestamp);
-
-META_EXPORT
-void meta_display_unfreeze_keyboard (MetaDisplay *display,
-                                     guint32      timestamp);
 
 META_EXPORT
 gboolean meta_display_is_pointer_emulating_sequence (MetaDisplay          *display,

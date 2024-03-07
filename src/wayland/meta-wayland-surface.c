@@ -36,12 +36,9 @@
 #include "core/window-private.h"
 #include "wayland/meta-wayland-actor-surface.h"
 #include "wayland/meta-wayland-buffer.h"
-#include "wayland/meta-wayland-data-device.h"
 #include "wayland/meta-wayland-fractional-scale.h"
 #include "wayland/meta-wayland-gtk-shell.h"
-#include "wayland/meta-wayland-keyboard.h"
 #include "wayland/meta-wayland-outputs.h"
-#include "wayland/meta-wayland-pointer.h"
 #include "wayland/meta-wayland-presentation-time-private.h"
 #include "wayland/meta-wayland-private.h"
 #include "wayland/meta-wayland-region.h"
@@ -1403,29 +1400,6 @@ set_surface_is_on_output (MetaWaylandSurface *surface,
 }
 
 static void
-update_surface_output_state (gpointer key, gpointer value, gpointer user_data)
-{
-  MetaWaylandOutput *wayland_output = value;
-  MetaWaylandSurface *surface = user_data;
-  MetaLogicalMonitor *logical_monitor;
-  gboolean is_on_logical_monitor;
-
-  g_assert (surface->role);
-
-  logical_monitor = meta_wayland_output_get_logical_monitor (wayland_output);
-  if (!logical_monitor)
-    {
-      set_surface_is_on_output (surface, wayland_output, FALSE);
-      return;
-    }
-
-  is_on_logical_monitor =
-    meta_wayland_surface_role_is_on_logical_monitor (surface->role,
-                                                     logical_monitor);
-  set_surface_is_on_output (surface, wayland_output, is_on_logical_monitor);
-}
-
-static void
 surface_output_disconnect_signals (gpointer key,
                                    gpointer value,
                                    gpointer user_data)
@@ -1461,6 +1435,29 @@ meta_wayland_surface_get_highest_output_scale (MetaWaylandSurface *surface)
 
 out:
   return scale;
+}
+
+static void
+update_surface_output_state (gpointer key, gpointer value, gpointer user_data)
+{
+  MetaWaylandOutput *wayland_output = value;
+  MetaWaylandSurface *surface = user_data;
+  MetaLogicalMonitor *logical_monitor;
+  gboolean is_on_logical_monitor;
+
+  g_assert (surface->role);
+
+  logical_monitor = meta_wayland_output_get_logical_monitor (wayland_output);
+  if (!logical_monitor)
+    {
+      set_surface_is_on_output (surface, wayland_output, FALSE);
+      return;
+    }
+
+  is_on_logical_monitor =
+    meta_wayland_surface_role_is_on_logical_monitor (surface->role,
+                                                     logical_monitor);
+  set_surface_is_on_output (surface, wayland_output, is_on_logical_monitor);
 }
 
 void
@@ -1615,7 +1612,8 @@ meta_wayland_surface_begin_grab_op (MetaWaylandSurface   *surface,
   return meta_window_begin_grab_op (window,
                                     grab_op,
                                     device, sequence,
-                                    meta_display_get_current_time_roundtrip (window->display));
+                                    meta_display_get_current_time_roundtrip (window->display),
+                                    &GRAPHENE_POINT_INIT (x, y));
 }
 
 /**
@@ -1761,24 +1759,27 @@ meta_wayland_surface_get_relative_coordinates (MetaWaylandSurface *surface,
 }
 
 void
-meta_wayland_surface_get_absolute_coordinates (MetaWaylandSurface *surface,
-                                               float               sx,
-                                               float               sy,
+meta_wayland_surface_get_absolute_coordinates (MetaWaylandSurface  *surface,
+                                               float                sx,
+                                               float                sy,
                                                float               *x,
                                                float               *y)
 {
   ClutterActor *actor =
     CLUTTER_ACTOR (meta_wayland_surface_get_actor (surface));
+  MetaWindow *window = meta_wayland_surface_get_window (surface);
+  ClutterActor *window_actor =
+    CLUTTER_ACTOR (meta_window_actor_from_window (window));
   graphene_point3d_t sv = {
     .x = sx,
     .y = sy,
   };
   graphene_point3d_t v = { 0 };
 
-  clutter_actor_apply_relative_transform_to_point (actor, NULL, &sv, &v);
+  clutter_actor_apply_relative_transform_to_point (actor, window_actor, &sv, &v);
 
-  *x = v.x;
-  *y = v.y;
+  *x = clutter_actor_get_x (window_actor) + v.x;
+  *y = clutter_actor_get_y (window_actor) + v.y;
 }
 
 static void

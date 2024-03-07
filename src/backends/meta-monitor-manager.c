@@ -55,13 +55,16 @@
 #include "backends/meta-orientation-manager.h"
 #include "backends/meta-output.h"
 #include "backends/meta-virtual-monitor.h"
-#include "backends/x11/meta-monitor-manager-xrandr.h"
 #include "clutter/clutter.h"
 #include "core/util-private.h"
 #include "meta/main.h"
 #include "meta/meta-enum-types.h"
 
 #include "meta-dbus-display-config.h"
+
+#ifdef HAVE_X11
+#include "backends/x11/meta-monitor-manager-xrandr.h"
+#endif
 
 #define DEFAULT_DISPLAY_CONFIGURATION_TIMEOUT 20
 
@@ -2070,6 +2073,7 @@ meta_monitor_manager_handle_get_current_state (MetaDBusDisplayConfig *skeleton,
       MetaMonitorMode *current_mode;
       MetaMonitorMode *preferred_mode;
       MetaPrivacyScreenState privacy_screen_state;
+      int min_refresh_rate;
       GVariantBuilder modes_builder;
       GVariantBuilder monitor_properties_builder;
       GList *k;
@@ -2137,6 +2141,11 @@ meta_monitor_manager_handle_get_current_state (MetaDBusDisplayConfig *skeleton,
             g_variant_builder_add (&mode_properties_builder, "{sv}",
                                    "is-interlaced",
                                    g_variant_new_boolean (TRUE));
+          if (meta_monitor_mode_get_refresh_rate_mode (monitor_mode) ==
+              META_CRTC_REFRESH_RATE_MODE_VARIABLE)
+            g_variant_builder_add (&mode_properties_builder, "{sv}",
+                                   "refresh-rate-mode",
+                                   g_variant_new_string ("variable"));
 
           g_variant_builder_add (&modes_builder, MODE_FORMAT,
                                  mode_id,
@@ -2180,6 +2189,14 @@ meta_monitor_manager_handle_get_current_state (MetaDBusDisplayConfig *skeleton,
 
           g_variant_builder_add (&monitor_properties_builder, "{sv}",
                                  "privacy-screen-state", state);
+        }
+
+      if (meta_monitor_get_min_refresh_rate (monitor,
+                                             &min_refresh_rate))
+        {
+          g_variant_builder_add (&monitor_properties_builder, "{sv}",
+                                 "min-refresh-rate",
+                                 g_variant_new_int32 (min_refresh_rate));
         }
 
       g_variant_builder_add (&monitors_builder, MONITOR_FORMAT,

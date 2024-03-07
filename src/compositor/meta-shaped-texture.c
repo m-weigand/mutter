@@ -488,13 +488,15 @@ static CoglPipeline *
 get_opaque_overlay_pipeline (CoglContext *ctx)
 {
   CoglPipeline *pipeline;
+  CoglColor color;
 
   pipeline = cogl_context_get_named_pipeline (ctx,
                                               &opaque_overlay_pipeline_key);
   if (!pipeline)
     {
       pipeline = cogl_pipeline_new (ctx);
-      cogl_pipeline_set_color4ub (pipeline, 0x00, 0x33, 0x00, 0x33);
+      cogl_color_init_from_4f (&color,  0.0, 0.2, 0.0, 0.2);
+      cogl_pipeline_set_color (pipeline, &color);
 
       cogl_context_set_named_pipeline (ctx,
                                        &opaque_overlay_pipeline_key,
@@ -508,13 +510,15 @@ static CoglPipeline *
 get_blended_overlay_pipeline (CoglContext *ctx)
 {
   CoglPipeline *pipeline;
+  CoglColor color;
 
   pipeline = cogl_context_get_named_pipeline (ctx,
                                               &blended_overlay_pipeline_key);
   if (!pipeline)
     {
       pipeline = cogl_pipeline_new (ctx);
-      cogl_pipeline_set_color4ub (pipeline, 0x33, 0x00, 0x33, 0x33);
+      cogl_color_init_from_4f (&color,  0.2, 0.0, 0.2,  0.2);
+      cogl_pipeline_set_color (pipeline, &color);
 
       cogl_context_set_named_pipeline (ctx,
                                        &blended_overlay_pipeline_key,
@@ -842,7 +846,8 @@ do_paint_content (MetaShapedTexture   *stex,
           cogl_pipeline_set_layer_filters (blended_pipeline, i, min_filter, mag_filter);
         }
 
-      cogl_color_init_from_4ub (&color, opacity, opacity, opacity, opacity);
+      cogl_color_init_from_4f (&color, opacity / 255.0, opacity / 255.0,
+                               opacity / 255.0, opacity / 255.0);
       cogl_pipeline_set_color (blended_pipeline, &color);
 
       if (blended_tex_region)

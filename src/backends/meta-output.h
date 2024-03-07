@@ -151,6 +151,7 @@ typedef struct _MetaOutputInfo
 
   gboolean supports_underscanning;
   gboolean supports_color_transform;
+  gboolean supports_privacy_screen;
 
   unsigned int max_bpc_min;
   unsigned int max_bpc_max;
@@ -164,6 +165,11 @@ typedef struct _MetaOutputInfo
   int suggested_y;
 
   MetaTileInfo tile_info;
+
+  uint64_t supported_color_spaces;
+  uint64_t supported_hdr_eotfs;
+
+  uint64_t supported_rgb_ranges;
 } MetaOutputInfo;
 
 gboolean
@@ -189,8 +195,8 @@ META_EXPORT_TEST
 void meta_output_info_parse_edid (MetaOutputInfo *output_info,
                                   GBytes         *edid);
 
-gboolean meta_output_info_is_color_space_supported (const MetaOutputInfo *output_info,
-                                                    MetaOutputColorspace  color_space);
+gboolean meta_output_info_get_min_refresh_rate (const MetaOutputInfo *output_info,
+                                                int                  *min_refresh_rate);
 
 G_DEFINE_AUTOPTR_CLEANUP_FUNC (MetaOutputInfo, meta_output_info_unref)
 
@@ -206,9 +212,6 @@ struct _MetaOutputClass
   gboolean (* set_privacy_screen_enabled) (MetaOutput  *output,
                                            gboolean     enabled,
                                            GError     **error);
-  gboolean (* is_color_space_supported) (MetaOutput           *output,
-                                         MetaOutputColorspace  color_space);
-  gboolean (* is_hdr_metadata_supported) (MetaOutput *output);
 };
 
 META_EXPORT_TEST
@@ -247,24 +250,16 @@ int meta_output_get_backlight (MetaOutput *output);
 
 MetaPrivacyScreenState meta_output_get_privacy_screen_state (MetaOutput *output);
 
-gboolean meta_output_is_privacy_screen_supported (MetaOutput *output);
-
 gboolean meta_output_is_privacy_screen_enabled (MetaOutput *output);
 
 gboolean meta_output_set_privacy_screen_enabled (MetaOutput  *output,
                                                  gboolean     enabled,
                                                  GError     **error);
 
-gboolean meta_output_is_color_space_supported (MetaOutput *output,
-                                               MetaOutputColorspace color_space);
-
 void meta_output_set_color_space (MetaOutput           *output,
                                   MetaOutputColorspace  color_space);
 
 MetaOutputColorspace meta_output_peek_color_space (MetaOutput *output);
-
-gboolean meta_output_is_hdr_metadata_supported (MetaOutput                *output,
-                                                MetaOutputHdrMetadataEOTF  eotf);
 
 void meta_output_set_hdr_metadata (MetaOutput            *output,
                                    MetaOutputHdrMetadata *metadata);

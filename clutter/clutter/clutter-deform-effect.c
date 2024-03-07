@@ -238,7 +238,7 @@ clutter_deform_effect_paint_target (ClutterOffscreenEffect *effect,
               vertex.y = height * vertex.ty;
               vertex.z = 0.0f;
 
-              cogl_color_init_from_4ub (&vertex.color, 255, 255, 255, opacity);
+              cogl_color_init_from_4f (&vertex.color, 1.0, 1.0, 1.0, opacity / 255.0);
 
               clutter_deform_effect_deform_vertex (self,
                                                    width, height,
@@ -251,10 +251,10 @@ clutter_deform_effect_paint_target (ClutterOffscreenEffect *effect,
               vertex_out->z = vertex.z;
               vertex_out->s = vertex.tx;
               vertex_out->t = vertex.ty;
-              vertex_out->r = cogl_color_get_red_byte (&vertex.color);
-              vertex_out->g = cogl_color_get_green_byte (&vertex.color);
-              vertex_out->b = cogl_color_get_blue_byte (&vertex.color);
-              vertex_out->a = cogl_color_get_alpha_byte (&vertex.color);
+              vertex_out->r = cogl_color_get_red (&vertex.color) * 255.0;
+              vertex_out->g = cogl_color_get_green (&vertex.color) * 255.0;
+              vertex_out->b = cogl_color_get_blue (&vertex.color) * 255.0;
+              vertex_out->a = cogl_color_get_alpha (&vertex.color) * 255.0;
             }
         }
 
@@ -324,12 +324,10 @@ clutter_deform_effect_paint_target (ClutterOffscreenEffect *effect,
 
   if (G_UNLIKELY (priv->lines_primitive != NULL))
     {
-      const ClutterColor *red;
+      static ClutterColor red = CLUTTER_COLOR_INIT (255, 0, 0, 255);
       ClutterPaintNode *lines_node;
 
-      red = clutter_color_get_static (CLUTTER_COLOR_RED);
-
-      lines_node = clutter_color_node_new (red);
+      lines_node = clutter_color_node_new (&red);
       clutter_paint_node_set_static_name (lines_node,
                                           "ClutterDeformEffect (lines)");
       clutter_paint_node_add_child (node, lines_node);

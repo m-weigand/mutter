@@ -31,6 +31,7 @@ enum
   PROP_0,
 
   PROP_IS_OBSCURED,
+  PROP_IS_FROZEN,
 
   N_PROPS
 };
@@ -49,7 +50,7 @@ typedef struct _MetaSurfaceActorPrivate
 
   /* Freeze/thaw accounting */
   MtkRegion *pending_damage;
-  guint frozen : 1;
+  gboolean is_frozen;
 } MetaSurfaceActorPrivate;
 
 static void cullable_iface_init (MetaCullableInterface *iface);
@@ -61,6 +62,7 @@ G_DEFINE_ABSTRACT_TYPE_WITH_CODE (MetaSurfaceActor, meta_surface_actor, CLUTTER_
 enum
 {
   REPAINT_SCHEDULED,
+  UPDATE_SCHEDULED,
   SIZE_CHANGED,
 
   LAST_SIGNAL,
@@ -239,6 +241,9 @@ meta_surface_actor_get_property (GObject      *object,
     case PROP_IS_OBSCURED:
       g_value_set_boolean (value, priv->is_obscured);
       break;
+    case PROP_IS_FROZEN:
+      g_value_set_boolean (value, priv->is_frozen);
+      break;
     default:
       G_OBJECT_WARN_INVALID_PROPERTY_ID (object, prop_id, pspec);
       break;
@@ -276,6 +281,10 @@ meta_surface_actor_class_init (MetaSurfaceActorClass *klass)
     g_param_spec_boolean ("is-obscured", NULL, NULL,
                           TRUE,
                           G_PARAM_READABLE | G_PARAM_STATIC_STRINGS);
+  obj_props[PROP_IS_FROZEN] =
+    g_param_spec_boolean ("is-frozen", NULL, NULL,
+                          FALSE,
+                          G_PARAM_READABLE | G_PARAM_STATIC_STRINGS);
   g_object_class_install_properties (object_class, N_PROPS, obj_props);
 
   signals[REPAINT_SCHEDULED] = g_signal_new ("repaint-scheduled",
@@ -284,6 +293,14 @@ meta_surface_actor_class_init (MetaSurfaceActorClass *klass)
                                              0,
                                              NULL, NULL, NULL,
                                              G_TYPE_NONE, 0);
+
+  signals[UPDATE_SCHEDULED] = g_signal_new ("update-scheduled",
+                                            G_TYPE_FROM_CLASS (object_class),
+                                            G_SIGNAL_RUN_LAST,
+                                            0,
+                                            NULL, NULL, NULL,
+                                            G_TYPE_NONE, 0);
+
 
   signals[SIZE_CHANGED] = g_signal_new ("size-changed",
                                         G_TYPE_FROM_CLASS (object_class),
@@ -383,6 +400,20 @@ meta_surface_actor_get_texture (MetaSurfaceActor *self)
     meta_surface_actor_get_instance_private (self);
 
   return priv->texture;
+}
+
+void
+meta_surface_actor_schedule_update (MetaSurfaceActor *self)
+{
+  ClutterStage *stage;
+
+  stage = CLUTTER_STAGE (clutter_actor_get_stage (CLUTTER_ACTOR (self)));
+  if (!stage)
+    return;
+
+  clutter_stage_schedule_update (stage);
+
+  g_signal_emit (self, signals[UPDATE_SCHEDULED], 0);
 }
 
 void
@@ -529,6 +560,22 @@ meta_surface_actor_is_obscured_on_stage_view (MetaSurfaceActor *self,
                                                       stage_view);
 }
 
+gboolean
+meta_surface_actor_contains_rect (MetaSurfaceActor *surface_actor,
+                                  MtkRectangle     *rect)
+{
+  ClutterActor *actor = CLUTTER_ACTOR (surface_actor);
+  graphene_rect_t bounding_rect;
+  graphene_rect_t bound_rect;
+
+  clutter_actor_get_transformed_extents (actor, &bounding_rect);
+
+  bound_rect = mtk_rectangle_to_graphene_rect (rect);
+
+  return graphene_rect_contains_rect (&bounding_rect,
+                                      &bound_rect);
+}
+
 void
 meta_surface_actor_set_input_region (MetaSurfaceActor *self,
                                      MtkRegion        *region)
@@ -607,10 +654,12 @@ meta_surface_actor_set_frozen (MetaSurfaceActor *self,
   MetaSurfaceActorPrivate *priv =
     meta_surface_actor_get_instance_private (self);
 
-  if (priv->frozen == frozen)
+  if (priv->is_frozen == frozen)
     return;
 
-  priv->frozen = frozen;
+  priv->is_frozen = frozen;
+  g_object_notify_by_pspec (G_OBJECT (self),
+                            obj_props[PROP_IS_FROZEN]);
 
   if (!frozen && priv->pending_damage)
     {
@@ -636,5 +685,5 @@ meta_surface_actor_is_frozen (MetaSurfaceActor *self)
   MetaSurfaceActorPrivate *priv =
     meta_surface_actor_get_instance_private (self);
 
-  return priv->frozen;
+  return priv->is_frozen;
 }

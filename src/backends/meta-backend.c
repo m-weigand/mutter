@@ -66,7 +66,6 @@
 #include "backends/meta-remote-access-controller-private.h"
 #include "backends/meta-settings-private.h"
 #include "backends/meta-stage-private.h"
-#include "backends/x11/meta-backend-x11.h"
 #include "clutter/clutter-mutter.h"
 #include "clutter/clutter-seat-private.h"
 #include "compositor/meta-dnd-private.h"
@@ -645,6 +644,36 @@ static gboolean
 meta_backend_real_is_headless (MetaBackend *backend)
 {
   return FALSE;
+}
+
+void
+meta_backend_freeze_keyboard (MetaBackend *backend,
+                              uint32_t     timestamp)
+{
+  g_return_if_fail (META_IS_BACKEND (backend));
+
+  if (META_BACKEND_GET_CLASS (backend)->freeze_keyboard)
+    META_BACKEND_GET_CLASS (backend)->freeze_keyboard (backend, timestamp);
+}
+
+void
+meta_backend_unfreeze_keyboard (MetaBackend *backend,
+                                uint32_t     timestamp)
+{
+  g_return_if_fail (META_IS_BACKEND (backend));
+
+  if (META_BACKEND_GET_CLASS (backend)->unfreeze_keyboard)
+    META_BACKEND_GET_CLASS (backend)->unfreeze_keyboard (backend, timestamp);
+}
+
+void
+meta_backend_ungrab_keyboard (MetaBackend *backend,
+                              uint32_t     timestamp)
+{
+  g_return_if_fail (META_IS_BACKEND (backend));
+
+  if (META_BACKEND_GET_CLASS (backend)->ungrab_keyboard)
+    META_BACKEND_GET_CLASS (backend)->ungrab_keyboard (backend, timestamp);
 }
 
 gboolean

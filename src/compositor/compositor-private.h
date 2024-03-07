@@ -2,7 +2,7 @@
 
 #pragma once
 
-#include <X11/extensions/Xfixes.h>
+#include <graphene.h>
 
 #include "clutter/clutter-mutter.h"
 #include "clutter/clutter.h"
@@ -33,8 +33,6 @@ struct _MetaCompositorClass
                           MetaWindow     *window);
   int64_t (* monotonic_to_high_res_xserver_time) (MetaCompositor *compositor,
                                                   int64_t         time_us);
-  void (* grab_begin) (MetaCompositor *compositor);
-  void (* grab_end) (MetaCompositor *compositor);
 
   MetaCompositorView * (* create_view) (MetaCompositor   *compositor,
                                         ClutterStageView *stage_view);
@@ -80,7 +78,8 @@ gboolean meta_compositor_drag_window (MetaCompositor       *compositor,
                                       MetaGrabOp            grab_op,
                                       ClutterInputDevice   *device,
                                       ClutterEventSequence *sequence,
-                                      uint32_t              timestamp);
+                                      uint32_t              timestamp,
+                                      graphene_point_t     *pos_hint);
 
 MetaWindowDrag * meta_compositor_get_current_window_drag (MetaCompositor *compositor);
 

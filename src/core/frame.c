@@ -31,7 +31,7 @@
 #include "core/keybindings-private.h"
 #include "mtk/mtk-x11.h"
 #include "x11/meta-x11-display-private.h"
-#include "x11/window-x11.h"
+#include "x11/window-x11-private.h"
 #include "x11/window-props.h"
 
 #include <X11/Xatom.h>
@@ -59,8 +59,8 @@ meta_window_ensure_frame (MetaWindow *window)
 }
 
 void
-meta_window_set_frame_xwindow (MetaWindow *window,
-                               Window      xframe)
+meta_window_x11_set_frame_xwindow (MetaWindow *window,
+                                   Window      xframe)
 {
   MetaX11Display *x11_display = window->display->x11_display;
   XSetWindowAttributes attrs;
@@ -411,23 +411,6 @@ meta_frame_get_frame_bounds (MetaFrame *frame)
   });
 
   return bounds;
-}
-
-void
-meta_frame_get_mask (MetaFrame    *frame,
-                     MtkRectangle *frame_rect,
-                     cairo_t      *cr)
-{
-  MetaFrameBorders borders;
-
-  meta_frame_calc_borders (frame, &borders);
-
-  cairo_rectangle (cr,
-                   0, 0,
-                   frame->rect.width,
-                   frame->rect.height);
-  cairo_set_source_rgb (cr, 0, 0, 0);
-  cairo_fill (cr);
 }
 
 Window

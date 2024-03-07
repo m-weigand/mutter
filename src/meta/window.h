@@ -20,7 +20,6 @@
 #pragma once
 
 #include <glib-object.h>
-#include <X11/Xlib.h>
 
 #include "meta/boxes.h"
 #include "meta/types.h"
@@ -333,9 +332,6 @@ META_EXPORT
 pid_t       meta_window_get_pid (MetaWindow *window);
 
 META_EXPORT
-const char *meta_window_get_client_machine (MetaWindow *window);
-
-META_EXPORT
 gboolean    meta_window_is_remote (MetaWindow *window);
 
 META_EXPORT
@@ -403,7 +399,8 @@ gboolean meta_window_begin_grab_op (MetaWindow           *window,
                                     MetaGrabOp            op,
                                     ClutterInputDevice   *device,
                                     ClutterEventSequence *sequence,
-                                    guint32               timestamp);
+                                    guint32               timestamp,
+                                    graphene_point_t     *pos_hint);
 
 META_EXPORT
 gboolean meta_window_can_maximize (MetaWindow *window);

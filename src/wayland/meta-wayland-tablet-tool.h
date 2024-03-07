@@ -28,35 +28,6 @@
 #include "backends/meta-cursor-sprite-xcursor.h"
 #include "wayland/meta-wayland-types.h"
 
-struct _MetaWaylandTabletTool
-{
-  MetaWaylandTabletSeat *seat;
-  ClutterInputDevice *device;
-  ClutterInputDeviceTool *device_tool;
-  struct wl_list resource_list;
-  struct wl_list focus_resource_list;
-
-  MetaWaylandSurface *focus_surface;
-  struct wl_listener focus_surface_destroy_listener;
-
-  MetaWaylandSurface *cursor_surface;
-  struct wl_listener cursor_surface_destroy_listener;
-  MetaCursorRenderer *cursor_renderer;
-  MetaCursorSpriteXcursor *default_sprite;
-
-  MetaWaylandSurface *current;
-  guint32 pressed_buttons;
-  guint32 button_count;
-
-  guint32 proximity_serial;
-  guint32 down_serial;
-  guint32 button_serial;
-
-  float grab_x, grab_y;
-
-  MetaWaylandTablet *current_tablet;
-};
-
 MetaWaylandTabletTool * meta_wayland_tablet_tool_new  (MetaWaylandTabletSeat  *seat,
                                                        ClutterInputDevice     *device,
                                                        ClutterInputDeviceTool *device_tool);
@@ -76,8 +47,21 @@ void     meta_wayland_tablet_tool_update              (MetaWaylandTabletTool  *t
 gboolean meta_wayland_tablet_tool_handle_event        (MetaWaylandTabletTool  *tool,
                                                        const ClutterEvent     *event);
 
-gboolean meta_wayland_tablet_tool_can_grab_surface (MetaWaylandTabletTool *tool,
-                                                    MetaWaylandSurface    *surface,
-                                                    uint32_t               serial);
+gboolean meta_wayland_tablet_tool_get_grab_info (MetaWaylandTabletTool *tool,
+                                                 MetaWaylandSurface    *surface,
+                                                 uint32_t               serial,
+                                                 gboolean               require_pressed,
+                                                 ClutterInputDevice   **device_out,
+                                                 float                 *x,
+                                                 float                 *y);
+
 gboolean meta_wayland_tablet_tool_can_popup        (MetaWaylandTabletTool *tool,
                                                     uint32_t               serial);
+
+gboolean meta_wayland_tablet_tool_has_current_tablet (MetaWaylandTabletTool *tool,
+                                                      MetaWaylandTablet     *tablet);
+
+MetaWaylandSurface * meta_wayland_tablet_tool_get_current_surface (MetaWaylandTabletTool *tool);
+
+void meta_wayland_tablet_tool_focus_surface (MetaWaylandTabletTool *tool,
+                                             MetaWaylandSurface    *surface);

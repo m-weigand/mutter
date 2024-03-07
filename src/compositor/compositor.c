@@ -114,7 +114,6 @@ typedef struct _MetaCompositorPrivate
   gulong after_paint_handler_id;
   gulong window_visibility_updated_id;
   gulong monitors_changed_internal_id;
-  gulong grabbed_notify_handler_id;
 
   int64_t server_time_query_time;
   int64_t server_time_offset;
@@ -310,18 +309,6 @@ meta_get_window_actors (MetaDisplay *display)
   priv = meta_compositor_get_instance_private (compositor);
 
   return priv->windows;
-}
-
-void
-meta_compositor_grab_begin (MetaCompositor *compositor)
-{
-  META_COMPOSITOR_GET_CLASS (compositor)->grab_begin (compositor);
-}
-
-void
-meta_compositor_grab_end (MetaCompositor *compositor)
-{
-  META_COMPOSITOR_GET_CLASS (compositor)->grab_end (compositor);
 }
 
 static MetaCompositorView *
@@ -1116,17 +1103,6 @@ on_monitors_changed_internal (MetaMonitorManager *monitor_manager,
 }
 
 static void
-on_is_grabbed_changed_cb (ClutterStage   *stage,
-                          GParamSpec     *pspec,
-                          MetaCompositor *compositor)
-{
-  if (clutter_stage_get_grab_actor (stage) != NULL)
-    meta_compositor_grab_begin (compositor);
-  else
-    meta_compositor_grab_end (compositor);
-}
-
-static void
 meta_compositor_set_property (GObject      *object,
                               guint         prop_id,
                               const GValue *value,
@@ -1202,11 +1178,6 @@ meta_compositor_constructed (GObject *object)
                             "after-paint",
                             G_CALLBACK (on_after_paint),
                             compositor);
-  priv->grabbed_notify_handler_id =
-    g_signal_connect (stage,
-                      "notify::is-grabbed",
-                      G_CALLBACK (on_is_grabbed_changed_cb),
-                      compositor);
 
   priv->window_visibility_updated_id =
     g_signal_connect (priv->display,
@@ -1240,7 +1211,6 @@ meta_compositor_dispose (GObject *object)
   g_clear_signal_handler (&priv->stage_presented_id, stage);
   g_clear_signal_handler (&priv->before_paint_handler_id, stage);
   g_clear_signal_handler (&priv->after_paint_handler_id, stage);
-  g_clear_signal_handler (&priv->grabbed_notify_handler_id, stage);
   g_clear_signal_handler (&priv->window_visibility_updated_id, priv->display);
 
   g_clear_pointer (&priv->windows, g_list_free);
@@ -1362,7 +1332,7 @@ meta_compositor_flash_display (MetaCompositor *compositor,
   clutter_actor_get_size (stage, &width, &height);
 
   flash = clutter_actor_new ();
-  clutter_actor_set_background_color (flash, CLUTTER_COLOR_Black);
+  clutter_actor_set_background_color (flash, &CLUTTER_COLOR_INIT (0, 0, 0, 255));
   clutter_actor_set_size (flash, width, height);
   clutter_actor_set_opacity (flash, 0);
   clutter_actor_add_child (stage, flash);
@@ -1401,7 +1371,7 @@ meta_compositor_flash_window (MetaCompositor *compositor,
   ClutterTransition *transition;
 
   flash = clutter_actor_new ();
-  clutter_actor_set_background_color (flash, CLUTTER_COLOR_Black);
+  clutter_actor_set_background_color (flash, &CLUTTER_COLOR_INIT (0, 0, 0, 255));
   clutter_actor_set_size (flash, window->rect.width, window->rect.height);
   clutter_actor_set_position (flash,
                               window->custom_frame_extents.left,
@@ -1601,7 +1571,8 @@ meta_compositor_drag_window (MetaCompositor       *compositor,
                              MetaGrabOp            grab_op,
                              ClutterInputDevice   *device,
                              ClutterEventSequence *sequence,
-                             uint32_t              timestamp)
+                             uint32_t              timestamp,
+                             graphene_point_t     *pos_hint)
 {
   MetaCompositorPrivate *priv =
     meta_compositor_get_instance_private (compositor);
@@ -1612,12 +1583,19 @@ meta_compositor_drag_window (MetaCompositor       *compositor,
 
   window_drag = meta_window_drag_new (window, grab_op);
 
-  if (!meta_window_drag_begin (window_drag, device, sequence, timestamp))
-    return FALSE;
+  if (pos_hint)
+    meta_window_drag_set_position_hint (window_drag, pos_hint);
 
-  g_signal_connect (window_drag, "ended",
-                    G_CALLBACK (on_window_drag_ended), compositor);
   priv->current_drag = g_steal_pointer (&window_drag);
+
+  if (!meta_window_drag_begin (priv->current_drag, device, sequence, timestamp))
+    {
+      g_clear_object (&priv->current_drag);
+      return FALSE;
+    }
+
+  g_signal_connect (priv->current_drag, "ended",
+                    G_CALLBACK (on_window_drag_ended), compositor);
   return TRUE;
 }
 

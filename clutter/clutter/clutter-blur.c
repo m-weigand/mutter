@@ -15,6 +15,8 @@
  * License along with this library. If not, see <http://www.gnu.org/licenses/>.
  */
 
+#include "config.h"
+
 #include "clutter/clutter-blur-private.h"
 
 #include "clutter/clutter-backend.h"
@@ -311,7 +313,7 @@ apply_blur_pass (BlurPass *pass)
 {
   CoglColor transparent;
 
-  cogl_color_init_from_4ub (&transparent, 0, 0, 0, 0);
+  cogl_color_init_from_4f (&transparent, 0.0, 0.0, 0.0, 0.0);
 
   cogl_framebuffer_clear (pass->framebuffer,
                           COGL_BUFFER_BIT_COLOR,
