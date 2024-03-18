@@ -33,16 +33,12 @@
 #include "cogl/cogl-renderer.h"
 #include "cogl/cogl-scanout.h"
 
-#ifdef COGL_HAS_XLIB
-#include "cogl/winsys/cogl-texture-pixmap-x11-private.h"
-#endif
-
-#ifdef COGL_HAS_XLIB
+#ifdef HAVE_X11
 #include <X11/Xutil.h>
 #include "cogl/winsys/cogl-texture-pixmap-x11-private.h"
 #endif
 
-#ifdef COGL_HAS_EGL_SUPPORT
+#ifdef HAVE_EGL
 #include "cogl/cogl-egl-private.h"
 #endif
 
@@ -72,8 +68,7 @@ typedef struct _CoglWinsysVtable
 
   GCallback
   (*renderer_get_proc_address) (CoglRenderer *renderer,
-                                const char   *name,
-                                gboolean      in_core);
+                                const char   *name);
 
   gboolean
   (*renderer_connect) (CoglRenderer *renderer,
@@ -95,6 +90,8 @@ typedef struct _CoglWinsysVtable
   CoglDmaBufHandle *
   (*renderer_create_dma_buf) (CoglRenderer     *renderer,
                               CoglPixelFormat   format,
+                              uint64_t         *modifiers,
+                              int               n_modifiers,
                               int               width,
                               int               height,
                               GError          **error);
@@ -114,7 +111,7 @@ typedef struct _CoglWinsysVtable
 
   /* Optional functions */
 
-#ifdef COGL_HAS_XLIB
+#ifdef HAVE_X11
   gboolean
   (*texture_pixmap_x11_create) (CoglTexturePixmapX11 *tex_pixmap);
   void

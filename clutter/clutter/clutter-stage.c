@@ -35,27 +35,22 @@
  * parent class corresponding function.
  */
 
-#include "clutter/clutter-build-config.h"
+#include "config.h"
 
 #include <math.h>
-#include <cairo-gobject.h>
-
-#define CLUTTER_DISABLE_DEPRECATION_WARNINGS
 
 #include "clutter/clutter-stage.h"
-#include "clutter/deprecated/clutter-container.h"
 
 #include "clutter/clutter-action-private.h"
 #include "clutter/clutter-actor-private.h"
 #include "clutter/clutter-backend-private.h"
-#include "clutter/clutter-cairo.h"
-#include "clutter/clutter-container.h"
+#include "clutter/clutter-context-private.h"
 #include "clutter/clutter-debug.h"
 #include "clutter/clutter-enum-types.h"
 #include "clutter/clutter-event-private.h"
 #include "clutter/clutter-frame-clock.h"
 #include "clutter/clutter-frame.h"
-#include "clutter/clutter-grab.h"
+#include "clutter/clutter-grab-private.h"
 #include "clutter/clutter-input-device-private.h"
 #include "clutter/clutter-input-only-actor.h"
 #include "clutter/clutter-main.h"
@@ -103,14 +98,14 @@ typedef struct _PointerDeviceEntry
   ClutterEventSequence *sequence;
   graphene_point_t coords;
   ClutterActor *current_actor;
-  cairo_region_t *clear_area;
+  MtkRegion *clear_area;
 
   unsigned int press_count;
   ClutterActor *implicit_grab_actor;
   GArray *event_emission_chain;
 } PointerDeviceEntry;
 
-struct _ClutterStagePrivate
+typedef struct _ClutterStagePrivate
 {
   /* the stage implementation */
   ClutterStageWindow *impl;
@@ -131,8 +126,6 @@ struct _ClutterStagePrivate
   GPtrArray *cur_event_actors;
   GArray *cur_event_emission_chain;
 
-  GArray *paint_volume_stack;
-
   GSList *pending_relayouts;
 
   int update_freeze_count;
@@ -142,20 +135,10 @@ struct _ClutterStagePrivate
   GHashTable *pointer_devices;
   GHashTable *touch_sequences;
 
+  GPtrArray *all_active_gestures;
+
   guint actor_needs_immediate_relayout : 1;
-};
-
-struct _ClutterGrab
-{
-  grefcount ref_count;
-  ClutterStage *stage;
-
-  ClutterActor *actor;
-  gboolean owns_actor;
-
-  ClutterGrab *prev;
-  ClutterGrab *next;
-};
+} ClutterStagePrivate;
 
 enum
 {
@@ -207,7 +190,8 @@ clutter_stage_get_preferred_width (ClutterActor *self,
                                    gfloat       *min_width_p,
                                    gfloat       *natural_width_p)
 {
-  ClutterStagePrivate *priv = CLUTTER_STAGE (self)->priv;
+  ClutterStagePrivate *priv =
+    clutter_stage_get_instance_private (CLUTTER_STAGE (self));
   MtkRectangle geom;
 
   if (priv->impl == NULL)
@@ -228,7 +212,8 @@ clutter_stage_get_preferred_height (ClutterActor *self,
                                     gfloat       *min_height_p,
                                     gfloat       *natural_height_p)
 {
-  ClutterStagePrivate *priv = CLUTTER_STAGE (self)->priv;
+  ClutterStagePrivate *priv =
+    clutter_stage_get_instance_private (CLUTTER_STAGE (self));
   MtkRectangle geom;
 
   if (priv->impl == NULL)
@@ -295,7 +280,8 @@ static void
 clutter_stage_allocate (ClutterActor           *self,
                         const ClutterActorBox  *box)
 {
-  ClutterStagePrivate *priv = CLUTTER_STAGE (self)->priv;
+  ClutterStagePrivate *priv =
+    clutter_stage_get_instance_private (CLUTTER_STAGE (self));
   ClutterActorBox alloc = CLUTTER_ACTOR_BOX_INIT_ZERO;
   float new_width, new_height;
   float width, height;
@@ -323,7 +309,7 @@ clutter_stage_allocate (ClutterActor           *self,
   clutter_actor_set_allocation (self, box);
 
   clutter_layout_manager_allocate (layout_manager,
-                                   CLUTTER_CONTAINER (self),
+                                   self,
                                    &children_box);
 
   if (window_size.width != CLUTTER_NEARBYINT (width) ||
@@ -346,7 +332,7 @@ setup_clip_frustum (ClutterStage       *stage,
                     const MtkRectangle *clip,
                     graphene_frustum_t *frustum)
 {
-  ClutterStagePrivate *priv = stage->priv;
+  ClutterStagePrivate *priv = clutter_stage_get_instance_private (stage);
   MtkRectangle geom;
   graphene_point3d_t camera_position;
   graphene_point3d_t p[4];
@@ -401,10 +387,10 @@ setup_clip_frustum (ClutterStage       *stage,
 }
 
 static void
-clutter_stage_do_paint_view (ClutterStage         *stage,
-                             ClutterStageView     *view,
-                             ClutterFrame         *frame,
-                             const cairo_region_t *redraw_clip)
+clutter_stage_do_paint_view (ClutterStage     *stage,
+                             ClutterStageView *view,
+                             ClutterFrame     *frame,
+                             const MtkRegion  *redraw_clip)
 {
   ClutterPaintContext *paint_context;
   MtkRectangle clip_rect;
@@ -416,7 +402,7 @@ clutter_stage_do_paint_view (ClutterStage         *stage,
   int n_rectangles;
   ClutterPaintFlag paint_flags;
 
-  n_rectangles = redraw_clip ? cairo_region_num_rectangles (redraw_clip) : 0;
+  n_rectangles = redraw_clip ? mtk_region_num_rectangles (redraw_clip) : 0;
   if (redraw_clip && n_rectangles < MAX_FRUSTA)
     {
       int i;
@@ -427,7 +413,7 @@ clutter_stage_do_paint_view (ClutterStage         *stage,
 
       for (i = 0; i < n_rectangles; i++)
         {
-          cairo_region_get_rectangle (redraw_clip, i, &clip_rect);
+          clip_rect = mtk_region_get_rectangle (redraw_clip, i);
           setup_clip_frustum (stage, &clip_rect, &clip_frustum);
           g_array_append_val (clip_frusta, clip_frustum);
         }
@@ -438,15 +424,13 @@ clutter_stage_do_paint_view (ClutterStage         *stage,
                                        sizeof (graphene_frustum_t),
                                        1);
       if (redraw_clip)
-        cairo_region_get_extents (redraw_clip, &clip_rect);
+        clip_rect = mtk_region_get_extents (redraw_clip);
       else
         clutter_stage_view_get_layout (view, &clip_rect);
 
       setup_clip_frustum (stage, &clip_rect, &clip_frustum);
       g_array_append_val (clip_frusta, clip_frustum);
     }
-
-  _clutter_stage_paint_volume_stack_free_all (stage);
 
   paint_flags = clutter_stage_view_get_default_paint_flags (view);
 
@@ -476,17 +460,17 @@ clutter_stage_do_paint_view (ClutterStage         *stage,
  * for picking or painting...
  */
 void
-clutter_stage_paint_view (ClutterStage         *stage,
-                          ClutterStageView     *view,
-                          const cairo_region_t *redraw_clip,
-                          ClutterFrame         *frame)
+clutter_stage_paint_view (ClutterStage     *stage,
+                          ClutterStageView *view,
+                          const MtkRegion  *redraw_clip,
+                          ClutterFrame     *frame)
 {
-  ClutterStagePrivate *priv = stage->priv;
+  ClutterStagePrivate *priv = clutter_stage_get_instance_private (stage);
 
   if (!priv->impl)
     return;
 
-  COGL_TRACE_BEGIN_SCOPED (ClutterStagePaintView, "Paint (view)");
+  COGL_TRACE_BEGIN_SCOPED (ClutterStagePaintView, "Clutter::Stage::paint_view()");
 
   if (g_signal_has_handler_pending (stage, stage_signals[PAINT_VIEW],
                                     0, TRUE))
@@ -532,7 +516,7 @@ clutter_stage_after_update (ClutterStage     *stage,
                             ClutterStageView *view,
                             ClutterFrame     *frame)
 {
-  ClutterStagePrivate *priv = stage->priv;
+  ClutterStagePrivate *priv = clutter_stage_get_instance_private (stage);
 
   g_signal_emit (stage, stage_signals[AFTER_UPDATE], 0, view, frame);
 
@@ -551,32 +535,35 @@ clutter_stage_get_paint_volume (ClutterActor *self,
 static void
 clutter_stage_realize (ClutterActor *self)
 {
-  ClutterStagePrivate *priv = CLUTTER_STAGE (self)->priv;
+  ClutterStagePrivate *priv =
+    clutter_stage_get_instance_private (CLUTTER_STAGE (self));
   gboolean is_realized;
 
   g_assert (priv->impl != NULL);
   is_realized = _clutter_stage_window_realize (priv->impl);
 
   if (!is_realized)
-    CLUTTER_ACTOR_UNSET_FLAGS (self, CLUTTER_ACTOR_REALIZED);
+    self->flags &= ~CLUTTER_ACTOR_REALIZED;
 }
 
 static void
 clutter_stage_unrealize (ClutterActor *self)
 {
-  ClutterStagePrivate *priv = CLUTTER_STAGE (self)->priv;
+  ClutterStagePrivate *priv =
+    clutter_stage_get_instance_private (CLUTTER_STAGE (self));
 
   /* and then unrealize the implementation */
   g_assert (priv->impl != NULL);
   _clutter_stage_window_unrealize (priv->impl);
 
-  CLUTTER_ACTOR_UNSET_FLAGS (self, CLUTTER_ACTOR_REALIZED);
+  self->flags &= ~CLUTTER_ACTOR_REALIZED;
 }
 
 static void
 clutter_stage_show (ClutterActor *self)
 {
-  ClutterStagePrivate *priv = CLUTTER_STAGE (self)->priv;
+  ClutterStagePrivate *priv =
+    clutter_stage_get_instance_private (CLUTTER_STAGE (self));
 
   CLUTTER_ACTOR_CLASS (clutter_stage_parent_class)->show (self);
 
@@ -607,7 +594,8 @@ clutter_stage_hide_all (ClutterActor *self)
 static void
 clutter_stage_hide (ClutterActor *self)
 {
-  ClutterStagePrivate *priv = CLUTTER_STAGE (self)->priv;
+  ClutterStagePrivate *priv =
+    clutter_stage_get_instance_private (CLUTTER_STAGE (self));
 
   g_assert (priv->impl != NULL);
   _clutter_stage_window_hide (priv->impl);
@@ -619,7 +607,7 @@ static void
 clutter_stage_emit_key_focus_event (ClutterStage *stage,
                                     gboolean      focus_in)
 {
-  ClutterStagePrivate *priv = stage->priv;
+  ClutterStagePrivate *priv = clutter_stage_get_instance_private (stage);
 
   if (priv->key_focused_actor == NULL)
     return;
@@ -650,24 +638,12 @@ _clutter_stage_queue_event (ClutterStage *stage,
 
   g_return_if_fail (CLUTTER_IS_STAGE (stage));
 
-  priv = stage->priv;
+  priv = clutter_stage_get_instance_private (stage);
 
   g_queue_push_tail (priv->event_queue,
                      copy_event ? clutter_event_copy (event) : event);
 
   clutter_stage_schedule_update (stage);
-}
-
-gboolean
-_clutter_stage_has_queued_events (ClutterStage *stage)
-{
-  ClutterStagePrivate *priv;
-
-  g_return_val_if_fail (CLUTTER_IS_STAGE (stage), FALSE);
-
-  priv = stage->priv;
-
-  return priv->event_queue->length > 0;
 }
 
 static ClutterEvent *
@@ -718,7 +694,9 @@ _clutter_stage_process_queued_events (ClutterStage *stage)
 
   g_return_if_fail (CLUTTER_IS_STAGE (stage));
 
-  priv = stage->priv;
+  COGL_TRACE_BEGIN_SCOPED (ProcessQueuedEvents, "Clutter::Stage::process_queued_events()");
+
+  priv = clutter_stage_get_instance_private (stage);
 
   if (priv->event_queue->length == 0)
     return;
@@ -729,7 +707,7 @@ _clutter_stage_process_queued_events (ClutterStage *stage)
   /* Steal events before starting processing to avoid reentrancy
    * issues */
   events = priv->event_queue->head;
-  priv->event_queue->head =  NULL;
+  priv->event_queue->head = NULL;
   priv->event_queue->tail = NULL;
   priv->event_queue->length = 0;
 
@@ -743,6 +721,10 @@ _clutter_stage_process_queued_events (ClutterStage *stage)
 
       event = l->data;
       next_event = l->next ? l->next->data : NULL;
+
+      COGL_TRACE_BEGIN_SCOPED (ProcessEvent,
+                               "Clutter::Stage::process_queued_events#event()");
+      COGL_TRACE_DESCRIBE (ProcessEvent, clutter_event_get_name (event));
 
       device = clutter_event_get_device (event);
 
@@ -816,7 +798,7 @@ void
 clutter_stage_queue_actor_relayout (ClutterStage *stage,
                                     ClutterActor *actor)
 {
-  ClutterStagePrivate *priv = stage->priv;
+  ClutterStagePrivate *priv = clutter_stage_get_instance_private (stage);
 
   clutter_stage_schedule_update (stage);
 
@@ -828,7 +810,7 @@ void
 clutter_stage_dequeue_actor_relayout (ClutterStage *stage,
                                       ClutterActor *actor)
 {
-  ClutterStagePrivate *priv = stage->priv;
+  ClutterStagePrivate *priv = clutter_stage_get_instance_private (stage);
   GSList *l;
 
   for (l = priv->pending_relayouts; l; l = l->next)
@@ -863,7 +845,7 @@ void
 clutter_stage_maybe_relayout (ClutterActor *actor)
 {
   ClutterStage *stage = CLUTTER_STAGE (actor);
-  ClutterStagePrivate *priv = stage->priv;
+  ClutterStagePrivate *priv = clutter_stage_get_instance_private (stage);
   g_autoptr (GSList) stolen_list = NULL;
   GSList *l;
   int count = 0;
@@ -872,7 +854,7 @@ clutter_stage_maybe_relayout (ClutterActor *actor)
   if (priv->pending_relayouts == NULL)
     return;
 
-  COGL_TRACE_BEGIN_SCOPED (ClutterStageRelayout, "Layout");
+  COGL_TRACE_BEGIN_SCOPED (ClutterStageRelayout, "Clutter::Stage::maybe_relayout()");
 
   CLUTTER_NOTE (ACTOR, ">>> Recomputing layout");
 
@@ -913,7 +895,7 @@ GSList *
 clutter_stage_find_updated_devices (ClutterStage     *stage,
                                     ClutterStageView *view)
 {
-  ClutterStagePrivate *priv = stage->priv;
+  ClutterStagePrivate *priv = clutter_stage_get_instance_private (stage);
   GSList *updating = NULL;
   GHashTableIter iter;
   gpointer value;
@@ -942,11 +924,11 @@ void
 clutter_stage_finish_layout (ClutterStage *stage)
 {
   ClutterActor *actor = CLUTTER_ACTOR (stage);
-  ClutterStagePrivate *priv = stage->priv;
+  ClutterStagePrivate *priv = clutter_stage_get_instance_private (stage);
   int phase;
 
   COGL_TRACE_BEGIN_SCOPED (ClutterStageUpdateActorStageViews,
-                           "Actor stage-views");
+                           "Clutter::Stage::finish_layout()");
 
   /* If an actor needs an immediate relayout because its resource scale
    * changed, we give it another chance to allocate correctly before
@@ -970,18 +952,16 @@ clutter_stage_finish_layout (ClutterStage *stage)
     }
 
   g_warn_if_fail (!priv->actor_needs_immediate_relayout);
-
-  _clutter_stage_paint_volume_stack_free_all (stage);
 }
 
 void
 clutter_stage_update_devices (ClutterStage *stage,
                               GSList       *devices)
 {
-  ClutterStagePrivate *priv = stage->priv;
+  ClutterStagePrivate *priv = clutter_stage_get_instance_private (stage);
   GSList *l;
 
-  COGL_TRACE_BEGIN_SCOPED (ClutterStageUpdateDevices, "UpdateDevices");
+  COGL_TRACE_BEGIN_SCOPED (ClutterStageUpdateDevices, "Clutter::Stage::update_devices()");
 
   for (l = devices; l; l = l->next)
     {
@@ -1030,15 +1010,6 @@ is_full_stage_redraw_queued (ClutterStage *stage)
   return TRUE;
 }
 
-gboolean
-_clutter_stage_has_full_redraw_queued (ClutterStage *stage)
-{
-  if (CLUTTER_ACTOR_IN_DESTRUCTION (stage))
-    return FALSE;
-
-  return is_full_stage_redraw_queued (stage);
-}
-
 static void
 setup_ray_for_coordinates (ClutterStage       *stage,
                            float               x,
@@ -1046,7 +1017,7 @@ setup_ray_for_coordinates (ClutterStage       *stage,
                            graphene_point3d_t *point,
                            graphene_ray_t     *ray)
 {
-  ClutterStagePrivate *priv = stage->priv;
+  ClutterStagePrivate *priv = clutter_stage_get_instance_private (stage);
   graphene_point3d_t camera_position;
   graphene_point3d_t p;
   graphene_vec3_t direction;
@@ -1076,7 +1047,7 @@ _clutter_stage_do_pick_on_view (ClutterStage      *stage,
                                 float              y,
                                 ClutterPickMode    mode,
                                 ClutterStageView  *view,
-                                cairo_region_t   **clear_area)
+                                MtkRegion        **clear_area)
 {
   g_autoptr (ClutterPickStack) pick_stack = NULL;
   ClutterPickContext *pick_context;
@@ -1084,7 +1055,7 @@ _clutter_stage_do_pick_on_view (ClutterStage      *stage,
   graphene_ray_t ray;
   ClutterActor *actor;
 
-  COGL_TRACE_BEGIN_SCOPED (ClutterStagePickView, "Pick (view)");
+  COGL_TRACE_BEGIN_SCOPED (ClutterStagePickView, "Clutter::Stage::do_pick_on_view()");
 
   setup_ray_for_coordinates (stage, x, y, &p, &ray);
 
@@ -1106,7 +1077,7 @@ clutter_stage_get_view_at (ClutterStage *stage,
                            float         x,
                            float         y)
 {
-  ClutterStagePrivate *priv = stage->priv;
+  ClutterStagePrivate *priv = clutter_stage_get_instance_private (stage);
   GList *l;
 
   for (l = _clutter_stage_window_get_views (priv->impl); l; l = l->next)
@@ -1130,14 +1101,14 @@ _clutter_stage_do_pick (ClutterStage     *stage,
                         float             x,
                         float             y,
                         ClutterPickMode   mode,
-                        cairo_region_t  **clear_area)
+                        MtkRegion       **clear_area)
 {
   ClutterActor *actor = CLUTTER_ACTOR (stage);
-  ClutterStagePrivate *priv = stage->priv;
+  ClutterStagePrivate *priv = clutter_stage_get_instance_private (stage);
   float stage_width, stage_height;
   ClutterStageView *view = NULL;
 
-  priv = stage->priv;
+  priv = clutter_stage_get_instance_private (stage);
 
   if (CLUTTER_ACTOR_IN_DESTRUCTION (stage))
     return actor;
@@ -1163,7 +1134,8 @@ static void
 clutter_stage_real_apply_transform (ClutterActor      *stage,
                                     graphene_matrix_t *matrix)
 {
-  ClutterStagePrivate *priv = CLUTTER_STAGE (stage)->priv;
+  ClutterStagePrivate *priv =
+    clutter_stage_get_instance_private (CLUTTER_STAGE (stage));
 
   /* FIXME: we probably shouldn't be explicitly resetting the matrix
    * here... */
@@ -1214,7 +1186,8 @@ clutter_stage_get_property (GObject    *gobject,
 			    GValue     *value,
 			    GParamSpec *pspec)
 {
-  ClutterStagePrivate *priv = CLUTTER_STAGE (gobject)->priv;
+  ClutterStagePrivate *priv =
+    clutter_stage_get_instance_private (CLUTTER_STAGE (gobject));
 
   switch (prop_id)
     {
@@ -1244,7 +1217,7 @@ static void
 clutter_stage_dispose (GObject *object)
 {
   ClutterStage        *stage = CLUTTER_STAGE (object);
-  ClutterStagePrivate *priv = stage->priv;
+  ClutterStagePrivate *priv = clutter_stage_get_instance_private (stage);
   ClutterStageManager *stage_manager;
 
   clutter_actor_hide (CLUTTER_ACTOR (object));
@@ -1282,7 +1255,7 @@ static void
 clutter_stage_finalize (GObject *object)
 {
   ClutterStage *stage = CLUTTER_STAGE (object);
-  ClutterStagePrivate *priv = stage->priv;
+  ClutterStagePrivate *priv = clutter_stage_get_instance_private (stage);
 
   g_queue_foreach (priv->event_queue, (GFunc) clutter_event_free, NULL);
   g_queue_free (priv->event_queue);
@@ -1292,21 +1265,22 @@ clutter_stage_finalize (GObject *object)
   g_assert (priv->cur_event_emission_chain->len == 0);
   g_array_unref (priv->cur_event_emission_chain);
 
+  g_assert (priv->all_active_gestures->len == 0);
+  g_ptr_array_free (priv->all_active_gestures, TRUE);
+
   g_hash_table_destroy (priv->pointer_devices);
   g_hash_table_destroy (priv->touch_sequences);
 
   g_free (priv->title);
 
-  g_array_free (priv->paint_volume_stack, TRUE);
-
   G_OBJECT_CLASS (clutter_stage_parent_class)->finalize (object);
 }
 
 static void
-clutter_stage_real_paint_view (ClutterStage         *stage,
-                               ClutterStageView     *view,
-                               const cairo_region_t *redraw_clip,
-                               ClutterFrame         *frame)
+clutter_stage_real_paint_view (ClutterStage     *stage,
+                               ClutterStageView *view,
+                               const MtkRegion  *redraw_clip,
+                               ClutterFrame     *frame)
 {
   clutter_stage_do_paint_view (stage, view, frame, redraw_clip);
 }
@@ -1392,7 +1366,8 @@ clutter_stage_class_init (ClutterStageClass *klass)
   obj_props[PROP_PERSPECTIVE] =
       g_param_spec_boxed ("perspective", NULL, NULL,
                           CLUTTER_TYPE_PERSPECTIVE,
-                          CLUTTER_PARAM_READABLE |
+                          G_PARAM_READABLE |
+                          G_PARAM_STATIC_STRINGS |
                           G_PARAM_EXPLICIT_NOTIFY);
 
   /**
@@ -1403,7 +1378,8 @@ clutter_stage_class_init (ClutterStageClass *klass)
   obj_props[PROP_TITLE] =
       g_param_spec_string ("title", NULL, NULL,
                            NULL,
-                           CLUTTER_PARAM_READWRITE |
+                           G_PARAM_READWRITE |
+                           G_PARAM_STATIC_STRINGS |
                            G_PARAM_EXPLICIT_NOTIFY);
 
   /**
@@ -1417,7 +1393,8 @@ clutter_stage_class_init (ClutterStageClass *klass)
   obj_props[PROP_KEY_FOCUS] =
       g_param_spec_object ("key-focus", NULL, NULL,
                            CLUTTER_TYPE_ACTOR,
-                           CLUTTER_PARAM_READWRITE |
+                           G_PARAM_READWRITE |
+                           G_PARAM_STATIC_STRINGS |
                            G_PARAM_EXPLICIT_NOTIFY);
 
   /**
@@ -1428,7 +1405,8 @@ clutter_stage_class_init (ClutterStageClass *klass)
   obj_props[PROP_IS_GRABBED] =
       g_param_spec_boolean ("is-grabbed", NULL, NULL,
                             FALSE,
-                            CLUTTER_PARAM_READABLE |
+                            G_PARAM_READABLE |
+                            G_PARAM_STATIC_STRINGS |
                             G_PARAM_EXPLICIT_NOTIFY);
 
   g_object_class_install_properties (gobject_class, PROP_LAST, obj_props);
@@ -1574,7 +1552,7 @@ clutter_stage_class_init (ClutterStageClass *klass)
    * ClutterStage::paint-view:
    * @stage: the stage that received the event
    * @view: a #ClutterStageView
-   * @redraw_clip: a #cairo_region_t with the redraw clip
+   * @redraw_clip: a #MtkRegion with the redraw clip
    * @frame: a #ClutterFrame
    *
    * The signal is emitted before a [class@Clutter.StageView] is being
@@ -1593,7 +1571,7 @@ clutter_stage_class_init (ClutterStageClass *klass)
                   _clutter_marshal_VOID__OBJECT_BOXED_BOXED,
                   G_TYPE_NONE, 3,
                   CLUTTER_TYPE_STAGE_VIEW,
-                  CAIRO_GOBJECT_TYPE_REGION | G_SIGNAL_TYPE_STATIC_SCOPE,
+                  MTK_TYPE_REGION | G_SIGNAL_TYPE_STATIC_SCOPE,
                   CLUTTER_TYPE_FRAME | G_SIGNAL_TYPE_STATIC_SCOPE);
   g_signal_set_va_marshaller (stage_signals[PAINT_VIEW],
                               G_TYPE_FROM_CLASS (gobject_class),
@@ -1642,18 +1620,26 @@ clutter_stage_class_init (ClutterStageClass *klass)
 }
 
 static void
+on_seat_unfocus_inhibited_changed (ClutterStage *stage,
+                                   ClutterSeat  *seat)
+{
+  clutter_stage_repick_device (stage, clutter_seat_get_pointer (seat));
+}
+
+static void
 clutter_stage_init (ClutterStage *self)
 {
   MtkRectangle geom = { 0, };
   ClutterStagePrivate *priv;
   ClutterStageWindow *impl;
   ClutterBackend *backend;
+  ClutterSeat *seat;
   GError *error;
 
   /* a stage is a top-level object */
   CLUTTER_SET_PRIVATE_FLAGS (self, CLUTTER_IS_TOPLEVEL);
 
-  self->priv = priv = clutter_stage_get_instance_private (self);
+  priv = clutter_stage_get_instance_private (self);
 
   CLUTTER_NOTE (BACKEND, "Creating stage from the default backend");
   backend = clutter_get_default_backend ();
@@ -1692,6 +1678,8 @@ clutter_stage_init (ClutterStage *self)
     g_hash_table_new_full (NULL, NULL,
                            NULL, (GDestroyNotify) free_pointer_device_entry);
 
+  priv->all_active_gestures = g_ptr_array_sized_new (64);
+
   clutter_actor_set_background_color (CLUTTER_ACTOR (self),
                                       &default_stage_color);
 
@@ -1702,15 +1690,18 @@ clutter_stage_init (ClutterStage *self)
   clutter_stage_set_key_focus (self, NULL);
   clutter_stage_set_viewport (self, geom.width, geom.height);
 
-  priv->paint_volume_stack =
-    g_array_new (FALSE, FALSE, sizeof (ClutterPaintVolume));
+  seat = clutter_backend_get_default_seat (backend);
+  g_signal_connect_object (seat, "is-unfocus-inhibited-changed",
+                           G_CALLBACK (on_seat_unfocus_inhibited_changed),
+                           self,
+                           G_CONNECT_SWAPPED);
 }
 
 static void
 clutter_stage_set_perspective (ClutterStage       *stage,
                                ClutterPerspective *perspective)
 {
-  ClutterStagePrivate *priv = stage->priv;
+  ClutterStagePrivate *priv = clutter_stage_get_instance_private (stage);
 
   if (priv->perspective.fovy == perspective->fovy &&
       priv->perspective.aspect == perspective->aspect &&
@@ -1744,10 +1735,13 @@ void
 clutter_stage_get_perspective (ClutterStage       *stage,
                                ClutterPerspective *perspective)
 {
+  ClutterStagePrivate *priv;
+
   g_return_if_fail (CLUTTER_IS_STAGE (stage));
   g_return_if_fail (perspective != NULL);
 
-  *perspective = stage->priv->perspective;
+  priv = clutter_stage_get_instance_private (stage);
+  *perspective = priv->perspective;
 }
 
 /*
@@ -1764,10 +1758,13 @@ void
 _clutter_stage_get_projection_matrix (ClutterStage      *stage,
                                       graphene_matrix_t *projection)
 {
+  ClutterStagePrivate *priv;
+
   g_return_if_fail (CLUTTER_IS_STAGE (stage));
   g_return_if_fail (projection != NULL);
 
-  *projection = stage->priv->projection;
+  priv = clutter_stage_get_instance_private (stage);
+  *projection = priv->projection;
 }
 
 /* This simply provides a simple mechanism for us to ensure that
@@ -1782,7 +1779,7 @@ _clutter_stage_dirty_projection (ClutterStage *stage)
 
   g_return_if_fail (CLUTTER_IS_STAGE (stage));
 
-  priv = stage->priv;
+  priv = clutter_stage_get_instance_private (stage);
 
   for (l = _clutter_stage_window_get_views (priv->impl); l; l = l->next)
     {
@@ -1835,7 +1832,7 @@ clutter_stage_set_viewport (ClutterStage *stage,
 
   g_return_if_fail (CLUTTER_IS_STAGE (stage));
 
-  priv = stage->priv;
+  priv = clutter_stage_get_instance_private (stage);
 
   x = 0.f;
   y = 0.f;
@@ -1871,7 +1868,7 @@ _clutter_stage_dirty_viewport (ClutterStage *stage)
 
   g_return_if_fail (CLUTTER_IS_STAGE (stage));
 
-  priv = stage->priv;
+  priv = clutter_stage_get_instance_private (stage);
 
   for (l = _clutter_stage_window_get_views (priv->impl); l; l = l->next)
     {
@@ -1909,7 +1906,7 @@ _clutter_stage_get_viewport (ClutterStage *stage,
 
   g_return_if_fail (CLUTTER_IS_STAGE (stage));
 
-  priv = stage->priv;
+  priv = clutter_stage_get_instance_private (stage);
 
   *x = priv->viewport[0];
   *y = priv->viewport[1];
@@ -1948,7 +1945,7 @@ clutter_stage_read_pixels (ClutterStage *stage,
   ClutterActorBox box;
   GList *l;
   ClutterStageView *view;
-  cairo_region_t *clip;
+  g_autoptr (MtkRegion) clip = NULL;
   MtkRectangle clip_rect;
   CoglFramebuffer *framebuffer;
   float view_scale;
@@ -1956,11 +1953,11 @@ clutter_stage_read_pixels (ClutterStage *stage,
   float pixel_height;
   uint8_t *pixels;
 
-  COGL_TRACE_BEGIN_SCOPED (ClutterStageReadPixels, "Read Pixels");
+  COGL_TRACE_BEGIN_SCOPED (ClutterStageReadPixels, "Clutter::Stage::read_pixels()");
 
   g_return_val_if_fail (CLUTTER_IS_STAGE (stage), NULL);
 
-  priv = stage->priv;
+  priv = clutter_stage_get_instance_private (stage);
 
   clutter_actor_get_allocation_box (CLUTTER_ACTOR (stage), &box);
 
@@ -1980,26 +1977,16 @@ clutter_stage_read_pixels (ClutterStage *stage,
   view = l->data;
 
   clutter_stage_view_get_layout (view, &clip_rect);
-  clip = cairo_region_create_rectangle (&clip_rect);
-  cairo_region_intersect_rectangle (clip,
-                                    &(MtkRectangle) {
-                                      .x = x,
-                                      .y = y,
-                                      .width = width,
-                                      .height = height,
-                                    });
-  cairo_region_get_extents (clip, &clip_rect);
+  clip = mtk_region_create_rectangle (&clip_rect);
+  mtk_region_intersect_rectangle (clip,
+                                  &MTK_RECTANGLE_INIT (x, y, width, height));
+  clip_rect = mtk_region_get_extents (clip);
 
   if (clip_rect.width == 0 || clip_rect.height == 0)
-    {
-      cairo_region_destroy (clip);
-      return NULL;
-    }
+    return NULL;
 
   framebuffer = clutter_stage_view_get_framebuffer (view);
   clutter_stage_do_paint_view (stage, view, NULL, clip);
-
-  cairo_region_destroy (clip);
 
   view_scale = clutter_stage_view_get_scale (view);
   pixel_width = roundf (clip_rect.width * view_scale);
@@ -2063,7 +2050,7 @@ clutter_stage_set_title (ClutterStage       *stage,
 
   g_return_if_fail (CLUTTER_IS_STAGE (stage));
 
-  priv = stage->priv;
+  priv = clutter_stage_get_instance_private (stage);
 
   g_free (priv->title);
   priv->title = g_strdup (title);
@@ -2088,9 +2075,12 @@ clutter_stage_set_title (ClutterStage       *stage,
 const gchar *
 clutter_stage_get_title (ClutterStage       *stage)
 {
+  ClutterStagePrivate *priv;
+
   g_return_val_if_fail (CLUTTER_IS_STAGE (stage), NULL);
 
-  return stage->priv->title;
+  priv = clutter_stage_get_instance_private (stage);
+  return priv->title;
 }
 
 /**
@@ -2111,7 +2101,7 @@ clutter_stage_set_key_focus (ClutterStage *stage,
   g_return_if_fail (CLUTTER_IS_STAGE (stage));
   g_return_if_fail (actor == NULL || CLUTTER_IS_ACTOR (actor));
 
-  priv = stage->priv;
+  priv = clutter_stage_get_instance_private (stage);
 
   /* normalize the key focus. NULL == stage */
   if (actor == CLUTTER_ACTOR (stage))
@@ -2176,10 +2166,13 @@ clutter_stage_set_key_focus (ClutterStage *stage,
 ClutterActor *
 clutter_stage_get_key_focus (ClutterStage *stage)
 {
+  ClutterStagePrivate *priv;
+
   g_return_val_if_fail (CLUTTER_IS_STAGE (stage), NULL);
 
-  if (stage->priv->key_focused_actor)
-    return stage->priv->key_focused_actor;
+  priv = clutter_stage_get_instance_private (stage);
+  if (priv->key_focused_actor)
+    return priv->key_focused_actor;
 
   return CLUTTER_ACTOR (stage);
 }
@@ -2402,7 +2395,7 @@ view_2d_in_perspective (graphene_matrix_t *matrix,
 static void
 clutter_stage_update_view_perspective (ClutterStage *stage)
 {
-  ClutterStagePrivate *priv = stage->priv;
+  ClutterStagePrivate *priv = clutter_stage_get_instance_private (stage);
   ClutterPerspective perspective;
   float z_2d;
 
@@ -2438,7 +2431,7 @@ void
 _clutter_stage_maybe_setup_viewport (ClutterStage     *stage,
                                      ClutterStageView *view)
 {
-  ClutterStagePrivate *priv = stage->priv;
+  ClutterStagePrivate *priv = clutter_stage_get_instance_private (stage);
 
   if (clutter_stage_view_is_dirty_viewport (view))
     {
@@ -2493,34 +2486,29 @@ void
 _clutter_stage_set_window (ClutterStage       *stage,
                            ClutterStageWindow *stage_window)
 {
+  ClutterStagePrivate *priv;
+
   g_return_if_fail (CLUTTER_IS_STAGE (stage));
   g_return_if_fail (CLUTTER_IS_STAGE_WINDOW (stage_window));
 
-  if (stage->priv->impl != NULL)
-    g_object_unref (stage->priv->impl);
+  priv = clutter_stage_get_instance_private (stage);
 
-  stage->priv->impl = stage_window;
+  if (priv->impl != NULL)
+    g_object_unref (priv->impl);
+
+  priv->impl = stage_window;
 }
 
 ClutterStageWindow *
 _clutter_stage_get_window (ClutterStage *stage)
 {
+  ClutterStagePrivate *priv;
+
   g_return_val_if_fail (CLUTTER_IS_STAGE (stage), NULL);
 
-  return CLUTTER_STAGE_WINDOW (stage->priv->impl);
-}
+  priv = clutter_stage_get_instance_private (stage);
 
-ClutterStageWindow *
-_clutter_stage_get_default_window (void)
-{
-  ClutterStageManager *manager = clutter_stage_manager_get_default ();
-  ClutterStage *stage;
-
-  stage = clutter_stage_manager_get_default_stage (manager);
-  if (stage == NULL)
-    return NULL;
-
-  return _clutter_stage_get_window (stage);
+  return CLUTTER_STAGE_WINDOW (priv->impl);
 }
 
 /**
@@ -2532,7 +2520,7 @@ _clutter_stage_get_default_window (void)
 void
 clutter_stage_schedule_update (ClutterStage *stage)
 {
-  ClutterStagePrivate *priv = stage->priv;
+  ClutterStagePrivate *priv = clutter_stage_get_instance_private (stage);
   ClutterStageWindow *stage_window;
   gboolean first_event;
   GList *l;
@@ -2557,35 +2545,6 @@ clutter_stage_schedule_update (ClutterStage *stage)
     }
 
   priv->update_scheduled = TRUE;
-}
-
-ClutterPaintVolume *
-_clutter_stage_paint_volume_stack_allocate (ClutterStage *stage)
-{
-  GArray *paint_volume_stack = stage->priv->paint_volume_stack;
-
-  g_array_set_size (paint_volume_stack,
-                    paint_volume_stack->len+1);
-
-  return &g_array_index (paint_volume_stack,
-                         ClutterPaintVolume,
-                         paint_volume_stack->len - 1);
-}
-
-void
-_clutter_stage_paint_volume_stack_free_all (ClutterStage *stage)
-{
-  GArray *paint_volume_stack = stage->priv->paint_volume_stack;
-  int i;
-
-  for (i = 0; i < paint_volume_stack->len; i++)
-    {
-      ClutterPaintVolume *pv =
-        &g_array_index (paint_volume_stack, ClutterPaintVolume, i);
-      clutter_paint_volume_free (pv);
-    }
-
-  g_array_set_size (paint_volume_stack, 0);
 }
 
 void
@@ -2739,24 +2698,26 @@ clutter_stage_paint_to_framebuffer (ClutterStage                *stage,
                                     float                        scale,
                                     ClutterPaintFlag             paint_flags)
 {
-  ClutterStagePrivate *priv = stage->priv;
+  ClutterStagePrivate *priv = clutter_stage_get_instance_private (stage);
   ClutterPaintContext *paint_context;
-  cairo_region_t *redraw_clip;
+  g_autoptr (MtkRegion) redraw_clip = NULL;
+
+  COGL_TRACE_BEGIN_SCOPED (PaintToFramebuffer,
+                           "Clutter::Stage::paint_to_framebuffer()");
 
   if (paint_flags & CLUTTER_PAINT_FLAG_CLEAR)
     {
       CoglColor clear_color;
 
-      cogl_color_init_from_4ub (&clear_color, 0, 0, 0, 0);
+      cogl_color_init_from_4f (&clear_color, 0.0, 0.0, 0.0, 0.0);
       cogl_framebuffer_clear (framebuffer, COGL_BUFFER_BIT_COLOR, &clear_color);
     }
 
-  redraw_clip = cairo_region_create_rectangle (rect);
+  redraw_clip = mtk_region_create_rectangle (rect);
   paint_context =
     clutter_paint_context_new_for_framebuffer (framebuffer,
                                                redraw_clip,
                                                paint_flags);
-  cairo_region_destroy (redraw_clip);
 
   cogl_framebuffer_push_matrix (framebuffer);
   cogl_framebuffer_set_projection_matrix (framebuffer, &priv->projection);
@@ -2800,7 +2761,7 @@ clutter_stage_paint_to_buffer (ClutterStage        *stage,
   CoglContext *cogl_context =
     clutter_backend_get_cogl_context (clutter_backend);
   int texture_width, texture_height;
-  CoglTexture2D *texture;
+  CoglTexture *texture;
   CoglOffscreen *offscreen;
   CoglFramebuffer *framebuffer;
   CoglBitmap *bitmap;
@@ -2818,10 +2779,10 @@ clutter_stage_paint_to_buffer (ClutterStage        *stage,
       return FALSE;
     }
 
-  offscreen = cogl_offscreen_new_with_texture (COGL_TEXTURE (texture));
+  offscreen = cogl_offscreen_new_with_texture (texture);
   framebuffer = COGL_FRAMEBUFFER (offscreen);
 
-  cogl_object_unref (texture);
+  g_object_unref (texture);
 
   if (!cogl_framebuffer_allocate (framebuffer, error))
     return FALSE;
@@ -2840,7 +2801,7 @@ clutter_stage_paint_to_buffer (ClutterStage        *stage,
                                             COGL_READ_PIXELS_COLOR_BUFFER,
                                             bitmap);
 
-  cogl_object_unref (bitmap);
+  g_object_unref (bitmap);
   g_object_unref (framebuffer);
 
   return TRUE;
@@ -2869,7 +2830,7 @@ clutter_stage_paint_to_content (ClutterStage        *stage,
   CoglContext *cogl_context =
     clutter_backend_get_cogl_context (clutter_backend);
   int texture_width, texture_height;
-  CoglTexture2D *texture;
+  CoglTexture *texture;
   CoglOffscreen *offscreen;
   g_autoptr (CoglFramebuffer) framebuffer = NULL;
 
@@ -2886,10 +2847,10 @@ clutter_stage_paint_to_content (ClutterStage        *stage,
       return NULL;
     }
 
-  offscreen = cogl_offscreen_new_with_texture (COGL_TEXTURE (texture));
+  offscreen = cogl_offscreen_new_with_texture (texture);
   framebuffer = COGL_FRAMEBUFFER (offscreen);
 
-  cogl_object_unref (texture);
+  g_object_unref (texture);
 
   if (!cogl_framebuffer_allocate (framebuffer, error))
     return NULL;
@@ -2934,7 +2895,7 @@ clutter_stage_capture_view_into (ClutterStage     *stage,
   context = clutter_backend_get_cogl_context (backend);
   bitmap = cogl_bitmap_new_for_data (context,
                                      texture_width, texture_height,
-                                     CLUTTER_CAIRO_FORMAT_ARGB32,
+                                     COGL_PIXEL_FORMAT_CAIRO_ARGB32_COMPAT,
                                      stride,
                                      data);
 
@@ -2944,7 +2905,7 @@ clutter_stage_capture_view_into (ClutterStage     *stage,
                                             COGL_READ_PIXELS_COLOR_BUFFER,
                                             bitmap);
 
-  cogl_object_unref (bitmap);
+  g_object_unref (bitmap);
 }
 
 /**
@@ -2953,7 +2914,7 @@ clutter_stage_capture_view_into (ClutterStage     *stage,
 GList *
 clutter_stage_peek_stage_views (ClutterStage *stage)
 {
-  ClutterStagePrivate *priv = stage->priv;
+  ClutterStagePrivate *priv = clutter_stage_get_instance_private (stage);
 
   return _clutter_stage_window_get_views (priv->impl);
 }
@@ -2968,7 +2929,7 @@ GList *
 clutter_stage_get_views_for_rect (ClutterStage          *stage,
                                   const graphene_rect_t *rect)
 {
-  ClutterStagePrivate *priv = stage->priv;
+  ClutterStagePrivate *priv = clutter_stage_get_instance_private (stage);
   GList *views_for_rect = NULL;
   GList *l;
 
@@ -2991,7 +2952,7 @@ clutter_stage_get_views_for_rect (ClutterStage          *stage,
 void
 clutter_stage_set_actor_needs_immediate_relayout (ClutterStage *stage)
 {
-  ClutterStagePrivate *priv = stage->priv;
+  ClutterStagePrivate *priv = clutter_stage_get_instance_private (stage);
 
   priv->actor_needs_immediate_relayout = TRUE;
 }
@@ -3000,7 +2961,7 @@ void
 clutter_stage_maybe_invalidate_focus (ClutterStage *self,
                                       ClutterActor *actor)
 {
-  ClutterStagePrivate *priv = self->priv;
+  ClutterStagePrivate *priv = clutter_stage_get_instance_private (self);
   GHashTableIter iter;
   gpointer value;
 
@@ -3064,7 +3025,7 @@ free_pointer_device_entry (PointerDeviceEntry *entry)
   if (entry->current_actor)
     _clutter_actor_set_has_pointer (entry->current_actor, FALSE);
 
-  g_clear_pointer (&entry->clear_area, cairo_region_destroy);
+  g_clear_pointer (&entry->clear_area, mtk_region_unref);
 
   g_assert (!entry->press_count);
   g_assert (entry->event_emission_chain->len == 0);
@@ -3073,15 +3034,15 @@ free_pointer_device_entry (PointerDeviceEntry *entry)
   g_free (entry);
 }
 
-void
+static void
 clutter_stage_update_device_entry (ClutterStage         *self,
                                    ClutterInputDevice   *device,
                                    ClutterEventSequence *sequence,
                                    graphene_point_t      coords,
                                    ClutterActor         *actor,
-                                   cairo_region_t       *clear_area)
+                                   MtkRegion            *clear_area)
 {
-  ClutterStagePrivate *priv = self->priv;
+  ClutterStagePrivate *priv = clutter_stage_get_instance_private (self);
   PointerDeviceEntry *entry = NULL;
 
   g_assert (device != NULL);
@@ -3124,9 +3085,9 @@ clutter_stage_update_device_entry (ClutterStage         *self,
         _clutter_actor_set_has_pointer (actor, TRUE);
     }
 
-  g_clear_pointer (&entry->clear_area, cairo_region_destroy);
+  g_clear_pointer (&entry->clear_area, mtk_region_unref);
   if (clear_area)
-    entry->clear_area = cairo_region_reference (clear_area);
+    entry->clear_area = mtk_region_ref (clear_area);
 }
 
 void
@@ -3134,7 +3095,7 @@ clutter_stage_remove_device_entry (ClutterStage         *self,
                                    ClutterInputDevice   *device,
                                    ClutterEventSequence *sequence)
 {
-  ClutterStagePrivate *priv = self->priv;
+  ClutterStagePrivate *priv = clutter_stage_get_instance_private (self);
   gboolean removed;
 
   g_assert (device != NULL);
@@ -3163,7 +3124,7 @@ clutter_stage_get_device_actor (ClutterStage         *stage,
                                 ClutterInputDevice   *device,
                                 ClutterEventSequence *sequence)
 {
-  ClutterStagePrivate *priv = stage->priv;
+  ClutterStagePrivate *priv = clutter_stage_get_instance_private (stage);
   PointerDeviceEntry *entry = NULL;
 
   g_return_val_if_fail (CLUTTER_IS_STAGE (stage), NULL);
@@ -3189,7 +3150,7 @@ clutter_stage_get_device_coords (ClutterStage         *stage,
                                  ClutterEventSequence *sequence,
                                  graphene_point_t     *coords)
 {
-  ClutterStagePrivate *priv = stage->priv;
+  ClutterStagePrivate *priv = clutter_stage_get_instance_private (stage);
   PointerDeviceEntry *entry = NULL;
 
   g_return_val_if_fail (CLUTTER_IS_STAGE (stage), FALSE);
@@ -3215,7 +3176,7 @@ clutter_stage_set_device_coords (ClutterStage         *stage,
                                  ClutterEventSequence *sequence,
                                  graphene_point_t      coords)
 {
-  ClutterStagePrivate *priv = stage->priv;
+  ClutterStagePrivate *priv = clutter_stage_get_instance_private (stage);
   PointerDeviceEntry *entry = NULL;
 
   if (sequence != NULL)
@@ -3278,7 +3239,7 @@ create_event_emission_chain (ClutterStage *stage,
                              ClutterActor *topmost,
                              ClutterActor *deepmost)
 {
-  ClutterStagePrivate *priv = stage->priv;
+  ClutterStagePrivate *priv = clutter_stage_get_instance_private (stage);
   int i;
 
   g_assert (priv->cur_event_actors->len == 0);
@@ -3360,7 +3321,7 @@ clutter_stage_emit_crossing_event (ClutterStage       *self,
                                    ClutterActor       *deepmost,
                                    ClutterActor       *topmost)
 {
-  ClutterStagePrivate *priv = self->priv;
+  ClutterStagePrivate *priv = clutter_stage_get_instance_private (self);
   ClutterInputDevice *device = clutter_event_get_device (event);
   ClutterEventSequence *sequence = clutter_event_get_event_sequence (event);
   PointerDeviceEntry *entry;
@@ -3462,7 +3423,7 @@ clutter_stage_update_device (ClutterStage         *stage,
                              graphene_point_t      point,
                              uint32_t              time_ms,
                              ClutterActor         *new_actor,
-                             cairo_region_t       *clear_area,
+                             MtkRegion            *clear_area,
                              gboolean              emit_crossing)
 {
   ClutterInputDeviceType device_type;
@@ -3587,7 +3548,7 @@ clutter_stage_check_in_clear_area (ClutterStage         *stage,
                                    ClutterEventSequence *sequence,
                                    graphene_point_t      point)
 {
-  ClutterStagePrivate *priv = stage->priv;
+  ClutterStagePrivate *priv = clutter_stage_get_instance_private (stage);
   PointerDeviceEntry *entry = NULL;
 
   g_return_val_if_fail (CLUTTER_IS_STAGE (stage), FALSE);
@@ -3603,8 +3564,8 @@ clutter_stage_check_in_clear_area (ClutterStage         *stage,
   if (!entry->clear_area)
     return FALSE;
 
-  return cairo_region_contains_point (entry->clear_area,
-                                      point.x, point.y);
+  return mtk_region_contains_point (entry->clear_area,
+                                    point.x, point.y);
 }
 
 ClutterActor *
@@ -3616,28 +3577,36 @@ clutter_stage_pick_and_update_device (ClutterStage             *stage,
                                       graphene_point_t          point,
                                       uint32_t                  time_ms)
 {
-  ClutterActor *new_actor;
-  cairo_region_t *clear_area = NULL;
+  ClutterActor *new_actor = NULL;
+  MtkRegion *clear_area = NULL;
+  ClutterSeat *seat;
 
-  if ((flags & CLUTTER_DEVICE_UPDATE_IGNORE_CACHE) == 0)
+  seat = clutter_input_device_get_seat (device);
+
+  if (sequence ||
+      device != clutter_seat_get_pointer (seat) ||
+      clutter_seat_is_unfocus_inhibited (seat))
     {
-      if (clutter_stage_check_in_clear_area (stage, device,
-                                             sequence, point))
+      if ((flags & CLUTTER_DEVICE_UPDATE_IGNORE_CACHE) == 0)
         {
-          clutter_stage_set_device_coords (stage, device,
-                                           sequence, point);
-          return clutter_stage_get_device_actor (stage, device, sequence);
+          if (clutter_stage_check_in_clear_area (stage, device,
+                                                 sequence, point))
+            {
+              clutter_stage_set_device_coords (stage, device,
+                                               sequence, point);
+              return clutter_stage_get_device_actor (stage, device, sequence);
+            }
         }
+
+      new_actor = _clutter_stage_do_pick (stage,
+                                          point.x,
+                                          point.y,
+                                          CLUTTER_PICK_REACTIVE,
+                                          &clear_area);
+
+      /* Picking should never fail, but if it does, we bail out here */
+      g_return_val_if_fail (new_actor != NULL, NULL);
     }
-
-  new_actor = _clutter_stage_do_pick (stage,
-                                      point.x,
-                                      point.y,
-                                      CLUTTER_PICK_REACTIVE,
-                                      &clear_area);
-
-  /* Picking should never fail, but if it does, we bail out here */
-  g_return_val_if_fail (new_actor != NULL, NULL);
 
   clutter_stage_update_device (stage,
                                device, sequence,
@@ -3648,7 +3617,7 @@ clutter_stage_pick_and_update_device (ClutterStage             *stage,
                                clear_area,
                                !!(flags & CLUTTER_DEVICE_UPDATE_EMIT_CROSSING));
 
-  g_clear_pointer (&clear_area, cairo_region_destroy);
+  g_clear_pointer (&clear_area, mtk_region_unref);
 
   return new_actor;
 }
@@ -3676,7 +3645,7 @@ clutter_stage_notify_grab_on_pointer_entry (ClutterStage       *stage,
   unsigned int implicit_grab_n_removed = 0, implicit_grab_n_remaining = 0;
   ClutterEventType event_type = CLUTTER_NOTHING;
   ClutterActor *topmost, *deepmost;
-
+  ClutterStagePrivate *priv = clutter_stage_get_instance_private (stage);
   if (!entry->current_actor)
     return;
 
@@ -3742,7 +3711,7 @@ clutter_stage_notify_grab_on_pointer_entry (ClutterStage       *stage,
                     "[grab=%p device=%p sequence=%p implicit_grab_cancelled=%d] "
                     "Cancelled %u actors and actions (%u remaining) on implicit "
                     "grab due to new seat grab",
-                    stage->priv->topmost_grab, device, sequence, implicit_grab_cancelled,
+                    priv->topmost_grab, device, sequence, implicit_grab_cancelled,
                     implicit_grab_n_removed, implicit_grab_n_remaining);
     }
 
@@ -3844,12 +3813,12 @@ clutter_stage_notify_grab_on_key_focus (ClutterStage *stage,
                                         ClutterActor *grab_actor,
                                         ClutterActor *old_grab_actor)
 {
-  ClutterStagePrivate *priv = stage->priv;
+  ClutterStagePrivate *priv = clutter_stage_get_instance_private (stage);
   ClutterActor *key_focus;
   gboolean focus_in_grab, focus_in_old_grab;
 
   key_focus = priv->key_focused_actor ?
-    priv->key_focused_actor : CLUTTER_ACTOR (stage);
+              priv->key_focused_actor : CLUTTER_ACTOR (stage);
 
   focus_in_grab =
     !grab_actor ||
@@ -3871,7 +3840,7 @@ clutter_stage_notify_grab (ClutterStage *stage,
                            ClutterGrab  *cur,
                            ClutterGrab  *old)
 {
-  ClutterStagePrivate *priv = stage->priv;
+  ClutterStagePrivate *priv = clutter_stage_get_instance_private (stage);
   ClutterActor *cur_actor = NULL, *old_actor = NULL;
   PointerDeviceEntry *entry;
   GHashTableIter iter;
@@ -3908,44 +3877,6 @@ clutter_stage_notify_grab (ClutterStage *stage,
   clutter_stage_notify_grab_on_key_focus (stage, cur_actor, old_actor);
 }
 
-ClutterGrab *
-clutter_grab_ref (ClutterGrab *grab)
-{
-  g_ref_count_inc (&grab->ref_count);
-  return grab;
-}
-
-void
-clutter_grab_unref (ClutterGrab *grab)
-{
-  if (g_ref_count_dec (&grab->ref_count))
-    {
-      clutter_grab_dismiss (grab);
-      g_free (grab);
-    }
-}
-
-G_DEFINE_BOXED_TYPE (ClutterGrab, clutter_grab,
-                     clutter_grab_ref, clutter_grab_unref)
-
-static ClutterGrab *
-clutter_grab_new (ClutterStage *stage,
-                  ClutterActor *actor,
-                  gboolean      owns_actor)
-{
-  ClutterGrab *grab;
-
-  grab = g_new0 (ClutterGrab, 1);
-  g_ref_count_init (&grab->ref_count);
-  grab->stage = stage;
-
-  grab->actor = actor;
-  if (owns_actor)
-    grab->owns_actor = TRUE;
-
-  return grab;
-}
-
 static ClutterGrab *
 clutter_stage_grab_full (ClutterStage *stage,
                          ClutterActor *actor,
@@ -3961,11 +3892,11 @@ clutter_stage_grab_full (ClutterStage *stage,
                         (ClutterStage *) _clutter_actor_get_stage_internal (actor),
                         NULL);
 
-  priv = stage->priv;
+  priv = clutter_stage_get_instance_private (stage);
 
   if (!priv->topmost_grab)
     {
-      ClutterMainContext *context;
+      ClutterContext *context;
       ClutterSeat *seat;
 
       /* First grab in the chain, trigger a backend grab too */
@@ -4005,6 +3936,9 @@ clutter_stage_grab_full (ClutterStage *stage,
 
   if (was_grabbed != !!priv->topmost_grab)
     g_object_notify_by_pspec (G_OBJECT (stage), obj_props[PROP_IS_GRABBED]);
+
+  if (grab->next)
+    clutter_grab_notify (grab->next);
 
   return grab;
 }
@@ -4050,7 +3984,7 @@ void
 clutter_stage_unlink_grab (ClutterStage *stage,
                            ClutterGrab  *grab)
 {
-  ClutterStagePrivate *priv = stage->priv;
+  ClutterStagePrivate *priv = clutter_stage_get_instance_private (stage);
   ClutterGrab *prev, *next;
   gboolean was_grabbed;
 
@@ -4080,7 +4014,7 @@ clutter_stage_unlink_grab (ClutterStage *stage,
 
   if (!priv->topmost_grab)
     {
-      ClutterMainContext *context;
+      ClutterContext *context;
       ClutterSeat *seat;
 
       /* This was the last remaining grab, trigger a backend ungrab */
@@ -4111,6 +4045,9 @@ clutter_stage_unlink_grab (ClutterStage *stage,
 
   if (grab->owns_actor)
     g_clear_pointer (&grab->actor, clutter_actor_destroy);
+
+  if (priv->topmost_grab)
+    clutter_grab_notify (priv->topmost_grab);
 }
 
 /**
@@ -4141,9 +4078,12 @@ clutter_grab_dismiss (ClutterGrab *grab)
 ClutterGrabState
 clutter_grab_get_seat_state (ClutterGrab *grab)
 {
+  ClutterStagePrivate *priv;
+
   g_return_val_if_fail (grab != NULL, CLUTTER_GRAB_STATE_NONE);
 
-  return grab->stage->priv->grab_state;
+  priv = clutter_stage_get_instance_private (grab->stage);
+  return priv->grab_state;
 }
 
 /**
@@ -4157,7 +4097,7 @@ clutter_grab_get_seat_state (ClutterGrab *grab)
 ClutterActor *
 clutter_stage_get_grab_actor (ClutterStage *stage)
 {
-  ClutterStagePrivate *priv = stage->priv;
+  ClutterStagePrivate *priv = clutter_stage_get_instance_private (stage);
 
   if (!priv->topmost_grab)
     return NULL;
@@ -4327,7 +4267,7 @@ clutter_stage_maybe_lost_implicit_grab (ClutterStage         *self,
                                         ClutterInputDevice   *device,
                                         ClutterEventSequence *sequence)
 {
-  ClutterStagePrivate *priv = self->priv;
+  ClutterStagePrivate *priv = clutter_stage_get_instance_private (self);
   PointerDeviceEntry *entry = NULL;
   unsigned int i;
 
@@ -4359,17 +4299,60 @@ clutter_stage_maybe_lost_implicit_grab (ClutterStage         *self,
   cleanup_implicit_grab (entry);
 }
 
+static void
+setup_sequence_actions (GArray             *emission_chain,
+                        const ClutterEvent *sequence_begin_event)
+{
+  ClutterInputDevice *device = clutter_event_get_device (sequence_begin_event);
+  ClutterEventSequence *sequence = clutter_event_get_event_sequence (sequence_begin_event);
+  unsigned int i, j;
+
+  for (i = 0; i < emission_chain->len; i++)
+    {
+      EventReceiver *receiver = &g_array_index (emission_chain, EventReceiver, i);
+
+      if (!receiver->action)
+        continue;
+
+      if (!clutter_action_register_sequence (receiver->action, sequence_begin_event))
+        g_clear_object (&receiver->action);
+    }
+
+  for (i = 0; i < emission_chain->len; i++)
+    {
+      EventReceiver *receiver_1 = &g_array_index (emission_chain, EventReceiver, i);
+
+      if (!receiver_1->action)
+        continue;
+
+      for (j = i + 1; j < emission_chain->len; j++)
+        {
+          EventReceiver *receiver_2 = &g_array_index (emission_chain, EventReceiver, j);
+
+          if (!receiver_2->action)
+            continue;
+
+          clutter_action_setup_sequence_relationship (receiver_1->action,
+                                                      receiver_2->action,
+                                                      device,
+                                                      sequence);
+        }
+    }
+}
+
 void
 clutter_stage_emit_event (ClutterStage       *self,
                           const ClutterEvent *event)
 {
-  ClutterStagePrivate *priv = self->priv;
+  ClutterStagePrivate *priv = clutter_stage_get_instance_private (self);
   ClutterInputDevice *device = clutter_event_get_device (event);
   ClutterEventSequence *sequence = clutter_event_get_event_sequence (event);
   PointerDeviceEntry *entry;
   ClutterActor *target_actor = NULL, *seat_grab_actor = NULL;
   gboolean is_sequence_begin, is_sequence_end;
   ClutterEventType event_type;
+
+  COGL_TRACE_BEGIN_SCOPED (EmitEvent, "Clutter::Stage::emit_event()");
 
   if (sequence != NULL)
     entry = g_hash_table_lookup (priv->touch_sequences, sequence);
@@ -4380,63 +4363,65 @@ clutter_stage_emit_event (ClutterStage       *self,
 
   switch (event_type)
     {
-      case CLUTTER_NOTHING:
-      case CLUTTER_DEVICE_REMOVED:
-      case CLUTTER_DEVICE_ADDED:
-      case CLUTTER_EVENT_LAST:
-        return;
+    case CLUTTER_NOTHING:
+    case CLUTTER_DEVICE_REMOVED:
+    case CLUTTER_DEVICE_ADDED:
+    case CLUTTER_EVENT_LAST:
+      return;
 
-      case CLUTTER_KEY_PRESS:
-      case CLUTTER_KEY_RELEASE:
-      case CLUTTER_PAD_BUTTON_PRESS:
-      case CLUTTER_PAD_BUTTON_RELEASE:
-      case CLUTTER_PAD_STRIP:
-      case CLUTTER_PAD_RING:
-      case CLUTTER_IM_COMMIT:
-      case CLUTTER_IM_DELETE:
-      case CLUTTER_IM_PREEDIT:
-        {
-          target_actor = priv->key_focused_actor ?
-            priv->key_focused_actor : CLUTTER_ACTOR (self);
-          break;
-        }
+    case CLUTTER_KEY_PRESS:
+    case CLUTTER_KEY_RELEASE:
+    case CLUTTER_PAD_BUTTON_PRESS:
+    case CLUTTER_PAD_BUTTON_RELEASE:
+    case CLUTTER_PAD_STRIP:
+    case CLUTTER_PAD_RING:
+    case CLUTTER_IM_COMMIT:
+    case CLUTTER_IM_DELETE:
+    case CLUTTER_IM_PREEDIT:
+      {
+        target_actor = priv->key_focused_actor ?
+                       priv->key_focused_actor : CLUTTER_ACTOR (self);
+        break;
+      }
 
-      /* x11 stage enter/leave events */
-      case CLUTTER_ENTER:
-      case CLUTTER_LEAVE:
-        {
-          target_actor = entry->current_actor;
-          break;
-        }
+    /* x11 stage enter/leave events */
+    case CLUTTER_ENTER:
+    case CLUTTER_LEAVE:
+      {
+        target_actor = entry->current_actor;
+        break;
+      }
 
-      case CLUTTER_MOTION:
-      case CLUTTER_BUTTON_PRESS:
-      case CLUTTER_BUTTON_RELEASE:
-      case CLUTTER_SCROLL:
-      case CLUTTER_TOUCHPAD_PINCH:
-      case CLUTTER_TOUCHPAD_SWIPE:
-      case CLUTTER_TOUCHPAD_HOLD:
-      case CLUTTER_TOUCH_UPDATE:
-      case CLUTTER_TOUCH_BEGIN:
-      case CLUTTER_TOUCH_CANCEL:
-      case CLUTTER_TOUCH_END:
-      case CLUTTER_PROXIMITY_IN:
-      case CLUTTER_PROXIMITY_OUT:
-        {
-          float x, y;
+    case CLUTTER_MOTION:
+    case CLUTTER_BUTTON_PRESS:
+    case CLUTTER_BUTTON_RELEASE:
+    case CLUTTER_SCROLL:
+    case CLUTTER_TOUCHPAD_PINCH:
+    case CLUTTER_TOUCHPAD_SWIPE:
+    case CLUTTER_TOUCHPAD_HOLD:
+    case CLUTTER_TOUCH_UPDATE:
+    case CLUTTER_TOUCH_BEGIN:
+    case CLUTTER_TOUCH_CANCEL:
+    case CLUTTER_TOUCH_END:
+    case CLUTTER_PROXIMITY_IN:
+    case CLUTTER_PROXIMITY_OUT:
+      {
+        float x, y;
 
-          clutter_event_get_coords (event, &x, &y);
+        clutter_event_get_coords (event, &x, &y);
 
-          CLUTTER_NOTE (EVENT,
-                        "Reactive event received at %.2f, %.2f - actor: %p",
-                        x, y, entry->current_actor);
+        CLUTTER_NOTE (EVENT,
+                      "Reactive event received at %.2f, %.2f - actor: %p",
+                      x, y, entry->current_actor);
 
-          target_actor = entry->current_actor;
-          break;
-        }
+        target_actor = entry->current_actor;
+        break;
+      }
     }
 
-  g_assert (target_actor != NULL);
+  if (!target_actor)
+    return;
+
   seat_grab_actor = priv->topmost_grab ? priv->topmost_grab->actor : CLUTTER_ACTOR (self);
 
   is_sequence_begin =
@@ -4452,6 +4437,7 @@ clutter_stage_emit_event (ClutterStage       *self,
       clutter_actor_set_implicitly_grabbed (entry->implicit_grab_actor, TRUE);
 
       create_event_emission_chain (self, entry->event_emission_chain, seat_grab_actor, target_actor);
+      setup_sequence_actions (entry->event_emission_chain, event);
     }
 
   if (entry && entry->press_count)
@@ -4536,7 +4522,7 @@ void
 clutter_stage_implicit_grab_actor_unmapped (ClutterStage *self,
                                             ClutterActor *actor)
 {
-  ClutterStagePrivate *priv = self->priv;
+  ClutterStagePrivate *priv = clutter_stage_get_instance_private (self);
   GHashTableIter iter;
   PointerDeviceEntry *entry;
 
@@ -4560,7 +4546,7 @@ clutter_stage_notify_action_implicit_grab (ClutterStage         *self,
                                            ClutterInputDevice   *device,
                                            ClutterEventSequence *sequence)
 {
-  ClutterStagePrivate *priv = self->priv;
+  ClutterStagePrivate *priv = clutter_stage_get_instance_private (self);
   PointerDeviceEntry *entry;
 
   if (sequence != NULL)
@@ -4588,7 +4574,7 @@ clutter_stage_pointing_input_foreach (ClutterStage                 *self,
                                       ClutterStageInputForeachFunc  func,
                                       gpointer                      user_data)
 {
-  ClutterStagePrivate *priv = self->priv;
+  ClutterStagePrivate *priv = clutter_stage_get_instance_private (self);
   GHashTableIter iter;
   PointerDeviceEntry *entry;
 
@@ -4610,4 +4596,12 @@ clutter_stage_pointing_input_foreach (ClutterStage                 *self,
     }
 
   return TRUE;
+}
+
+GPtrArray *
+clutter_stage_get_active_gestures_array (ClutterStage *self)
+{
+  ClutterStagePrivate *priv = clutter_stage_get_instance_private (self);
+
+  return priv->all_active_gestures;
 }

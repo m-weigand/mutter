@@ -69,7 +69,8 @@ main (int argc, char **argv)
 
   stage = clutter_test_get_stage ();
   clutter_actor_set_size (stage, 512, 512);
-  clutter_actor_set_background_color (CLUTTER_ACTOR (stage), CLUTTER_COLOR_Black);
+  clutter_actor_set_background_color (CLUTTER_ACTOR (stage),
+                                      &CLUTTER_COLOR_INIT (0, 0, 0, 255));
   clutter_stage_set_title (CLUTTER_STAGE (stage), "Picking");
 
   printf ("Picking performance test with "
@@ -101,7 +102,7 @@ main (int argc, char **argv)
       g_signal_connect (rect, "motion-event",
                         G_CALLBACK (motion_event_cb), NULL);
 
-      clutter_container_add_actor (CLUTTER_CONTAINER (stage), rect);
+      clutter_actor_add_child (stage, rect);
     }
 
   clutter_actor_show (stage);

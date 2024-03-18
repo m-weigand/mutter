@@ -17,11 +17,12 @@
  * Author: Carlos Garnacho <carlosg@gnome.org>
  */
 
-#include "clutter/clutter-build-config.h"
+#include "config.h"
 
 #include "clutter/clutter-event-private.h"
 #include "clutter/clutter-private.h"
 #include "clutter/clutter-input-device-private.h"
+#include "clutter/clutter-input-focus.h"
 #include "clutter/clutter-input-method.h"
 #include "clutter/clutter-input-method-private.h"
 #include "clutter/clutter-input-focus-private.h"
@@ -61,57 +62,26 @@ static GParamSpec *pspecs[N_PROPS] = { 0 };
 G_DEFINE_ABSTRACT_TYPE_WITH_PRIVATE (ClutterInputMethod, clutter_input_method, G_TYPE_OBJECT)
 
 static void
-set_content_hints (ClutterInputMethod           *im,
-                   ClutterInputContentHintFlags  content_hints)
-{
-  ClutterInputMethodPrivate *priv;
-
-  priv = clutter_input_method_get_instance_private (im);
-  priv->content_hints = content_hints;
-  CLUTTER_INPUT_METHOD_GET_CLASS (im)->update_content_hints (im, content_hints);
-}
-
-static void
-set_content_purpose (ClutterInputMethod         *im,
-                     ClutterInputContentPurpose  content_purpose)
-{
-  ClutterInputMethodPrivate *priv;
-
-  priv = clutter_input_method_get_instance_private (im);
-  priv->content_purpose = content_purpose;
-  CLUTTER_INPUT_METHOD_GET_CLASS (im)->update_content_purpose (im,
-                                                               content_purpose);
-}
-
-static void
-set_can_show_preedit (ClutterInputMethod *im,
-                      gboolean            can_show_preedit)
-{
-  ClutterInputMethodPrivate *priv;
-
-  priv = clutter_input_method_get_instance_private (im);
-  priv->can_show_preedit = can_show_preedit;
-}
-
-static void
 clutter_input_method_set_property (GObject      *object,
                                    guint         prop_id,
                                    const GValue *value,
                                    GParamSpec   *pspec)
 {
+  ClutterInputMethod *im = CLUTTER_INPUT_METHOD (object);
+
   switch (prop_id)
     {
     case PROP_CONTENT_HINTS:
-      set_content_hints (CLUTTER_INPUT_METHOD (object),
-                         g_value_get_flags (value));
+      clutter_input_method_set_content_hints (im,
+                                              g_value_get_flags (value));
       break;
     case PROP_CONTENT_PURPOSE:
-      set_content_purpose (CLUTTER_INPUT_METHOD (object),
-                           g_value_get_enum (value));
+      clutter_input_method_set_content_purpose (im,
+                                                g_value_get_enum (value));
       break;
     case PROP_CAN_SHOW_PREEDIT:
-      set_can_show_preedit (CLUTTER_INPUT_METHOD (object),
-                            g_value_get_boolean (value));
+      clutter_input_method_set_can_show_preedit (im,
+                                                 g_value_get_boolean (value));
       break;
     default:
       G_OBJECT_WARN_INVALID_PROPERTY_ID (object, prop_id, pspec);
@@ -192,17 +162,20 @@ clutter_input_method_class_init (ClutterInputMethodClass *klass)
     g_param_spec_flags ("content-hints", NULL, NULL,
                         CLUTTER_TYPE_INPUT_CONTENT_HINT_FLAGS, 0,
                         G_PARAM_READWRITE |
-                        G_PARAM_STATIC_STRINGS);
+                        G_PARAM_STATIC_STRINGS |
+                        G_PARAM_EXPLICIT_NOTIFY);
   pspecs[PROP_CONTENT_PURPOSE] =
     g_param_spec_enum ("content-purpose", NULL, NULL,
                        CLUTTER_TYPE_INPUT_CONTENT_PURPOSE, 0,
                        G_PARAM_READWRITE |
-                       G_PARAM_STATIC_STRINGS);
+                       G_PARAM_STATIC_STRINGS |
+                       G_PARAM_EXPLICIT_NOTIFY);
   pspecs[PROP_CAN_SHOW_PREEDIT] =
     g_param_spec_boolean ("can-show-preedit", NULL, NULL,
                           FALSE,
                           G_PARAM_READWRITE |
-                          G_PARAM_STATIC_STRINGS);
+                          G_PARAM_STATIC_STRINGS |
+                          G_PARAM_EXPLICIT_NOTIFY);
 
   g_object_class_install_properties (object_class, N_PROPS, pspecs);
 }
@@ -259,15 +232,6 @@ clutter_input_method_focus_out (ClutterInputMethod *im)
 
   klass = CLUTTER_INPUT_METHOD_GET_CLASS (im);
   klass->focus_out (im);
-}
-
-ClutterInputFocus *
-clutter_input_method_get_focus (ClutterInputMethod *im)
-{
-  ClutterInputMethodPrivate *priv;
-
-  priv = clutter_input_method_get_instance_private (im);
-  return priv->focus;
 }
 
 static void
@@ -360,7 +324,13 @@ clutter_input_method_notify_key_event (ClutterInputMethod *im,
 {
   if (!filtered)
     {
+      ClutterModifierSet raw_modifiers;
       ClutterEvent *copy;
+
+      clutter_event_get_key_state (event,
+                                   &raw_modifiers.pressed,
+                                   &raw_modifiers.latched,
+                                   &raw_modifiers.locked);
 
       /* XXX: we rely on the IM implementation to notify back of
        * key events in the exact same order they were given.
@@ -370,6 +340,7 @@ clutter_input_method_notify_key_event (ClutterInputMethod *im,
                                     CLUTTER_EVENT_FLAG_INPUT_METHOD,
                                     clutter_event_get_time_us (event),
                                     clutter_event_get_device (event),
+                                    raw_modifiers,
                                     clutter_event_get_state (event),
                                     clutter_event_get_key_symbol (event),
                                     clutter_event_get_event_code (event),
@@ -424,27 +395,56 @@ void
 clutter_input_method_set_content_hints (ClutterInputMethod           *im,
                                         ClutterInputContentHintFlags  hints)
 {
+  ClutterInputMethodPrivate *priv;
+
   g_return_if_fail (CLUTTER_IS_INPUT_METHOD (im));
 
-  g_object_set (G_OBJECT (im), "content-hints", hints, NULL);
+  priv = clutter_input_method_get_instance_private (im);
+
+  if (priv->content_hints == hints)
+    return;
+
+  priv->content_hints = hints;
+  CLUTTER_INPUT_METHOD_GET_CLASS (im)->update_content_hints (im, hints);
+
+  g_object_notify_by_pspec (G_OBJECT (im), pspecs[PROP_CONTENT_HINTS]);
 }
 
 void
 clutter_input_method_set_content_purpose (ClutterInputMethod         *im,
                                           ClutterInputContentPurpose  purpose)
 {
+  ClutterInputMethodPrivate *priv;
+
   g_return_if_fail (CLUTTER_IS_INPUT_METHOD (im));
 
-  g_object_set (G_OBJECT (im), "content-purpose", purpose, NULL);
+  priv = clutter_input_method_get_instance_private (im);
+
+  if (priv->content_purpose == purpose)
+    return;
+
+  priv->content_purpose = purpose;
+  CLUTTER_INPUT_METHOD_GET_CLASS (im)->update_content_purpose (im, purpose);
+
+  g_object_notify_by_pspec (G_OBJECT (im), pspecs[PROP_CONTENT_PURPOSE]);
 }
 
 void
 clutter_input_method_set_can_show_preedit (ClutterInputMethod *im,
                                            gboolean            can_show_preedit)
 {
+  ClutterInputMethodPrivate *priv;
+
   g_return_if_fail (CLUTTER_IS_INPUT_METHOD (im));
 
-  g_object_set (G_OBJECT (im), "can-show-preedit", can_show_preedit, NULL);
+  priv = clutter_input_method_get_instance_private (im);
+
+  if (priv->can_show_preedit == can_show_preedit)
+    return;
+
+  priv->can_show_preedit = can_show_preedit;
+
+  g_object_notify_by_pspec (G_OBJECT (im), pspecs[PROP_CAN_SHOW_PREEDIT]);
 }
 
 gboolean
@@ -490,6 +490,7 @@ clutter_input_method_forward_key (ClutterInputMethod *im,
                                  CLUTTER_EVENT_FLAG_INPUT_METHOD,
                                  time_,
                                  keyboard,
+                                 (ClutterModifierSet) { 0, },
                                  state,
                                  keyval,
                                  keycode - 8,

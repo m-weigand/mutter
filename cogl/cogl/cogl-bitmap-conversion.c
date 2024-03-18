@@ -28,14 +28,76 @@
  *
  */
 
-#include "cogl-config.h"
+#include "config.h"
 
 #include "cogl/cogl-private.h"
 #include "cogl/cogl-bitmap-private.h"
 #include "cogl/cogl-context-private.h"
 #include "cogl/cogl-texture-private.h"
+#include "cogl/cogl-half-float.h"
 
 #include <string.h>
+
+typedef enum
+{
+  MEDIUM_TYPE_8,
+  MEDIUM_TYPE_16,
+  MEDIUM_TYPE_FLOAT,
+} MediumType;
+
+G_STATIC_ASSERT (sizeof (uint32_t) == sizeof (GLfloat));
+
+inline static uint32_t
+pack_flt (GLfloat b)
+{
+  uint32_t ret;
+  memcpy (&ret, &b, sizeof (uint32_t));
+  return ret;
+}
+
+inline static GLfloat
+unpack_flt (uint32_t b)
+{
+  GLfloat ret;
+  memcpy (&ret, &b, sizeof (GLfloat));
+  return ret;
+}
+
+#define CLAMP_NORM(b) (MAX (MIN ((b), 1.0), 0.0))
+
+#define UNPACK_1(b) ((b) * ((1 << (sizeof (component_type) * 8)) - 1))
+#define UNPACK_2(b) (((b) * ((1 << (sizeof (component_type) * 8)) - 1) + \
+                                 1) / 3)
+#define UNPACK_4(b) (((b) * ((1 << (sizeof (component_type) * 8)) - 1) + \
+                                 7) / 0xf)
+#define UNPACK_5(b) (((b) * ((1 << (sizeof (component_type) * 8)) - 1) + \
+                      0xf) / 0x1f)
+#define UNPACK_6(b) (((b) * ((1 << (sizeof (component_type) * 8)) - 1) + \
+                      0x1f) / 0x3f)
+#define UNPACK_10(b) (((b) * ((1 << (sizeof (component_type) * 8)) - 1) + \
+                       0x1ff) / 0x3ff)
+#define UNPACK_16(b) (((b) * ((1 << (sizeof (component_type) * 8)) - 1) + \
+                       0x7fff) / 0xffff)
+#define UNPACK_SHORT(b) (CLAMP_NORM (cogl_half_to_float (b)) * \
+                         ((1 << (sizeof (component_type) * 8)) - 1))
+#define UNPACK_FLOAT(b) (CLAMP_NORM (unpack_flt (b)) * \
+                         ((1 << (sizeof (component_type) * 8)) - 1))
+
+/* Pack and round to nearest */
+#define PACK_SIZE(b, max) \
+  (((b) * (max) + (1 << (sizeof (component_type) * 8 - 1)) - 1) / \
+   ((1 << (sizeof (component_type) * 8)) - 1))
+
+#define PACK_1(b) PACK_SIZE (b, 1)
+#define PACK_2(b) PACK_SIZE (b, 3)
+#define PACK_4(b) PACK_SIZE (b, 0xf)
+#define PACK_5(b) PACK_SIZE (b, 0x1f)
+#define PACK_6(b) PACK_SIZE (b, 0x3f)
+#define PACK_10(b) PACK_SIZE (b, 0x3ff)
+#define PACK_16(b) PACK_SIZE (b, 0xffff)
+#define PACK_SHORT(b) cogl_float_to_half ( \
+                        (b) / ((1 << (sizeof (component_type) * 8)) - 1))
+#define PACK_FLOAT(b) pack_flt ((b) / ((1 << (sizeof (component_type) * 8)) - 1))
 
 #define component_type uint8_t
 #define component_size 8
@@ -60,6 +122,75 @@
 #undef UNPACK_BYTE
 #undef component_type
 #undef component_size
+
+#undef CLAMP_NORM
+#undef UNPACK_1
+#undef UNPACK_2
+#undef UNPACK_4
+#undef UNPACK_5
+#undef UNPACK_6
+#undef UNPACK_10
+#undef UNPACK_16
+#undef UNPACK_SHORT
+#undef UNPACK_FLOAT
+#undef PACK_SIZE
+#undef PACK_1
+#undef PACK_2
+#undef PACK_4
+#undef PACK_5
+#undef PACK_6
+#undef PACK_10
+#undef PACK_16
+#undef PACK_SHORT
+#undef PACK_FLOAT
+
+#define UNPACK_1(b) ((b) / 1.0f)
+#define UNPACK_2(b) ((b) / 3.0f)
+#define UNPACK_4(b) ((b) / 15.0f)
+#define UNPACK_5(b) ((b) / 31.0f)
+#define UNPACK_6(b) ((b) / 63.0f)
+#define UNPACK_BYTE(b) ((b) / 255.0f)
+#define UNPACK_10(b) ((b) / 1023.0f)
+#define UNPACK_16(b) ((b) / 65535.0f)
+#define UNPACK_SHORT(b) cogl_half_to_float (b)
+#define UNPACK_FLOAT(b) unpack_flt (b)
+#define PACK_1(b) ((uint32_t) (b))
+#define PACK_2(b) ((uint32_t) ((b) * 3.5f))
+#define PACK_4(b) ((uint32_t) ((b) * 15.5f))
+#define PACK_5(b) ((uint32_t) ((b) * 31.5f))
+#define PACK_6(b) ((uint32_t) ((b) * 63.5f))
+#define PACK_BYTE(b) ((uint32_t) ((b) * 255.5f))
+#define PACK_10(b) ((uint32_t) ((b) * 1023.5f))
+#define PACK_16(b) ((uint32_t) ((b) * 65535.0f))
+#define PACK_SHORT(b) cogl_float_to_half (b)
+#define PACK_FLOAT(b) pack_flt((b) / 1.0)
+
+#define component_type float
+#define component_size float
+#include "cogl-bitmap-packing.h"
+#undef PACK_BYTE
+#undef UNPACK_BYTE
+#undef component_type
+#undef component_size
+
+#undef UNPACK_1
+#undef UNPACK_2
+#undef UNPACK_4
+#undef UNPACK_5
+#undef UNPACK_6
+#undef UNPACK_10
+#undef UNPACK_16
+#undef UNPACK_SHORT
+#undef UNPACK_FLOAT
+#undef PACK_1
+#undef PACK_2
+#undef PACK_4
+#undef PACK_5
+#undef PACK_6
+#undef PACK_10
+#undef PACK_16
+#undef PACK_SHORT
+#undef PACK_FLOAT
 
 /* (Un)Premultiplication */
 
@@ -289,6 +420,39 @@ _cogl_bitmap_premult_unpacked_span_16 (uint16_t *data,
     }
 }
 
+static void
+_cogl_bitmap_unpremult_unpacked_span_float (float *data,
+                                            int    width)
+{
+  while (width-- > 0)
+    {
+      float alpha = data[3];
+
+      if (alpha == 0.0)
+        memset (data, 0, sizeof (float) * 3);
+      else
+        {
+          data[0] = data[0] / alpha;
+          data[1] = data[1] / alpha;
+          data[2] = data[2] / alpha;
+        }
+    }
+}
+
+static void
+_cogl_bitmap_premult_unpacked_span_float (float *data,
+                                          int    width)
+{
+  while (width-- > 0)
+    {
+      float alpha = data[3];
+
+      data[0] = data[0] * alpha;
+      data[1] = data[1] * alpha;
+      data[2] = data[2] * alpha;
+    }
+}
+
 static gboolean
 _cogl_bitmap_can_fast_premult (CoglPixelFormat format)
 {
@@ -306,20 +470,11 @@ _cogl_bitmap_can_fast_premult (CoglPixelFormat format)
 }
 
 static gboolean
-_cogl_bitmap_needs_short_temp_buffer (CoglPixelFormat format)
+determine_medium_size (CoglPixelFormat format)
 {
-  /* If the format is using more than 8 bits per component then we'll
-     unpack into a 16-bit per component buffer instead of 8-bit so we
-     won't lose as much precision. If we ever add support for formats
-     with more than 16 bits for at least one of the components then we
-     should probably do something else here, maybe convert to
-     floats */
   switch (format)
     {
-    case COGL_PIXEL_FORMAT_G_16:
-    case COGL_PIXEL_FORMAT_RG_1616:
     case COGL_PIXEL_FORMAT_DEPTH_16:
-    case COGL_PIXEL_FORMAT_DEPTH_32:
     case COGL_PIXEL_FORMAT_DEPTH_24_STENCIL_8:
     case COGL_PIXEL_FORMAT_ANY:
     case COGL_PIXEL_FORMAT_YUV:
@@ -330,7 +485,7 @@ _cogl_bitmap_needs_short_temp_buffer (CoglPixelFormat format)
     case COGL_PIXEL_FORMAT_RGB_565:
     case COGL_PIXEL_FORMAT_RGBA_4444:
     case COGL_PIXEL_FORMAT_RGBA_5551:
-    case COGL_PIXEL_FORMAT_G_8:
+    case COGL_PIXEL_FORMAT_R_8:
     case COGL_PIXEL_FORMAT_RGB_888:
     case COGL_PIXEL_FORMAT_BGR_888:
     case COGL_PIXEL_FORMAT_RGBX_8888:
@@ -347,7 +502,7 @@ _cogl_bitmap_needs_short_temp_buffer (CoglPixelFormat format)
     case COGL_PIXEL_FORMAT_ABGR_8888_PRE:
     case COGL_PIXEL_FORMAT_RGBA_4444_PRE:
     case COGL_PIXEL_FORMAT_RGBA_5551_PRE:
-      return FALSE;
+      return MEDIUM_TYPE_8;
 
     case COGL_PIXEL_FORMAT_RGBA_1010102:
     case COGL_PIXEL_FORMAT_BGRA_1010102:
@@ -359,6 +514,12 @@ _cogl_bitmap_needs_short_temp_buffer (CoglPixelFormat format)
     case COGL_PIXEL_FORMAT_BGRA_1010102_PRE:
     case COGL_PIXEL_FORMAT_ARGB_2101010_PRE:
     case COGL_PIXEL_FORMAT_ABGR_2101010_PRE:
+    case COGL_PIXEL_FORMAT_R_16:
+    case COGL_PIXEL_FORMAT_RG_1616:
+    case COGL_PIXEL_FORMAT_RGBA_16161616:
+    case COGL_PIXEL_FORMAT_RGBA_16161616_PRE:
+      return MEDIUM_TYPE_16;
+
     case COGL_PIXEL_FORMAT_RGBX_FP_16161616:
     case COGL_PIXEL_FORMAT_RGBA_FP_16161616:
     case COGL_PIXEL_FORMAT_BGRX_FP_16161616:
@@ -371,11 +532,29 @@ _cogl_bitmap_needs_short_temp_buffer (CoglPixelFormat format)
     case COGL_PIXEL_FORMAT_BGRA_FP_16161616_PRE:
     case COGL_PIXEL_FORMAT_ARGB_FP_16161616_PRE:
     case COGL_PIXEL_FORMAT_ABGR_FP_16161616_PRE:
-      return TRUE;
+    case COGL_PIXEL_FORMAT_RGBA_FP_32323232:
+    case COGL_PIXEL_FORMAT_RGBA_FP_32323232_PRE:
+      return MEDIUM_TYPE_FLOAT;
     }
 
   g_assert_not_reached ();
   return FALSE;
+}
+
+static size_t
+calculate_medium_size_pixel_size (MediumType medium_type)
+{
+  switch (medium_type)
+    {
+    case MEDIUM_TYPE_8:
+      return sizeof (uint8_t) * 4;
+    case MEDIUM_TYPE_16:
+      return sizeof (uint16_t) * 4;
+    case MEDIUM_TYPE_FLOAT:
+      return sizeof (float) * 4;
+    }
+
+  g_assert_not_reached ();
 }
 
 gboolean
@@ -394,7 +573,7 @@ _cogl_bitmap_convert_into_bitmap (CoglBitmap *src_bmp,
   int width, height;
   CoglPixelFormat src_format;
   CoglPixelFormat dst_format;
-  gboolean use_16;
+  MediumType medium_type;
   gboolean need_premult;
 
   src_format = cogl_bitmap_get_format (src_bmp);
@@ -455,11 +634,10 @@ _cogl_bitmap_convert_into_bitmap (CoglBitmap *src_bmp,
       return FALSE;
     }
 
-  use_16 = _cogl_bitmap_needs_short_temp_buffer (dst_format);
+  medium_type = determine_medium_size (dst_format);
 
   /* Allocate a buffer to hold a temporary RGBA row */
-  tmp_row = g_malloc (width *
-                      (use_16 ? sizeof (uint16_t) : sizeof (uint8_t)) * 4);
+  tmp_row = g_malloc (width * calculate_medium_size_pixel_size (medium_type));
 
   /* FIXME: Optimize */
   for (y = 0; y < height; y++)
@@ -467,34 +645,66 @@ _cogl_bitmap_convert_into_bitmap (CoglBitmap *src_bmp,
       src = src_data + y * src_rowstride;
       dst = dst_data + y * dst_rowstride;
 
-      if (use_16)
-        _cogl_unpack_16 (src_format, src, tmp_row, width);
-      else
-        _cogl_unpack_8 (src_format, src, tmp_row, width);
+      switch (medium_type)
+        {
+        case MEDIUM_TYPE_8:
+          _cogl_unpack_8 (src_format, src, tmp_row, width);
+          break;
+        case MEDIUM_TYPE_16:
+          _cogl_unpack_16 (src_format, src, tmp_row, width);
+          break;
+        case MEDIUM_TYPE_FLOAT:
+          _cogl_unpack_float (src_format, src, tmp_row, width);
+          break;
+        }
 
       /* Handle premultiplication */
       if (need_premult)
         {
           if (dst_format & COGL_PREMULT_BIT)
             {
-              if (use_16)
-                _cogl_bitmap_premult_unpacked_span_16 (tmp_row, width);
-              else
-                _cogl_bitmap_premult_unpacked_span_8 (tmp_row, width);
+              switch (medium_type)
+                {
+                case MEDIUM_TYPE_8:
+                  _cogl_bitmap_premult_unpacked_span_8 (tmp_row, width);
+                  break;
+                case MEDIUM_TYPE_16:
+                  _cogl_bitmap_premult_unpacked_span_16 (tmp_row, width);
+                  break;
+                case MEDIUM_TYPE_FLOAT:
+                  _cogl_bitmap_premult_unpacked_span_float (tmp_row, width);
+                  break;
+                }
             }
           else
             {
-              if (use_16)
-                _cogl_bitmap_unpremult_unpacked_span_16 (tmp_row, width);
-              else
-                _cogl_bitmap_unpremult_unpacked_span_8 (tmp_row, width);
+              switch (medium_type)
+                {
+                case MEDIUM_TYPE_8:
+                  _cogl_bitmap_unpremult_unpacked_span_8 (tmp_row, width);
+                  break;
+                case MEDIUM_TYPE_16:
+                  _cogl_bitmap_unpremult_unpacked_span_16 (tmp_row, width);
+                  break;
+                case MEDIUM_TYPE_FLOAT:
+                  _cogl_bitmap_unpremult_unpacked_span_float (tmp_row, width);
+                  break;
+                }
             }
         }
 
-      if (use_16)
-        _cogl_pack_16 (dst_format, tmp_row, dst, width);
-      else
-        _cogl_pack_8 (dst_format, tmp_row, dst, width);
+      switch (medium_type)
+        {
+        case MEDIUM_TYPE_8:
+          _cogl_pack_8 (dst_format, tmp_row, dst, width);
+          break;
+        case MEDIUM_TYPE_16:
+          _cogl_pack_16 (dst_format, tmp_row, dst, width);
+          break;
+        case MEDIUM_TYPE_FLOAT:
+          _cogl_pack_float (dst_format, tmp_row, dst, width);
+          break;
+        }
     }
 
   _cogl_bitmap_unmap (src_bmp);
@@ -512,9 +722,9 @@ _cogl_bitmap_convert (CoglBitmap *src_bmp,
 {
   CoglBitmap *dst_bmp;
   int width, height;
+  CoglContext *ctx;
 
-  _COGL_GET_CONTEXT (ctx, NULL);
-
+  ctx = _cogl_bitmap_get_context (src_bmp);
   width = cogl_bitmap_get_width (src_bmp);
   height = cogl_bitmap_get_height (src_bmp);
 
@@ -527,7 +737,7 @@ _cogl_bitmap_convert (CoglBitmap *src_bmp,
 
   if (!_cogl_bitmap_convert_into_bitmap (src_bmp, dst_bmp, error))
     {
-      cogl_object_unref (dst_bmp);
+      g_object_unref (dst_bmp);
       return NULL;
     }
 
@@ -566,7 +776,6 @@ driver_can_convert (CoglContext *ctx,
 CoglBitmap *
 _cogl_bitmap_convert_for_upload (CoglBitmap *src_bmp,
                                  CoglPixelFormat internal_format,
-                                 gboolean can_convert_in_place,
                                  GError **error)
 {
   CoglContext *ctx = _cogl_bitmap_get_context (src_bmp);
@@ -590,29 +799,14 @@ _cogl_bitmap_convert_for_upload (CoglBitmap *src_bmp,
       if (_cogl_texture_needs_premult_conversion (src_format,
                                                   internal_format))
         {
-          if (can_convert_in_place)
-            {
-              if (_cogl_bitmap_convert_premult_status (src_bmp,
-                                                       (src_format ^
-                                                        COGL_PREMULT_BIT),
-                                                       error))
-                {
-                  dst_bmp = cogl_object_ref (src_bmp);
-                }
-              else
-                return NULL;
-            }
-          else
-            {
-              dst_bmp = _cogl_bitmap_convert (src_bmp,
-                                              src_format ^ COGL_PREMULT_BIT,
-                                              error);
-              if (dst_bmp == NULL)
-                return NULL;
-            }
+          dst_bmp = _cogl_bitmap_convert (src_bmp,
+                                          src_format ^ COGL_PREMULT_BIT,
+                                          error);
+          if (dst_bmp == NULL)
+            return NULL;
         }
       else
-        dst_bmp = cogl_object_ref (src_bmp);
+        dst_bmp = g_object_ref (src_bmp);
     }
   else
     {
@@ -628,7 +822,7 @@ _cogl_bitmap_convert_for_upload (CoglBitmap *src_bmp,
       if (closest_format != src_format)
         dst_bmp = _cogl_bitmap_convert (src_bmp, closest_format, error);
       else
-        dst_bmp = cogl_object_ref (src_bmp);
+        dst_bmp = g_object_ref (src_bmp);
     }
 
   return dst_bmp;

@@ -32,7 +32,6 @@
 
 #include <gmodule.h>
 
-#include "cogl/cogl-object-private.h"
 #include "cogl/cogl-driver.h"
 #include "cogl/cogl-texture-driver.h"
 #include "cogl/cogl-context.h"
@@ -43,7 +42,7 @@ typedef const CoglWinsysVtable *(*CoglCustomWinsysVtableGetter) (CoglRenderer *r
 
 struct _CoglRenderer
 {
-  CoglObject _parent;
+  GObject parent_instance;
   gboolean connected;
   CoglDriver driver_override;
   const CoglDriverVtable *driver_vtable;
@@ -62,7 +61,7 @@ struct _CoglRenderer
 
   GList *outputs;
 
-#ifdef COGL_HAS_XLIB
+#ifdef HAVE_X11
   Display *foreign_xdpy;
   gboolean xlib_enable_event_retrieval;
   gboolean xlib_want_reset_on_video_memory_purge;
@@ -97,5 +96,4 @@ _cogl_renderer_remove_native_filter (CoglRenderer *renderer,
 
 void *
 _cogl_renderer_get_proc_address (CoglRenderer *renderer,
-                                 const char *name,
-                                 gboolean in_core);
+                                 const char   *name);

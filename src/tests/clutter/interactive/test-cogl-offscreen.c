@@ -4,6 +4,7 @@
 #include <clutter/clutter.h>
 #include <cogl/cogl.h>
 
+#include "clutter/test-utils.h"
 #include "tests/clutter-test-utils.h"
 
 /* Coglbox declaration
@@ -48,11 +49,13 @@ test_coglbox_paint (ClutterActor        *self,
   CoglContext *ctx = cogl_framebuffer_get_context (framebuffer);
   gfloat texcoords[4] = { 0, 0, 1, 1 };
   CoglPipeline *pipeline;
+  CoglColor color;
 
   pipeline = cogl_pipeline_new (ctx);
-  cogl_pipeline_set_color4ub (pipeline, 0x66, 0x66, 0xdd, 0xff);
+  cogl_color_init_from_4f (&color, 0.4, 0.4, 221.0 / 255.0, 1.0);
+  cogl_pipeline_set_color (pipeline, &color);
   cogl_framebuffer_draw_rectangle (framebuffer, pipeline, 0, 0, 400, 400);
-  cogl_object_unref (pipeline);
+  g_object_unref (pipeline);
 
   pipeline = cogl_pipeline_new (ctx);
   cogl_pipeline_set_layer_texture (pipeline, 0, coglbox->texhand_id);
@@ -61,20 +64,26 @@ test_coglbox_paint (ClutterActor        *self,
                                             400, 400,
                                             0, 0,
                                             6, 6);
-  cogl_object_unref (pipeline);
+  g_object_unref (pipeline);
 
   pipeline = cogl_pipeline_new (ctx);
-  cogl_pipeline_set_color4ub (pipeline, 0xff, 0, 0, 0xff);
+
+  cogl_color_init_from_4f (&color, 1.0, 0.0, 0.0, 1.0);
+  cogl_pipeline_set_color (pipeline, &color);
   cogl_framebuffer_draw_rectangle (coglbox->framebuffer, pipeline,
                                    20, 20, 20 + 100, 20 + 100);
 
-  cogl_pipeline_set_color4ub (pipeline, 0, 0xff, 0, 0xff);
+  cogl_color_init_from_4f (&color, 0.0, 1.0, 0.0, 1.0);
+  cogl_pipeline_set_color (pipeline, &color);
   cogl_framebuffer_draw_rectangle (coglbox->framebuffer, pipeline,
                                    80, 80, 80 + 100, 80 + 100);
-  cogl_object_unref (pipeline);
+  g_object_unref (pipeline);
 
   pipeline = cogl_pipeline_new (ctx);
-  cogl_pipeline_set_color4ub (pipeline, 0x88, 0x88, 0x88, 0x88);
+  cogl_color_init_from_4f (&color,
+                           136.0 / 255.0, 136.0 / 255.0,
+                           136.0 / 255.0, 136.0 / 255.0);
+  cogl_pipeline_set_color (pipeline, &color);
   cogl_pipeline_set_layer_texture (pipeline, 0, coglbox->texture_id);
   cogl_framebuffer_draw_textured_rectangle (framebuffer, pipeline,
                                             100, 100,
@@ -83,7 +92,7 @@ test_coglbox_paint (ClutterActor        *self,
                                             texcoords[1],
                                             texcoords[2],
                                             texcoords[3]);
-  cogl_object_unref (pipeline);
+  g_object_unref (pipeline);
 }
 
 static void
@@ -91,7 +100,7 @@ test_coglbox_dispose (GObject *object)
 {
   TestCoglbox *coglbox = TEST_COGLBOX (object);
 
-  cogl_object_unref (coglbox->texture_id);
+  g_object_unref (coglbox->texture_id);
   g_object_unref (coglbox->framebuffer);
 
   G_OBJECT_CLASS (test_coglbox_parent_class)->dispose (object);
@@ -233,7 +242,7 @@ test_coglbox_init (TestCoglbox *self)
 
   printf ("Loading redhand.png\n");
   file = g_build_filename (TESTS_DATADIR, "redhand.png", NULL);
-  self->texhand_id = cogl_texture_2d_new_from_file (ctx, file, &error);
+  self->texhand_id = clutter_test_texture_2d_new_from_file (ctx, file, &error);
   if (error)
     g_warning ("Error loading redhand.png: %s", error->message);
   g_free (file);
@@ -279,7 +288,7 @@ test_cogl_offscreen_main (int argc, char *argv[])
 
   /* Cogl Box */
   coglbox = test_coglbox_new ();
-  clutter_container_add_actor (CLUTTER_CONTAINER (stage), coglbox);
+  clutter_actor_add_child (stage, coglbox);
 
   clutter_actor_show (stage);
 

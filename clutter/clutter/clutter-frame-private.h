@@ -30,7 +30,9 @@ struct _ClutterFrame
 
   gboolean has_target_presentation_time;
   int64_t target_presentation_time_us;
-  int64_t min_render_time_allowed_us;
+
+  gboolean has_frame_deadline;
+  int64_t frame_deadline_us;
 
   gboolean has_result;
   ClutterFrameResult result;
@@ -43,4 +45,5 @@ gpointer clutter_frame_new (size_t              size,
 #define clutter_frame_new(FrameType, release) \
   ((FrameType *) (clutter_frame_new (sizeof (FrameType), release)))
 
+CLUTTER_EXPORT
 ClutterFrameResult clutter_frame_get_result (ClutterFrame *frame);

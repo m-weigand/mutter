@@ -27,7 +27,7 @@
 
 #include <string.h>
 
-#include "compositor/region-utils.h"
+#include "mtk/mtk-region.h"
 
 struct _MetaWindowShape
 {
@@ -40,10 +40,10 @@ struct _MetaWindowShape
 };
 
 MetaWindowShape *
-meta_window_shape_new (cairo_region_t *region)
+meta_window_shape_new (MtkRegion *region)
 {
   MetaWindowShape *shape;
-  MetaRegionIterator iter;
+  MtkRegionIterator iter;
   MtkRectangle extents;
   int max_yspan_y1 = 0;
   int max_yspan_y2 = 0;
@@ -54,9 +54,9 @@ meta_window_shape_new (cairo_region_t *region)
   shape = g_new0 (MetaWindowShape, 1);
   shape->ref_count = 1;
 
-  cairo_region_get_extents (region, &extents);
+  extents = mtk_region_get_extents (region);
 
-  shape->n_rectangles = cairo_region_num_rectangles (region);
+  shape->n_rectangles = mtk_region_num_rectangles (region);
 
   if (shape->n_rectangles == 0)
     {
@@ -66,9 +66,9 @@ meta_window_shape_new (cairo_region_t *region)
       return shape;
     }
 
-  for (meta_region_iterator_init (&iter, region);
-       !meta_region_iterator_at_end (&iter);
-       meta_region_iterator_next (&iter))
+  for (mtk_region_iterator_init (&iter, region);
+       !mtk_region_iterator_at_end (&iter);
+       mtk_region_iterator_next (&iter))
     {
       int max_line_xspan_x1 = -1;
       int max_line_xspan_x2 = -1;
@@ -117,9 +117,9 @@ meta_window_shape_new (cairo_region_t *region)
   shape->rectangles = g_new (MtkRectangle, shape->n_rectangles);
 
   hash = 0;
-  for (meta_region_iterator_init (&iter, region);
-       !meta_region_iterator_at_end (&iter);
-       meta_region_iterator_next (&iter))
+  for (mtk_region_iterator_init (&iter, region);
+       !mtk_region_iterator_at_end (&iter);
+       mtk_region_iterator_next (&iter))
     {
       int x1, x2, y1, y2;
 
@@ -220,20 +220,20 @@ meta_window_shape_get_borders (MetaWindowShape *shape,
  * @center_width: size of the central region horizontally
  * @center_height: size of the central region vertically
  *
- * Converts the shape to to a cairo_region_t using the given width
+ * Converts the shape to to a MtkRegion using the given width
  * and height for the central scaled region.
  *
  * Return value: a newly created region
  */
-cairo_region_t *
+MtkRegion *
 meta_window_shape_to_region (MetaWindowShape *shape,
                              int              center_width,
                              int              center_height)
 {
-  cairo_region_t *region;
+  MtkRegion *region;
   int i;
 
-  region = cairo_region_create ();
+  region = mtk_region_create ();
 
   for (i = 0; i < shape->n_rectangles; i++)
     {
@@ -249,7 +249,7 @@ meta_window_shape_to_region (MetaWindowShape *shape,
       else if (rect.y >= shape->top + 1)
         rect.y += center_height;
 
-      cairo_region_union_rectangle (region, &rect);
+      mtk_region_union_rectangle (region, &rect);
     }
 
   return region;

@@ -381,6 +381,16 @@ meta_monitor_get_max_bpc (MetaMonitor  *monitor,
   return meta_output_get_max_bpc (output, max_bpc);
 }
 
+MetaOutputRGBRange
+meta_monitor_get_rgb_range (MetaMonitor *monitor)
+{
+  MetaOutput *output;
+
+  output = meta_monitor_get_main_output (monitor);
+
+  return meta_output_peek_rgb_range (output);
+}
+
 gboolean
 meta_monitor_is_laptop_panel (MetaMonitor *monitor)
 {
@@ -392,6 +402,7 @@ meta_monitor_is_laptop_panel (MetaMonitor *monitor)
     case META_CONNECTOR_TYPE_eDP:
     case META_CONNECTOR_TYPE_LVDS:
     case META_CONNECTOR_TYPE_DSI:
+    case META_CONNECTOR_TYPE_DPI:
       return TRUE;
     default:
       return FALSE;
@@ -612,16 +623,21 @@ generate_mode_id (MetaMonitorModeSpec *monitor_mode_spec)
 {
   gboolean is_interlaced;
   char rate_str[G_ASCII_DTOSTR_BUF_SIZE];
+  gboolean is_vrr;
 
   is_interlaced = !!(monitor_mode_spec->flags & META_CRTC_MODE_FLAG_INTERLACE);
   g_ascii_formatd (rate_str, sizeof (rate_str),
                    "%.3f", monitor_mode_spec->refresh_rate);
 
-  return g_strdup_printf ("%dx%d%s@%s",
+  is_vrr = monitor_mode_spec->refresh_rate_mode ==
+           META_CRTC_REFRESH_RATE_MODE_VARIABLE;
+
+  return g_strdup_printf ("%dx%d%s@%s%s",
                           monitor_mode_spec->width,
                           monitor_mode_spec->height,
                           is_interlaced ? "i" : "",
-                          rate_str);
+                          rate_str,
+                          is_vrr ? "+vrr" : "");
 }
 
 static gboolean
@@ -668,6 +684,7 @@ meta_monitor_create_spec (MetaMonitor  *monitor,
     .width = width,
     .height = height,
     .refresh_rate = crtc_mode_info->refresh_rate,
+    .refresh_rate_mode = crtc_mode_info->refresh_rate_mode,
     .flags = crtc_mode_info->flags & HANDLED_CRTC_MODE_FLAGS
   };
 }
@@ -1131,6 +1148,9 @@ find_tiled_crtc_mode (MetaOutput   *output,
       if (crtc_mode_info->refresh_rate != reference_crtc_mode_info->refresh_rate)
         continue;
 
+      if (crtc_mode_info->refresh_rate_mode != reference_crtc_mode_info->refresh_rate_mode)
+        continue;
+
       if (crtc_mode_info->flags != reference_crtc_mode_info->flags)
         continue;
 
@@ -1245,9 +1265,24 @@ generate_tiled_monitor_modes (MetaMonitorTiled *monitor_tiled)
 
       if (!monitor_priv->preferred_mode)
         {
-          if (!best_mode ||
-              mode->spec.refresh_rate > best_mode->spec.refresh_rate)
-            best_mode = mode;
+          if (!best_mode)
+            {
+              best_mode = mode;
+              continue;
+            }
+
+          if (mode->spec.refresh_rate > best_mode->spec.refresh_rate)
+            {
+              best_mode = mode;
+              continue;
+            }
+
+          if (mode->spec.refresh_rate == best_mode->spec.refresh_rate &&
+              mode->spec.refresh_rate_mode > best_mode->spec.refresh_rate_mode)
+            {
+              best_mode = mode;
+              continue;
+            }
         }
     }
 
@@ -1429,6 +1464,13 @@ find_best_mode (MetaMonitor *monitor)
         }
 
       if (mode->spec.refresh_rate > best_mode->spec.refresh_rate)
+        {
+          best_mode = mode;
+          continue;
+        }
+
+      if (mode->spec.refresh_rate == best_mode->spec.refresh_rate &&
+          mode->spec.refresh_rate_mode > best_mode->spec.refresh_rate_mode)
         {
           best_mode = mode;
           continue;
@@ -1701,6 +1743,8 @@ meta_monitor_mode_spec_equals (MetaMonitorModeSpec *monitor_mode_spec,
           monitor_mode_spec->height == other_monitor_mode_spec->height &&
           ABS (monitor_mode_spec->refresh_rate -
                other_monitor_mode_spec->refresh_rate) < MAXIMUM_REFRESH_RATE_DIFF &&
+          monitor_mode_spec->refresh_rate_mode ==
+          other_monitor_mode_spec->refresh_rate_mode &&
           monitor_mode_spec->flags == other_monitor_mode_spec->flags);
 }
 
@@ -2109,6 +2153,12 @@ meta_monitor_mode_get_refresh_rate (MetaMonitorMode *monitor_mode)
   return monitor_mode->spec.refresh_rate;
 }
 
+MetaCrtcRefreshRateMode
+meta_monitor_mode_get_refresh_rate_mode (MetaMonitorMode *monitor_mode)
+{
+  return monitor_mode->spec.refresh_rate_mode;
+}
+
 MetaCrtcModeFlag
 meta_monitor_mode_get_flags (MetaMonitorMode *monitor_mode)
 {
@@ -2226,6 +2276,17 @@ meta_monitor_set_privacy_screen_enabled (MetaMonitor  *monitor,
 }
 
 gboolean
+meta_monitor_get_min_refresh_rate (MetaMonitor *monitor,
+                                   int         *min_refresh_rate)
+{
+  const MetaOutputInfo *output_info =
+    meta_monitor_get_main_output_info (monitor);
+
+  return meta_output_info_get_min_refresh_rate (output_info,
+                                                min_refresh_rate);
+}
+
+gboolean
 meta_monitor_set_color_space (MetaMonitor           *monitor,
                               MetaOutputColorspace   color_space,
                               GError               **error)
@@ -2236,8 +2297,9 @@ meta_monitor_set_color_space (MetaMonitor           *monitor,
   for (l = priv->outputs; l; l = l->next)
     {
       MetaOutput *output = l->data;
+      const MetaOutputInfo *output_info = meta_output_get_info (output);
 
-      if (!meta_output_is_color_space_supported (output, color_space))
+      if (!(output_info->supported_color_spaces & (1 << color_space)))
         {
           g_set_error_literal (error, G_IO_ERROR, G_IO_ERROR_NOT_SUPPORTED,
                                "The color space is not supported by this monitor");
@@ -2266,8 +2328,9 @@ meta_monitor_set_hdr_metadata (MetaMonitor            *monitor,
   for (l = priv->outputs; l; l = l->next)
     {
       MetaOutput *output = l->data;
+      const MetaOutputInfo *output_info = meta_output_get_info (output);
 
-      if (!meta_output_is_hdr_metadata_supported (output, metadata->eotf))
+      if (!(output_info->supported_hdr_eotfs & (1 << metadata->eotf)))
         {
           g_set_error_literal (error, G_IO_ERROR, G_IO_ERROR_NOT_SUPPORTED,
                                "HDR metadata is not supported by this monitor");

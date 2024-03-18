@@ -24,9 +24,6 @@
 
 #pragma once
 
-#include <X11/Xlib.h>
-#include <X11/extensions/XInput.h>
-#include <X11/extensions/XInput2.h>
 #include <glib.h>
 
 #include "clutter/clutter.h"
@@ -107,14 +104,6 @@ struct _MetaFrameBorders
 /* sets all dimensions to zero */
 META_EXPORT
 void meta_frame_borders_clear (MetaFrameBorders *self);
-
-/* should investigate changing these to whatever most apps use */
-#define META_ICON_WIDTH 96
-#define META_ICON_HEIGHT 96
-#define META_MINI_ICON_WIDTH 16
-#define META_MINI_ICON_HEIGHT 16
-
-#define META_DEFAULT_ICON_NAME "window"
 
 /* Main loop priorities determine when activity in the GLib
  * will take precedence over the others. Priorities are sometimes

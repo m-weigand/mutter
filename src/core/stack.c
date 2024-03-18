@@ -36,10 +36,14 @@
 #include "core/meta-workspace-manager-private.h"
 #include "core/window-private.h"
 #include "core/workspace-private.h"
-#include "meta/group.h"
 #include "meta/prefs.h"
 #include "meta/workspace.h"
+
+#ifdef HAVE_X11_CLIENT
+#include "meta/group.h"
 #include "x11/meta-x11-display-private.h"
+#include "x11/window-x11.h"
+#endif
 
 #define WINDOW_TRANSIENT_FOR_WHOLE_GROUP(w)        \
   (meta_window_has_transient_type (w) && w->transient_for == NULL)
@@ -175,7 +179,7 @@ meta_stack_changed (MetaStack *stack)
   if (stack->freeze_count > 0)
     return;
 
-  COGL_TRACE_BEGIN_SCOPED (MetaStackChangedSort, "Stack: Changed");
+  COGL_TRACE_BEGIN_SCOPED (MetaStackChangedSort, "Meta::Stack::changed()");
 
   stack_ensure_sorted (stack);
   g_signal_emit (stack, signals[CHANGED], 0);
@@ -188,7 +192,7 @@ meta_stack_add (MetaStack  *stack,
   MetaWorkspaceManager *workspace_manager = window->display->workspace_manager;
 
   COGL_TRACE_BEGIN_SCOPED (MetaStackAdd,
-                           "Stack (add window)");
+                           "Meta::Stack::add()");
 
   g_return_if_fail (meta_window_is_stackable (window));
 
@@ -221,7 +225,7 @@ meta_stack_remove (MetaStack  *stack,
   MetaWorkspaceManager *workspace_manager = window->display->workspace_manager;
 
   COGL_TRACE_BEGIN_SCOPED (MetaStackRemove,
-                           "Stack (remove window)");
+                           "Meta::Stack::remove()");
 
   meta_topic (META_DEBUG_STACK, "Removing window %s from the stack", window->desc);
 
@@ -333,7 +337,7 @@ meta_stack_thaw (MetaStack *stack)
 {
   g_return_if_fail (stack->freeze_count > 0);
 
-  COGL_TRACE_BEGIN_SCOPED (MetaStackThaw, "Stack: thaw");
+  COGL_TRACE_BEGIN_SCOPED (MetaStackThaw, "Meta::Stack::thaw()");
 
   stack->freeze_count -= 1;
   meta_stack_changed (stack);
@@ -501,13 +505,15 @@ create_constraints (Constraint **constraints,
           continue;
         }
 
+#ifdef HAVE_X11_CLIENT
       if (WINDOW_TRANSIENT_FOR_WHOLE_GROUP (w))
         {
           GSList *group_windows;
           GSList *tmp2;
-          MetaGroup *group;
+          MetaGroup *group = NULL;
 
-          group = meta_window_get_group (w);
+          if (w->client_type == META_WINDOW_CLIENT_TYPE_X11)
+            group = meta_window_x11_get_group (w);
 
           if (group != NULL)
             group_windows = meta_group_list_windows (group);
@@ -549,7 +555,9 @@ create_constraints (Constraint **constraints,
 
           g_slist_free (group_windows);
         }
-      else if (w->transient_for != NULL)
+      else
+#endif
+      if (w->transient_for != NULL)
         {
           MetaWindow *parent;
 

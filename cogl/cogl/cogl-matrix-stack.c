@@ -31,24 +31,18 @@
  *   Neil Roberts <neil@linux.intel.com>
  */
 
-#include "cogl-config.h"
+#include "config.h"
 
 #include "cogl/cogl-context-private.h"
 #include "cogl/cogl-graphene.h"
 #include "cogl/cogl-matrix-stack.h"
 #include "cogl/cogl-framebuffer-private.h"
-#include "cogl/cogl-object-private.h"
 #include "cogl/cogl-offscreen.h"
 #include "cogl/cogl-magazine-private.h"
-#include "cogl/cogl-gtype-private.h"
 
-static void _cogl_matrix_stack_free (CoglMatrixStack *stack);
-
-COGL_OBJECT_DEFINE (MatrixStack, matrix_stack);
-COGL_GTYPE_DEFINE_CLASS (MatrixStack, matrix_stack);
-COGL_GTYPE_DEFINE_BOXED (MatrixEntry, matrix_entry,
-                         cogl_matrix_entry_ref,
-                         cogl_matrix_entry_unref);
+G_DEFINE_BOXED_TYPE (CoglMatrixEntry, cogl_matrix_entry,
+                     cogl_matrix_entry_ref,
+                     cogl_matrix_entry_unref);
 
 static CoglMagazine *cogl_matrix_stack_magazine;
 
@@ -62,12 +56,38 @@ _cogl_matrix_entry_new (CoglMatrixOp operation)
   entry->ref_count = 1;
   entry->op = operation;
 
-#ifdef COGL_DEBUG_ENABLED
+#ifdef COGL_ENABLE_DEBUG
   entry->composite_gets = 0;
 #endif
 
   return entry;
 }
+
+G_DEFINE_TYPE (CoglMatrixStack, cogl_matrix_stack, G_TYPE_OBJECT);
+
+static void
+cogl_matrix_stack_dispose (GObject *object)
+{
+  CoglMatrixStack *stack = COGL_MATRIX_STACK (object);
+
+  cogl_matrix_entry_unref (stack->last_entry);
+
+  G_OBJECT_CLASS (cogl_matrix_stack_parent_class)->dispose (object);
+}
+
+static void
+cogl_matrix_stack_init (CoglMatrixStack *stack)
+{
+}
+
+static void
+cogl_matrix_stack_class_init (CoglMatrixStackClass *class)
+{
+  GObjectClass *object_class = G_OBJECT_CLASS (class);
+
+  object_class->dispose = cogl_matrix_stack_dispose;
+}
+
 
 static void *
 _cogl_matrix_stack_push_entry (CoglMatrixStack *stack,
@@ -134,7 +154,7 @@ _cogl_matrix_entry_identity_init (CoglMatrixEntry *entry)
   entry->ref_count = 1;
   entry->op = COGL_MATRIX_OP_LOAD_IDENTITY;
   entry->parent = NULL;
-#ifdef COGL_DEBUG_ENABLED
+#ifdef COGL_ENABLE_DEBUG
   entry->composite_gets = 0;
 #endif
 }
@@ -509,17 +529,10 @@ cogl_matrix_stack_get (CoglMatrixStack   *stack,
   return cogl_matrix_entry_get (stack->last_entry, matrix);
 }
 
-static void
-_cogl_matrix_stack_free (CoglMatrixStack *stack)
-{
-  cogl_matrix_entry_unref (stack->last_entry);
-  g_free (stack);
-}
-
 CoglMatrixStack *
 cogl_matrix_stack_new (CoglContext *ctx)
 {
-  CoglMatrixStack *stack = g_new0 (CoglMatrixStack, 1);
+  CoglMatrixStack *stack = g_object_new (COGL_TYPE_MATRIX_STACK, NULL);
 
   if (G_UNLIKELY (cogl_matrix_stack_magazine == NULL))
     {
@@ -533,7 +546,7 @@ cogl_matrix_stack_new (CoglContext *ctx)
   cogl_matrix_entry_ref (&ctx->identity_entry);
   _cogl_matrix_stack_push_entry (stack, &ctx->identity_entry);
 
-  return _cogl_matrix_stack_object_new (stack);
+  return stack;
 }
 
 static CoglMatrixEntry *

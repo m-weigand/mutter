@@ -21,7 +21,7 @@
 #include <glib-object.h>
 
 #include "backends/meta-cursor.h"
-#include "wayland/meta-wayland-surface.h"
+#include "wayland/meta-wayland-surface-private.h"
 
 #define META_TYPE_CURSOR_SPRITE_WAYLAND meta_cursor_sprite_wayland_get_type ()
 META_EXPORT_TEST

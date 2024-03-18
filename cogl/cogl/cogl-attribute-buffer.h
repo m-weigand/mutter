@@ -49,22 +49,25 @@ typedef struct _CoglAttributeBuffer CoglAttributeBuffer;
 G_BEGIN_DECLS
 
 /**
- * SECTION:cogl-attribute-buffer
- * @short_description: Functions for creating and manipulating attribute
- *   buffers
+ * CoglAttributeBuffer:
  *
- * FIXME
+ * Functions for creating and manipulating attribute buffers
  */
+#define COGL_TYPE_ATTRIBUTE_BUFFER            (cogl_attribute_buffer_get_type ())
+#define COGL_ATTRIBUTE_BUFFER(obj)            (G_TYPE_CHECK_INSTANCE_CAST ((obj), COGL_TYPE_ATTRIBUTE_BUFFER, CoglAttributeBuffer))
+#define COGL_ATTRIBUTE_BUFFER_CONST(obj)      (G_TYPE_CHECK_INSTANCE_CAST ((obj), COGL_TYPE_ATTRIBUTE_BUFFER, CoglAttributeBuffer const))
+#define COGL_ATTRIBUTE_BUFFER_CLASS(klass)    (G_TYPE_CHECK_CLASS_CAST ((klass),  COGL_TYPE_ATTRIBUTE_BUFFER, CoglAttributeBufferClass))
+#define COGL_IS_ATTRIBUTE_BUFFER(obj)         (G_TYPE_CHECK_INSTANCE_TYPE ((obj), COGL_TYPE_ATTRIBUTE_BUFFER))
+#define COGL_IS_ATTRIBUTE_BUFFER_CLASS(klass) (G_TYPE_CHECK_CLASS_TYPE ((klass),  COGL_TYPE_ATTRIBUTE_BUFFER))
+#define COGL_ATTRIBUTE_BUFFER_GET_CLASS(obj)  (G_TYPE_INSTANCE_GET_CLASS ((obj),  COGL_TYPE_ATTRIBUTE_BUFFER, CoglAttributeBufferClass))
 
-#define COGL_ATTRIBUTE_BUFFER(buffer) ((CoglAttributeBuffer *)(buffer))
+typedef struct _CoglAttributeBufferClass CoglAttributeBufferClass;
+typedef struct _CoglAttributeBuffer CoglAttributeBuffer;
 
-/**
- * cogl_attribute_buffer_get_gtype:
- *
- * Returns: a #GType that can be used with the GLib type system.
- */
+G_DEFINE_AUTOPTR_CLEANUP_FUNC (CoglAttributeBuffer, g_object_unref)
+
 COGL_EXPORT
-GType cogl_attribute_buffer_get_gtype (void);
+GType               cogl_attribute_buffer_get_type       (void) G_GNUC_CONST;
 
 /**
  * cogl_attribute_buffer_new_with_size:
@@ -78,7 +81,7 @@ GType cogl_attribute_buffer_get_gtype (void);
  *
  * The underlying storage of this buffer isn't allocated by this
  * function so that you have an opportunity to use the
- * cogl_buffer_set_update_hint() and cogl_buffer_set_usage_hint()
+ * cogl_buffer_set_update_hint()
  * functions which may influence how the storage is allocated. The
  * storage will be allocated once you upload data to the buffer.
  *
@@ -95,8 +98,8 @@ cogl_attribute_buffer_new_with_size (CoglContext *context,
  * cogl_attribute_buffer_new:
  * @context: A #CoglContext
  * @bytes: The number of bytes to allocate for vertex attribute data.
- * @data: (array length=bytes): An optional pointer to vertex data to
- *        upload immediately.
+ * @data: (array length=bytes) (element-type guint8): An optional
+ *        pointer to vertex data to upload immediately.
  *
  * Describes a new #CoglAttributeBuffer of @size bytes to contain
  * arrays of vertex attribute data and also uploads @size bytes read
@@ -104,16 +107,16 @@ cogl_attribute_buffer_new_with_size (CoglContext *context,
  *
  * You should never pass a %NULL data pointer.
  *
- * <note>This function does not report out-of-memory errors back to
+ * This function does not report out-of-memory errors back to
  * the caller by returning %NULL and so you can assume this function
- * always succeeds.</note>
+ * always succeeds.
  *
- * <note>In the unlikely case that there is an out of memory problem
+ * In the unlikely case that there is an out of memory problem
  * then Cogl will abort the application with a message. If your
  * application needs to gracefully handle out-of-memory errors then
  * you can use cogl_attribute_buffer_new_with_size() and then
  * explicitly catch errors with cogl_buffer_set_data() or
- * cogl_buffer_map().</note>
+ * cogl_buffer_map().
  *
  * Return value: (transfer full): A newly allocated #CoglAttributeBuffer (never %NULL)
  */
@@ -122,17 +125,4 @@ cogl_attribute_buffer_new (CoglContext *context,
                            size_t bytes,
                            const void *data);
 
-/**
- * cogl_is_attribute_buffer:
- * @object: A #CoglObject
- *
- * Gets whether the given object references a #CoglAttributeBuffer.
- *
- * Returns: %TRUE if @object references a #CoglAttributeBuffer,
- *   %FALSE otherwise
- */
-COGL_EXPORT gboolean
-cogl_is_attribute_buffer (void *object);
-
 G_END_DECLS
-

@@ -7,40 +7,38 @@ clutter_includes = [clutter_includepath, cogl_includepath]
 clutter_c_args = [
   '-DCLUTTER_SYSCONFDIR="@0@"'.format(prefix / sysconfdir),
   '-DCLUTTER_COMPILATION=1',
-  '-DCOGL_DISABLE_DEPRECATION_WARNINGS',
   '-DCOGL_ENABLE_MUTTER_API',
   '-DG_LOG_DOMAIN="Clutter"',
 ]
 
 clutter_debug_c_args = []
-if get_option('debug')
-  clutter_debug_c_args += [
-    '-DCLUTTER_ENABLE_DEBUG',
-    '-fno-omit-frame-pointer'
-  ]
-elif buildtype != 'plain'
-  clutter_debug_c_args += [
-    '-DG_DISABLE_ASSERT',
-    '-DG_DISABLE_CAST_CHECKS',
-  ]
+if buildtype != 'plain'
+  if get_option('debug')
+    clutter_debug_c_args += [
+      '-DCLUTTER_ENABLE_DEBUG',
+    ]
+  else
+    clutter_debug_c_args += [
+      '-DG_DISABLE_ASSERT',
+      '-DG_DISABLE_CAST_CHECKS',
+    ]
+  endif
 endif
-supported_clutter_debug_c_args = cc.get_supported_arguments(clutter_debug_c_args)
+clutter_debug_c_args = cc.get_supported_arguments(clutter_debug_c_args)
 clutter_c_args += clutter_debug_c_args
 
 clutter_pkg_deps = [
   atk_dep,
-  cairo_gobject_dep,
+  cairo_dep,
   glib_dep,
   gobject_dep,
   gio_dep,
-  json_glib_dep,
   pango_dep,
   harfbuzz_dep,
 ]
 
 clutter_pkg_private_deps = [
   fribidi_dep,
-  gdk_pixbuf_dep,
   gthread_dep,
   gmodule_no_export_dep,
   pangocairo_dep,

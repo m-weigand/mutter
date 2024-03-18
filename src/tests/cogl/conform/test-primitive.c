@@ -157,6 +157,7 @@ test_paint (TestState *state)
 {
   CoglPipeline *pipeline;
   CoglTexture *tex;
+  CoglColor color;
   uint8_t tex_data[6];
   int i;
 
@@ -177,13 +178,14 @@ test_paint (TestState *state)
                                           6, /* rowstride */
                                           tex_data);
   pipeline = cogl_pipeline_new (test_ctx);
-  cogl_pipeline_set_color4ub (pipeline,
-                              (PRIM_COLOR >> 24) & 0xff,
-                              (PRIM_COLOR >> 16) & 0xff,
-                              (PRIM_COLOR >> 8) & 0xff,
-                              (PRIM_COLOR >> 0) & 0xff);
+  cogl_color_init_from_4f (&color,
+                           ((PRIM_COLOR >> 24) & 0xff) / 255.0,
+                           ((PRIM_COLOR >> 16) & 0xff) / 255.0,
+                           ((PRIM_COLOR >> 8) & 0xff) / 255.0,
+                           ((PRIM_COLOR >> 0) & 0xff) / 255.0);
+  cogl_pipeline_set_color (pipeline, &color);
   cogl_pipeline_set_layer_texture (pipeline, 0, tex);
-  cogl_object_unref (tex);
+  g_object_unref (tex);
 
   for (i = 0; i < G_N_ELEMENTS (test_prim_funcs); i++)
     {
@@ -199,10 +201,10 @@ test_paint (TestState *state)
 
       test_utils_check_pixel (test_fb, i * 10 + 2, 2, expected_color);
 
-      cogl_object_unref (prim);
+      g_object_unref (prim);
     }
 
-  cogl_object_unref (pipeline);
+  g_object_unref (pipeline);
 }
 
 static gboolean
@@ -301,14 +303,14 @@ test_copy (TestState *state)
   g_assert (cogl_primitive_get_indices (prim_a) ==
             cogl_primitive_get_indices (prim_b));
 
-  cogl_object_unref (prim_a);
-  cogl_object_unref (prim_b);
-  cogl_object_unref (indices);
+  g_object_unref (prim_a);
+  g_object_unref (prim_b);
+  g_object_unref (indices);
 
   for (i = 0; i < N_ATTRIBS; i++)
-    cogl_object_unref (attributes[i]);
+    g_object_unref (attributes[i]);
 
-  cogl_object_unref (buffer);
+  g_object_unref (buffer);
 }
 
 static void

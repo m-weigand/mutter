@@ -243,10 +243,10 @@ meta_seat_impl_clear_repeat_source (MetaSeatImpl *seat_impl)
 static void
 dispatch_libinput (MetaSeatImpl *seat_impl)
 {
-  COGL_TRACE_BEGIN (MetaSeatImplDispatchLibinput,
-                    "MetaSeatImpl (dispatch libinput)");
+  COGL_TRACE_BEGIN_SCOPED (MetaSeatImplDispatchLibinput,
+                           "Meta::SeatImpl::dispatch_libinput()");
+
   libinput_dispatch (seat_impl->libinput);
-  COGL_TRACE_END (MetaSeatImplDispatchLibinput);
 
   process_events (seat_impl);
 }
@@ -789,7 +789,7 @@ meta_seat_impl_notify_button_in_impl (MetaSeatImpl       *seat_impl,
                                       uint32_t            button,
                                       uint32_t            state)
 {
-  MetaInputDeviceNative *device_native = (MetaInputDeviceNative *) input_device;
+  MetaInputDeviceNative *device_native = META_INPUT_DEVICE_NATIVE (input_device);
   ClutterEvent *event = NULL;
   ClutterModifierType modifiers;
   int button_nr;
@@ -822,17 +822,17 @@ meta_seat_impl_notify_button_in_impl (MetaSeatImpl       *seat_impl,
       button_nr = CLUTTER_BUTTON_PRIMARY;
       break;
 
-    case BTN_RIGHT:
-    case BTN_STYLUS:
-      button_nr = CLUTTER_BUTTON_SECONDARY;
-      break;
-
     case BTN_MIDDLE:
-    case BTN_STYLUS2:
+    case BTN_STYLUS:
       button_nr = CLUTTER_BUTTON_MIDDLE;
       break;
 
-    case 0x149: /* BTN_STYLUS3 */
+    case BTN_RIGHT:
+    case BTN_STYLUS2:
+      button_nr = CLUTTER_BUTTON_SECONDARY;
+      break;
+
+    case BTN_STYLUS3:
       button_nr = 8;
       break;
 
@@ -990,6 +990,7 @@ notify_discrete_scroll (ClutterInputDevice     *input_device,
                                        NULL,
                                        modifiers,
                                        GRAPHENE_POINT_INIT (x, y),
+                                       scroll_source,
                                        direction);
 
   queue_event (seat_impl, event);
@@ -1102,7 +1103,7 @@ meta_seat_impl_notify_discrete_scroll_in_impl (MetaSeatImpl        *seat_impl,
                  dx,
                  dy,
                  scroll_source, CLUTTER_SCROLL_FINISHED_NONE,
-                 FALSE);
+                 TRUE);
 
   /* Notify discrete scroll only when the accumulated value reach 120 */
   evdev_device = META_INPUT_DEVICE_NATIVE (input_device);
@@ -2679,7 +2680,7 @@ process_events (MetaSeatImpl *seat_impl)
   struct libinput_event *event;
 
   COGL_TRACE_BEGIN_SCOPED (MetaSeatImplProcessEvents,
-                           "MetaSeatImpl (process events)");
+                           "Meta::SeatImpl::process_events()");
 
   while ((event = libinput_get_event (seat_impl->libinput)))
     {

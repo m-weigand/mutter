@@ -29,7 +29,7 @@
  *   Robert Bragg <robert@linux.intel.com>
  */
 
-#include "cogl-config.h"
+#include "config.h"
 
 #include <gio/gio.h>
 #include <stdlib.h>
@@ -37,33 +37,31 @@
 
 #include "cogl/cogl-util.h"
 #include "cogl/cogl-private.h"
-#include "cogl/cogl-object.h"
 #include "cogl/cogl-context-private.h"
 #include "cogl/cogl-mutter.h"
 
 #include "cogl/cogl-renderer.h"
 #include "cogl/cogl-renderer-private.h"
 #include "cogl/cogl-display-private.h"
-#include "cogl/cogl-gtype-private.h"
 
 #include "cogl/winsys/cogl-winsys-private.h"
 
-#ifdef COGL_HAS_EGL_PLATFORM_XLIB_SUPPORT
+#ifdef HAVE_EGL_PLATFORM_XLIB
 #include "cogl/winsys/cogl-winsys-egl-x11-private.h"
 #endif
-#ifdef COGL_HAS_GLX_SUPPORT
+#ifdef HAVE_GLX
 #include "cogl/winsys/cogl-winsys-glx-private.h"
 #endif
 
-#ifdef COGL_HAS_XLIB
+#ifdef HAVE_X11
 #include "cogl/cogl-xlib-renderer.h"
 #endif
 
-#ifdef HAVE_COGL_GL
+#ifdef HAVE_GL
 extern const CoglTextureDriver _cogl_texture_driver_gl;
 extern const CoglDriverVtable _cogl_driver_gl;
 #endif
-#if defined (HAVE_COGL_GLES2)
+#ifdef HAVE_GLES2
 extern const CoglTextureDriver _cogl_texture_driver_gles;
 extern const CoglDriverVtable _cogl_driver_gles;
 #endif
@@ -87,7 +85,7 @@ typedef struct _CoglDriverDescription
 
 static CoglDriverDescription _cogl_drivers[] =
 {
-#ifdef HAVE_COGL_GL
+#ifdef HAVE_GL
   {
     COGL_DRIVER_GL3,
     "gl3",
@@ -98,7 +96,7 @@ static CoglDriverDescription _cogl_drivers[] =
     COGL_GL_LIBNAME,
   },
 #endif
-#ifdef HAVE_COGL_GLES2
+#ifdef HAVE_GLES2
   {
     COGL_DRIVER_GLES2,
     "gles2",
@@ -121,30 +119,13 @@ static CoglDriverDescription _cogl_drivers[] =
 
 static CoglWinsysVtableGetter _cogl_winsys_vtable_getters[] =
 {
-#ifdef COGL_HAS_GLX_SUPPORT
+#ifdef HAVE_GLX
   _cogl_winsys_glx_get_vtable,
 #endif
-#ifdef COGL_HAS_EGL_PLATFORM_XLIB_SUPPORT
+#ifdef HAVE_EGL_PLATFORM_XLIB
   _cogl_winsys_egl_xlib_get_vtable,
 #endif
 };
-
-static void _cogl_renderer_free (CoglRenderer *renderer);
-
-COGL_OBJECT_DEFINE (Renderer, renderer);
-COGL_GTYPE_DEFINE_CLASS (Renderer, renderer);
-
-typedef struct _CoglNativeFilterClosure
-{
-  CoglNativeFilterFunc func;
-  void *data;
-} CoglNativeFilterClosure;
-
-uint32_t
-cogl_renderer_error_quark (void)
-{
-  return g_quark_from_static_string ("cogl-renderer-error-quark");
-}
 
 static const CoglWinsysVtable *
 _cogl_renderer_get_winsys (CoglRenderer *renderer)
@@ -152,15 +133,25 @@ _cogl_renderer_get_winsys (CoglRenderer *renderer)
   return renderer->winsys_vtable;
 }
 
+typedef struct _CoglNativeFilterClosure
+{
+  CoglNativeFilterFunc func;
+  void *data;
+} CoglNativeFilterClosure;
+
 static void
 native_filter_closure_free (CoglNativeFilterClosure *closure)
 {
   g_free (closure);
 }
 
+G_DEFINE_TYPE (CoglRenderer, cogl_renderer, G_TYPE_OBJECT);
+
 static void
-_cogl_renderer_free (CoglRenderer *renderer)
+cogl_renderer_dispose (GObject *object)
 {
+  CoglRenderer *renderer = COGL_RENDERER (object);
+
   const CoglWinsysVtable *winsys = _cogl_renderer_get_winsys (renderer);
 
   _cogl_closure_list_disconnect_all (&renderer->idle_closures);
@@ -176,13 +167,32 @@ _cogl_renderer_free (CoglRenderer *renderer)
 
   g_array_free (renderer->poll_fds, TRUE);
 
-  g_free (renderer);
+  G_OBJECT_CLASS (cogl_renderer_parent_class)->dispose (object);
+}
+
+static void
+cogl_renderer_init (CoglRenderer *renderer)
+{
+}
+
+static void
+cogl_renderer_class_init (CoglRendererClass *class)
+{
+  GObjectClass *object_class = G_OBJECT_CLASS (class);
+
+  object_class->dispose = cogl_renderer_dispose;
+}
+
+uint32_t
+cogl_renderer_error_quark (void)
+{
+  return g_quark_from_static_string ("cogl-renderer-error-quark");
 }
 
 CoglRenderer *
 cogl_renderer_new (void)
 {
-  CoglRenderer *renderer = g_new0 (CoglRenderer, 1);
+  CoglRenderer *renderer = g_object_new (COGL_TYPE_RENDERER, NULL);
 
   _cogl_init ();
 
@@ -193,19 +203,19 @@ cogl_renderer_new (void)
 
   _cogl_list_init (&renderer->idle_closures);
 
-#ifdef COGL_HAS_XLIB
+#ifdef HAVE_X11
   renderer->xlib_enable_event_retrieval = TRUE;
 #endif
 
-  return _cogl_renderer_object_new (renderer);
+  return renderer;
 }
 
-#ifdef COGL_HAS_XLIB
+#ifdef HAVE_X11
 void
 cogl_xlib_renderer_set_foreign_display (CoglRenderer *renderer,
                                         Display *xdisplay)
 {
-  g_return_if_fail (cogl_is_renderer (renderer));
+  g_return_if_fail (COGL_IS_RENDERER (renderer));
 
   /* NB: Renderers are considered immutable once connected */
   g_return_if_fail (!renderer->connected);
@@ -220,7 +230,7 @@ cogl_xlib_renderer_set_foreign_display (CoglRenderer *renderer,
 Display *
 cogl_xlib_renderer_get_foreign_display (CoglRenderer *renderer)
 {
-  g_return_val_if_fail (cogl_is_renderer (renderer), NULL);
+  g_return_val_if_fail (COGL_IS_RENDERER (renderer), NULL);
 
   return renderer->foreign_xdpy;
 }
@@ -229,12 +239,12 @@ void
 cogl_xlib_renderer_request_reset_on_video_memory_purge (CoglRenderer *renderer,
                                                         gboolean enable)
 {
-  g_return_if_fail (cogl_is_renderer (renderer));
+  g_return_if_fail (COGL_IS_RENDERER (renderer));
   g_return_if_fail (!renderer->connected);
 
   renderer->xlib_want_reset_on_video_memory_purge = enable;
 }
-#endif /* COGL_HAS_XLIB */
+#endif /* HAVE_X11 */
 
 gboolean
 cogl_renderer_check_onscreen_template (CoglRenderer *renderer,
@@ -249,11 +259,11 @@ cogl_renderer_check_onscreen_template (CoglRenderer *renderer,
   display = cogl_display_new (renderer, onscreen_template);
   if (!cogl_display_setup (display, error))
     {
-      cogl_object_unref (display);
+      g_object_unref (display);
       return FALSE;
     }
 
-  cogl_object_unref (display);
+  g_object_unref (display);
 
   return TRUE;
 }
@@ -689,12 +699,11 @@ cogl_renderer_get_winsys_id (CoglRenderer *renderer)
 
 void *
 _cogl_renderer_get_proc_address (CoglRenderer *renderer,
-                                 const char *name,
-                                 gboolean in_core)
+                                 const char   *name)
 {
   const CoglWinsysVtable *winsys = _cogl_renderer_get_winsys (renderer);
 
-  return winsys->renderer_get_proc_address (renderer, name, in_core);
+  return winsys->renderer_get_proc_address (renderer, name);
 }
 
 void
@@ -748,6 +757,8 @@ cogl_renderer_foreach_output (CoglRenderer *renderer,
 CoglDmaBufHandle *
 cogl_renderer_create_dma_buf (CoglRenderer     *renderer,
                               CoglPixelFormat   format,
+                              uint64_t         *modifiers,
+                              int               n_modifiers,
                               int               width,
                               int               height,
                               GError          **error)
@@ -755,7 +766,9 @@ cogl_renderer_create_dma_buf (CoglRenderer     *renderer,
   const CoglWinsysVtable *winsys = _cogl_renderer_get_winsys (renderer);
 
   if (winsys->renderer_create_dma_buf)
-    return winsys->renderer_create_dma_buf (renderer, format,
+    return winsys->renderer_create_dma_buf (renderer,
+                                            format,
+                                            modifiers, n_modifiers,
                                             width, height,
                                             error);
 

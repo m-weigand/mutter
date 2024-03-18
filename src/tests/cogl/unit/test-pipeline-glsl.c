@@ -1,4 +1,4 @@
-#include "cogl-config.h"
+#include "config.h"
 
 #include "cogl/cogl.h"
 #include "tests/cogl-test-utils.h"
@@ -7,6 +7,7 @@ static void
 test_pipeline_opengl_blend_enable (void)
 {
   CoglPipeline *pipeline;
+  CoglColor color;
 
   pipeline = cogl_pipeline_new (test_ctx);
 
@@ -20,7 +21,8 @@ test_pipeline_opengl_blend_enable (void)
    * disabled */
   g_assert_cmpint (test_ctx->gl_blend_enable_cache, ==, 0);
 
-  cogl_pipeline_set_color4f (pipeline, 0, 0, 0, 0);
+  cogl_color_init_from_4f (&color, 0.0, 0.0, 0.0, 0.0);
+  cogl_pipeline_set_color (pipeline, &color);
   cogl_framebuffer_draw_rectangle (test_fb, pipeline, 0, 0, 1, 1);
   _cogl_framebuffer_flush_journal (test_fb);
 
@@ -35,7 +37,7 @@ test_pipeline_opengl_blend_enable (void)
    * then blending should be disabled */
   g_assert_cmpint (test_ctx->gl_blend_enable_cache, ==, 0);
 
-  cogl_object_unref (pipeline);
+  g_object_unref (pipeline);
 }
 
 COGL_TEST_SUITE (

@@ -133,14 +133,16 @@ on_scanout_before_paint (ClutterStage     *stage,
                          KmsRenderingTest *test)
 {
   CoglScanout *scanout;
+  CoglScanoutBuffer *scanout_buffer;
   MetaDrmBuffer *buffer;
 
   scanout = clutter_stage_view_peek_scanout (stage_view);
   if (!scanout)
     return;
 
-  g_assert_true (META_IS_DRM_BUFFER (scanout));
-  buffer = META_DRM_BUFFER (scanout);
+  scanout_buffer = cogl_scanout_get_buffer (scanout);
+  g_assert_true (META_IS_DRM_BUFFER (scanout_buffer));
+  buffer = META_DRM_BUFFER (scanout_buffer);
   test->scanout.fb_id = meta_drm_buffer_get_fb_id (buffer);
   g_assert_cmpuint (test->scanout.fb_id, >, 0);
 }
@@ -148,7 +150,7 @@ on_scanout_before_paint (ClutterStage     *stage,
 static void
 on_scanout_paint_view (ClutterStage     *stage,
                        ClutterStageView *stage_view,
-                       cairo_region_t   *region,
+                       MtkRegion        *region,
                        ClutterFrame     *frame,
                        KmsRenderingTest *test)
 {
@@ -389,7 +391,7 @@ on_scanout_fallback_before_paint (ClutterStage     *stage,
 static void
 on_scanout_fallback_paint_view (ClutterStage     *stage,
                                 ClutterStageView *stage_view,
-                                cairo_region_t   *region,
+                                MtkRegion        *region,
                                 ClutterFrame     *frame,
                                 KmsRenderingTest *test)
 {

@@ -44,6 +44,7 @@ decode_edid_descriptors (const struct di_edid                    *di_edid,
                          MetaEdidInfo                            *info)
 {
   enum di_edid_display_descriptor_tag desc_tag;
+  const struct di_edid_display_range_limits *range_limits;
 
   desc_tag = di_edid_display_descriptor_get_tag (desc);
 
@@ -56,6 +57,11 @@ decode_edid_descriptors (const struct di_edid                    *di_edid,
     case DI_EDID_DISPLAY_DESCRIPTOR_PRODUCT_NAME:
       info->dsc_product_name =
         g_strdup (di_edid_display_descriptor_get_string (desc));
+      break;
+    case DI_EDID_DISPLAY_DESCRIPTOR_RANGE_LIMITS:
+      range_limits = di_edid_display_descriptor_get_range_limits (desc);
+      g_assert (range_limits != NULL);
+      info->min_vert_rate_hz = range_limits->min_vert_rate_hz;
       break;
     default:
         break;
@@ -94,6 +100,9 @@ decode_edid_hdr_static_metadata (const struct di_cta_hdr_static_metadata_block *
                                  MetaEdidInfo                                  *info)
 {
   /* HDR Static Metadata Block */
+  if (hdr->descriptors->type1)
+    info->hdr_static_metadata.sm |= META_EDID_STATIC_METADATA_TYPE1;
+
   if (hdr->eotfs->traditional_sdr)
     info->hdr_static_metadata.tf |= META_EDID_TF_TRADITIONAL_GAMMA_SDR;
   if (hdr->eotfs->traditional_hdr)
@@ -103,24 +112,12 @@ decode_edid_hdr_static_metadata (const struct di_cta_hdr_static_metadata_block *
   if (hdr->eotfs->hlg)
     info->hdr_static_metadata.tf |= META_EDID_TF_HLG;
 
-  if (hdr->descriptors->type1)
-    info->hdr_static_metadata.sm |= META_EDID_STATIC_METADATA_TYPE1;
-
-  if (hdr->desired_content_max_luminance != 0)
-    {
-      info->hdr_static_metadata.max_luminance =
-        hdr->desired_content_max_luminance;
-    }
-  if (hdr->desired_content_max_frame_avg_luminance != 0)
-    {
-      info->hdr_static_metadata.max_fal =
-        hdr->desired_content_max_frame_avg_luminance;
-    }
-  if (hdr->desired_content_min_luminance != 0)
-    {
-      info->hdr_static_metadata.min_luminance =
-        hdr->desired_content_min_luminance;
-    }
+  info->hdr_static_metadata.max_luminance =
+    hdr->desired_content_max_luminance;
+  info->hdr_static_metadata.max_fal =
+    hdr->desired_content_max_frame_avg_luminance;
+  info->hdr_static_metadata.min_luminance =
+    hdr->desired_content_min_luminance;
 }
 
 static void
@@ -437,7 +434,7 @@ static float
 decode_max_luminance (uint8_t raw)
 {
   if (raw == 0)
-    return 0;
+    return 0.f;
 
   return 50 * powf (2, (float) raw / 32);
 }
@@ -447,7 +444,7 @@ decode_min_luminance (uint8_t raw,
                       float   max)
 {
   if (raw == 0)
-    return 0;
+    return 0.f;
 
   return max * powf ((float) raw / 255, 2) / 100;
 }
@@ -459,7 +456,6 @@ decode_ext_cta_hdr_static_metadata (const uint8_t *data_block,
   /* CTA-861-H: Table 92 - HDR Static Metadata Data Block (HDR SMDB) */
   int size;
 
-  info->hdr_static_metadata.available = TRUE;
   info->hdr_static_metadata.tf = data_block[2];
   info->hdr_static_metadata.sm = data_block[3];
 

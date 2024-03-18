@@ -53,78 +53,6 @@ meta_output_kms_get_kms_connector (MetaOutputKms *output_kms)
   return output_kms->kms_connector;
 }
 
-void
-meta_output_kms_set_underscan (MetaOutputKms *output_kms,
-                               MetaKmsUpdate *kms_update)
-{
-  MetaOutput *output = META_OUTPUT (output_kms);
-  const MetaOutputInfo *output_info = meta_output_get_info (output);
-
-  if (!output_info->supports_underscanning)
-    return;
-
-  if (meta_output_is_underscanning (output))
-    {
-      MetaCrtc *crtc;
-      const MetaCrtcConfig *crtc_config;
-      const MetaCrtcModeInfo *crtc_mode_info;
-      uint64_t hborder, vborder;
-
-      crtc = meta_output_get_assigned_crtc (output);
-      crtc_config = meta_crtc_get_config (crtc);
-      crtc_mode_info = meta_crtc_mode_get_info (crtc_config->mode);
-
-      hborder = MIN (128, (uint64_t) round (crtc_mode_info->width * 0.05));
-      vborder = MIN (128, (uint64_t) round (crtc_mode_info->height * 0.05));
-
-      g_debug ("Setting underscan of connector %s to %" G_GUINT64_FORMAT " x %" G_GUINT64_FORMAT,
-               meta_kms_connector_get_name (output_kms->kms_connector),
-               hborder, vborder);
-
-      meta_kms_update_set_underscanning (kms_update,
-                                         output_kms->kms_connector,
-                                         hborder, vborder);
-    }
-  else
-    {
-      g_debug ("Unsetting underscan of connector %s",
-               meta_kms_connector_get_name (output_kms->kms_connector));
-
-      meta_kms_update_unset_underscanning (kms_update,
-                                           output_kms->kms_connector);
-    }
-}
-
-void
-meta_output_kms_set_max_bpc (MetaOutputKms *output_kms,
-                             MetaKmsUpdate *kms_update)
-{
-  MetaKmsConnector *kms_connector = output_kms->kms_connector;
-  const MetaKmsRange *range;
-
-  range = meta_kms_connector_get_max_bpc (kms_connector);
-  if (range)
-    {
-      MetaOutput *output = META_OUTPUT (output_kms);
-      unsigned int max_bpc;
-
-      if (!meta_output_get_max_bpc (output, &max_bpc))
-        return;
-
-      if (max_bpc >= range->min_value && max_bpc <= range->max_value)
-        {
-          meta_kms_update_set_max_bpc (kms_update, kms_connector, max_bpc);
-        }
-      else
-        {
-          g_warning ("Ignoring out of range value %u for max bpc (%u-%u)",
-                     max_bpc,
-                     (unsigned) range->min_value,
-                     (unsigned) range->max_value);
-        }
-    }
-}
-
 static MetaPrivacyScreenState
 meta_output_kms_get_privacy_screen_state (MetaOutput *output)
 {
@@ -137,54 +65,6 @@ meta_output_kms_get_privacy_screen_state (MetaOutput *output)
   return connector_state->privacy_screen_state;
 }
 
-static gboolean
-meta_output_kms_is_color_space_supported (MetaOutput           *output,
-                                          MetaOutputColorspace  color_space)
-{
-  MetaOutputKms *output_kms = META_OUTPUT_KMS (output);
-  const MetaKmsConnectorState *connector_state;
-  const MetaOutputInfo *output_info;
-
-  output_info = meta_output_get_info (output);
-
-  if (!meta_output_info_is_color_space_supported (output_info, color_space))
-    {
-      meta_topic (META_DEBUG_COLOR,
-                  "MetaOutput: Output %s signals that it doesn't support "
-                  "Colorspace %s",
-                  meta_output_get_name (output),
-                  meta_output_colorspace_get_name (color_space));
-      return FALSE;
-    }
-
-  connector_state =
-    meta_kms_connector_get_current_state (output_kms->kms_connector);
-
-  if (!(connector_state->colorspace.supported & (1 << color_space)))
-    {
-      meta_topic (META_DEBUG_COLOR,
-                  "MetaOutput: KMS Connector for output %s doesn't support "
-                  "Colorspace %s",
-                  meta_output_get_name (output),
-                  meta_output_colorspace_get_name (color_space));
-      return FALSE;
-    }
-
-  return TRUE;
-}
-
-static gboolean
-meta_output_kms_is_hdr_metadata_supported (MetaOutput *output)
-{
-  MetaOutputKms *output_kms = META_OUTPUT_KMS (output);
-  const MetaKmsConnectorState *connector_state;
-
-  connector_state =
-    meta_kms_connector_get_current_state (output_kms->kms_connector);
-
-  return connector_state->hdr.supported;
-}
-
 uint32_t
 meta_output_kms_get_connector_id (MetaOutputKms *output_kms)
 {
@@ -195,8 +75,19 @@ gboolean
 meta_output_kms_can_clone (MetaOutputKms *output_kms,
                            MetaOutputKms *other_output_kms)
 {
-  return meta_kms_connector_can_clone (output_kms->kms_connector,
-                                       other_output_kms->kms_connector);
+  const MetaKmsConnectorState *state =
+    meta_kms_connector_get_current_state (output_kms->kms_connector);
+  const MetaKmsConnectorState *other_state =
+    meta_kms_connector_get_current_state (other_output_kms->kms_connector);
+
+  if (state->common_possible_clones == 0 ||
+      other_state->common_possible_clones == 0)
+    return FALSE;
+
+  if (state->encoder_device_idxs != other_state->encoder_device_idxs)
+    return FALSE;
+
+  return TRUE;
 }
 
 static GBytes *
@@ -217,7 +108,8 @@ meta_output_kms_read_edid (MetaOutputNative *output_native)
 
 static void
 add_common_modes (MetaOutputInfo *output_info,
-                  MetaGpuKms     *gpu_kms)
+                  MetaGpuKms     *gpu_kms,
+                  gboolean        add_vrr_modes)
 {
   MetaCrtcMode *crtc_mode;
   GPtrArray *array;
@@ -288,7 +180,17 @@ add_common_modes (MetaOutputInfo *output_info,
       if (is_duplicate)
         continue;
 
-      crtc_mode = meta_gpu_kms_get_mode_from_kms_mode (gpu_kms, fallback_mode);
+      if (add_vrr_modes)
+        {
+          crtc_mode = meta_gpu_kms_get_mode_from_kms_mode (gpu_kms,
+                                                           fallback_mode,
+                                                           META_CRTC_REFRESH_RATE_MODE_VARIABLE);
+          g_ptr_array_add (array, crtc_mode);
+        }
+
+      crtc_mode = meta_gpu_kms_get_mode_from_kms_mode (gpu_kms,
+                                                       fallback_mode,
+                                                       META_CRTC_REFRESH_RATE_MODE_FIXED);
       g_ptr_array_add (array, crtc_mode);
     }
 
@@ -319,6 +221,9 @@ compare_modes (const void *one,
   if (crtc_mode_info_one->refresh_rate != crtc_mode_info_two->refresh_rate)
     return (crtc_mode_info_one->refresh_rate > crtc_mode_info_two->refresh_rate
             ? -1 : 1);
+  if (crtc_mode_info_one->refresh_rate_mode != crtc_mode_info_two->refresh_rate_mode)
+    return (crtc_mode_info_one->refresh_rate_mode >
+            crtc_mode_info_two->refresh_rate_mode) ? -1 : 1;
 
   return g_strcmp0 (meta_crtc_mode_get_name (crtc_mode_one),
                     meta_crtc_mode_get_name (crtc_mode_two));
@@ -348,7 +253,8 @@ static void
 maybe_add_fallback_modes (const MetaKmsConnectorState *connector_state,
                           MetaOutputInfo              *output_info,
                           MetaGpuKms                  *gpu_kms,
-                          MetaKmsConnector            *kms_connector)
+                          MetaKmsConnector            *kms_connector,
+                          gboolean                     add_vrr_modes)
 {
   if (!connector_state->modes)
     return;
@@ -363,7 +269,7 @@ maybe_add_fallback_modes (const MetaKmsConnectorState *connector_state,
   meta_topic (META_DEBUG_KMS, "Adding common modes to connector %u on %s",
               meta_kms_connector_get_id (kms_connector),
               meta_gpu_kms_get_file_path (gpu_kms));
-  add_common_modes (output_info, gpu_kms);
+  add_common_modes (output_info, gpu_kms, add_vrr_modes);
 }
 
 static gboolean
@@ -374,6 +280,7 @@ init_output_modes (MetaOutputInfo    *output_info,
 {
   const MetaKmsConnectorState *connector_state;
   MetaKmsMode *kms_preferred_mode;
+  gboolean add_vrr_modes;
   GList *l;
   int i;
 
@@ -382,20 +289,44 @@ init_output_modes (MetaOutputInfo    *output_info,
 
   output_info->preferred_mode = NULL;
 
-  output_info->n_modes = g_list_length (connector_state->modes);
+  add_vrr_modes = output_info->supports_vrr;
+
+  if (add_vrr_modes)
+    output_info->n_modes = g_list_length (connector_state->modes) * 2;
+  else
+    output_info->n_modes = g_list_length (connector_state->modes);
+
   output_info->modes = g_new0 (MetaCrtcMode *, output_info->n_modes);
-  for (l = connector_state->modes, i = 0; l; l = l->next, i++)
+
+  for (l = connector_state->modes, i = 0; l; l = l->next)
     {
       MetaKmsMode *kms_mode = l->data;
       MetaCrtcMode *crtc_mode;
 
-      crtc_mode = meta_gpu_kms_get_mode_from_kms_mode (gpu_kms, kms_mode);
-      output_info->modes[i] = crtc_mode;
-      if (kms_mode == kms_preferred_mode)
-        output_info->preferred_mode = output_info->modes[i];
+      if (add_vrr_modes)
+        {
+          crtc_mode =
+            meta_gpu_kms_get_mode_from_kms_mode (gpu_kms,
+                                                 kms_mode,
+                                                 META_CRTC_REFRESH_RATE_MODE_VARIABLE);
+          output_info->modes[i++] = crtc_mode;
+          if (!output_info->preferred_mode && kms_mode == kms_preferred_mode)
+            output_info->preferred_mode = crtc_mode;
+        }
+
+      crtc_mode = meta_gpu_kms_get_mode_from_kms_mode (gpu_kms,
+                                                       kms_mode,
+                                                       META_CRTC_REFRESH_RATE_MODE_FIXED);
+      output_info->modes[i++] = crtc_mode;
+      if (!output_info->preferred_mode && kms_mode == kms_preferred_mode)
+        output_info->preferred_mode = crtc_mode;
     }
 
-  maybe_add_fallback_modes (connector_state, output_info, gpu_kms, kms_connector);
+  maybe_add_fallback_modes (connector_state,
+                            output_info,
+                            gpu_kms,
+                            kms_connector,
+                            add_vrr_modes);
   if (!output_info->modes)
     {
       g_set_error (error, G_IO_ERROR, G_IO_ERROR_FAILED,
@@ -434,9 +365,9 @@ meta_output_kms_new (MetaGpuKms        *gpu_kms,
   MetaOutputKms *output_kms;
   uint32_t drm_connector_type;
   const MetaKmsConnectorState *connector_state;
+  const MetaKmsCrtcState *crtc_state;
   GArray *crtcs;
   GList *l;
-  const MetaKmsRange *max_bpc_range;
 
   gpu_id = meta_gpu_kms_get_id (gpu_kms);
   connector_id = meta_kms_connector_get_id (kms_connector);
@@ -463,8 +394,8 @@ meta_output_kms_new (MetaGpuKms        *gpu_kms,
   output_info->connector_type =
     meta_kms_connector_type_from_drm (drm_connector_type);
 
-  if (!init_output_modes (output_info, gpu_kms, kms_connector, error))
-    return NULL;
+  output_info->supports_vrr = connector_state->vrr_capable &&
+                              !meta_gpu_kms_disable_vrr (gpu_kms);
 
   crtcs = g_array_new (FALSE, FALSE, sizeof (MetaCrtc *));
 
@@ -476,8 +407,23 @@ meta_output_kms_new (MetaGpuKms        *gpu_kms,
 
       crtc_idx = meta_kms_crtc_get_idx (kms_crtc);
       if (connector_state->common_possible_crtcs & (1 << crtc_idx))
-        g_array_append_val (crtcs, crtc_kms);
+        {
+          g_array_append_val (crtcs, crtc_kms);
+
+          crtc_state = meta_kms_crtc_get_current_state (kms_crtc);
+          if (!crtc_state->vrr.supported)
+            {
+              meta_topic (META_DEBUG_KMS,
+                          "Output is VRR capable, but a possible CRTC for the "
+                          "output does not support VRR. Disabling support for "
+                          "VRR on the output.");
+              output_info->supports_vrr = FALSE;
+            }
+        }
     }
+
+  if (!init_output_modes (output_info, gpu_kms, kms_connector, error))
+    return NULL;
 
   output_info->n_possible_crtcs = crtcs->len;
   output_info->possible_crtcs = (MetaCrtc **) g_array_free (crtcs, FALSE);
@@ -485,20 +431,67 @@ meta_output_kms_new (MetaGpuKms        *gpu_kms,
   output_info->suggested_x = connector_state->suggested_x;
   output_info->suggested_y = connector_state->suggested_y;
   output_info->hotplug_mode_update = connector_state->hotplug_mode_update;
-  output_info->supports_underscanning =
-    meta_kms_connector_is_underscanning_supported (kms_connector);
+  output_info->supports_underscanning = connector_state->underscan.supported;
 
-  max_bpc_range = meta_kms_connector_get_max_bpc (kms_connector);
-  if (max_bpc_range)
+  if (connector_state->max_bpc.supported)
     {
-      output_info->max_bpc_min = max_bpc_range->min_value;
-      output_info->max_bpc_max = max_bpc_range->max_value;
+      output_info->max_bpc_min = connector_state->max_bpc.min_value;
+      output_info->max_bpc_max = connector_state->max_bpc.max_value;
     }
 
   if (connector_state->edid_data)
     meta_output_info_parse_edid (output_info, connector_state->edid_data);
 
   output_info->tile_info = connector_state->tile_info;
+
+  if (output_info->edid_info)
+    {
+      MetaEdidColorimetry edid_colorimetry =
+        output_info->edid_info->colorimetry;
+      uint64_t connector_colorimetry = connector_state->colorspace.supported;
+
+      if (connector_colorimetry & (1 << META_OUTPUT_COLORSPACE_DEFAULT))
+        output_info->supported_color_spaces |= (1 << META_OUTPUT_COLORSPACE_DEFAULT);
+
+      if ((edid_colorimetry & META_EDID_COLORIMETRY_BT2020RGB) &&
+          (connector_colorimetry & (1 << META_OUTPUT_COLORSPACE_BT2020)))
+        output_info->supported_color_spaces |= (1 << META_OUTPUT_COLORSPACE_BT2020);
+    }
+
+  if (connector_state->hdr.supported &&
+      output_info->edid_info &&
+      (output_info->edid_info->hdr_static_metadata.sm &
+       META_EDID_STATIC_METADATA_TYPE1))
+    {
+      MetaEdidTransferFunction edid_tf =
+        output_info->edid_info->hdr_static_metadata.tf;
+
+      if (edid_tf & META_EDID_TF_TRADITIONAL_GAMMA_SDR)
+        {
+          output_info->supported_hdr_eotfs |=
+            (1 << META_OUTPUT_HDR_METADATA_EOTF_TRADITIONAL_GAMMA_SDR);
+        }
+      if (edid_tf & META_EDID_TF_TRADITIONAL_GAMMA_HDR)
+        {
+          output_info->supported_hdr_eotfs |=
+            (1 << META_OUTPUT_HDR_METADATA_EOTF_TRADITIONAL_GAMMA_HDR);
+        }
+      if (edid_tf & META_EDID_TF_PQ)
+        {
+          output_info->supported_hdr_eotfs |=
+            (1 << META_OUTPUT_HDR_METADATA_EOTF_PQ);
+        }
+      if (edid_tf & META_EDID_TF_HLG)
+        {
+          output_info->supported_hdr_eotfs |=
+            (1 << META_OUTPUT_HDR_METADATA_EOTF_HLG);
+        }
+    }
+
+  output_info->supports_privacy_screen =
+    (connector_state->privacy_screen_state != META_PRIVACY_SCREEN_UNAVAILABLE);
+
+  output_info->supported_rgb_ranges = connector_state->broadcast_rgb.supported;
 
   output = g_object_new (META_TYPE_OUTPUT_KMS,
                          "id", ((uint64_t) gpu_id << 32) | connector_id,
@@ -558,10 +551,6 @@ meta_output_kms_class_init (MetaOutputKmsClass *klass)
 
   output_class->get_privacy_screen_state =
     meta_output_kms_get_privacy_screen_state;
-  output_class->is_color_space_supported =
-    meta_output_kms_is_color_space_supported;
-  output_class->is_hdr_metadata_supported =
-    meta_output_kms_is_hdr_metadata_supported;
 
   output_native_class->read_edid = meta_output_kms_read_edid;
 }

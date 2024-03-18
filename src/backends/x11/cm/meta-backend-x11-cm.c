@@ -57,6 +57,7 @@ struct _MetaBackendX11Cm
   char *keymap_layouts;
   char *keymap_variants;
   char *keymap_options;
+  char *keymap_model;
   int locked_group;
 
   MetaInputSettings *input_settings;
@@ -183,14 +184,16 @@ meta_backend_x11_cm_get_input_settings (MetaBackend *backend)
 }
 
 static void
-meta_backend_x11_cm_update_screen_size (MetaBackend *backend,
-                                        int          width,
-                                        int          height)
+meta_backend_x11_cm_update_stage (MetaBackend *backend)
 {
   MetaBackendX11 *x11 = META_BACKEND_X11 (backend);
   Display *xdisplay = meta_backend_x11_get_xdisplay (x11);
   Window xwin = meta_backend_x11_get_xwindow (x11);
+  MetaMonitorManager *monitor_manager =
+    meta_backend_get_monitor_manager (backend);
+  int width, height;
 
+  meta_monitor_manager_get_screen_size (monitor_manager, &width, &height);
   XResizeWindow (xdisplay, xwin, width, height);
 }
 
@@ -221,6 +224,7 @@ get_xkbrf_var_defs (Display           *xdisplay,
                     const char        *layouts,
                     const char        *variants,
                     const char        *options,
+                    const char        *model,
                     char             **rules_p,
                     XkbRF_VarDefsRec  *var_defs)
 {
@@ -230,7 +234,7 @@ get_xkbrf_var_defs (Display           *xdisplay,
   if (!XkbRF_GetNamesProp (xdisplay, &rules, var_defs) || !rules)
     {
       rules = strdup (DEFAULT_XKB_RULES_FILE);
-      var_defs->model = strdup (DEFAULT_XKB_MODEL);
+      var_defs->model = NULL;
       var_defs->layout = NULL;
       var_defs->variant = NULL;
       var_defs->options = NULL;
@@ -243,6 +247,8 @@ get_xkbrf_var_defs (Display           *xdisplay,
   var_defs->variant = strdup (variants);
   free (var_defs->options);
   var_defs->options = strdup (options);
+  free (var_defs->model);
+  var_defs->model = strdup (model);
 
   /* Sometimes, the property is a file path, and sometimes it's
      not. Normalize it so it's always a file path. */
@@ -317,13 +323,15 @@ apply_keymap (MetaBackendX11 *x11)
 
   if (!x11_cm->keymap_layouts ||
       !x11_cm->keymap_variants ||
-      !x11_cm->keymap_options)
+      !x11_cm->keymap_options ||
+      !x11_cm->keymap_model)
     return;
 
   get_xkbrf_var_defs (xdisplay,
                       x11_cm->keymap_layouts,
                       x11_cm->keymap_variants,
                       x11_cm->keymap_options,
+                      x11_cm->keymap_model,
                       &rules_file_path,
                       &xkb_var_defs);
 
@@ -351,7 +359,8 @@ static void
 meta_backend_x11_cm_set_keymap (MetaBackend *backend,
                                 const char  *layouts,
                                 const char  *variants,
-                                const char  *options)
+                                const char  *options,
+                                const char  *model)
 {
   MetaBackendX11 *x11 = META_BACKEND_X11 (backend);
   MetaBackendX11Cm *x11_cm = META_BACKEND_X11_CM (x11);
@@ -362,6 +371,8 @@ meta_backend_x11_cm_set_keymap (MetaBackend *backend,
   x11_cm->keymap_variants = g_strdup (variants);
   g_free (x11_cm->keymap_options);
   x11_cm->keymap_options = g_strdup (options);
+  g_free (x11_cm->keymap_model);
+  x11_cm->keymap_model = g_strdup (model);
 
   apply_keymap (x11);
 }
@@ -543,7 +554,7 @@ meta_backend_x11_cm_class_init (MetaBackendX11CmClass *klass)
   backend_class->get_cursor_renderer = meta_backend_x11_cm_get_cursor_renderer;
   backend_class->create_cursor_tracker = meta_backend_x11_cm_create_cursor_tracker;
   backend_class->get_input_settings = meta_backend_x11_cm_get_input_settings;
-  backend_class->update_screen_size = meta_backend_x11_cm_update_screen_size;
+  backend_class->update_stage = meta_backend_x11_cm_update_stage;
   backend_class->select_stage_events = meta_backend_x11_cm_select_stage_events;
   backend_class->lock_layout_group = meta_backend_x11_cm_lock_layout_group;
   backend_class->set_keymap = meta_backend_x11_cm_set_keymap;

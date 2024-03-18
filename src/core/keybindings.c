@@ -46,7 +46,7 @@
 #include "meta/prefs.h"
 #include "mtk/mtk-x11.h"
 #include "x11/meta-x11-display-private.h"
-#include "x11/window-x11.h"
+#include "x11/window-x11-private.h"
 
 #ifdef HAVE_NATIVE_BACKEND
 #include "backends/native/meta-backend-native.h"
@@ -73,14 +73,6 @@
                            CLUTTER_BUTTON3_MASK |       \
                            CLUTTER_BUTTON4_MASK |       \
                            CLUTTER_BUTTON5_MASK)
-
-static gboolean add_builtin_keybinding (MetaDisplay          *display,
-                                        const char           *name,
-                                        GSettings            *settings,
-                                        MetaKeyBindingFlags   flags,
-                                        MetaKeyBindingAction  action,
-                                        MetaKeyHandlerFunc    handler,
-                                        int                   handler_arg);
 
 static void
 resolved_key_combo_reset (MetaResolvedKeyCombo *resolved_combo)
@@ -274,7 +266,7 @@ reload_modmap (MetaKeyBindingManager *keys)
 
   xkb_state_unref (scratch_state);
 
-  keys->ignored_modifier_mask = (scroll_lock_mask | Mod2Mask | LockMask);
+  keys->ignored_modifier_mask = (scroll_lock_mask | CLUTTER_MOD2_MASK | CLUTTER_LOCK_MASK);
 
   meta_topic (META_DEBUG_KEYBINDINGS,
               "Ignoring modmask 0x%x scroll lock 0x%x hyper 0x%x super 0x%x meta 0x%x",
@@ -482,12 +474,12 @@ reload_iso_next_group_combos (MetaKeyBindingManager *keys)
   else if (g_str_equal (iso_next_group_option, "shift_caps_toggle") ||
            g_str_equal (iso_next_group_option, "shifts_toggle"))
     {
-      keys->iso_next_group_combo[0].mask = ShiftMask;
+      keys->iso_next_group_combo[0].mask = CLUTTER_SHIFT_MASK;
     }
   else if (g_str_equal (iso_next_group_option, "alt_caps_toggle") ||
            g_str_equal (iso_next_group_option, "alt_space_toggle"))
     {
-      keys->iso_next_group_combo[0].mask = Mod1Mask;
+      keys->iso_next_group_combo[0].mask = CLUTTER_MOD1_MASK;
     }
   else if (g_str_equal (iso_next_group_option, "ctrl_shift_toggle") ||
            g_str_equal (iso_next_group_option, "lctrl_lshift_toggle") ||
@@ -496,8 +488,8 @@ reload_iso_next_group_combos (MetaKeyBindingManager *keys)
       resolved_key_combo_copy (&keys->iso_next_group_combo[0],
                                &keys->iso_next_group_combo[1]);
 
-      keys->iso_next_group_combo[0].mask = ShiftMask;
-      keys->iso_next_group_combo[1].mask = ControlMask;
+      keys->iso_next_group_combo[0].mask = CLUTTER_SHIFT_MASK;
+      keys->iso_next_group_combo[1].mask = CLUTTER_CONTROL_MASK;
       keys->n_iso_next_group_combos = 2;
     }
   else if (g_str_equal (iso_next_group_option, "ctrl_alt_toggle"))
@@ -505,8 +497,8 @@ reload_iso_next_group_combos (MetaKeyBindingManager *keys)
       resolved_key_combo_copy (&keys->iso_next_group_combo[0],
                                &keys->iso_next_group_combo[1]);
 
-      keys->iso_next_group_combo[0].mask = Mod1Mask;
-      keys->iso_next_group_combo[1].mask = ControlMask;
+      keys->iso_next_group_combo[0].mask = CLUTTER_MOD1_MASK;
+      keys->iso_next_group_combo[1].mask = CLUTTER_CONTROL_MASK;
       keys->n_iso_next_group_combos = 2;
     }
   else if (g_str_equal (iso_next_group_option, "alt_shift_toggle") ||
@@ -515,8 +507,8 @@ reload_iso_next_group_combos (MetaKeyBindingManager *keys)
       resolved_key_combo_copy (&keys->iso_next_group_combo[0],
                                &keys->iso_next_group_combo[1]);
 
-      keys->iso_next_group_combo[0].mask = Mod1Mask;
-      keys->iso_next_group_combo[1].mask = ShiftMask;
+      keys->iso_next_group_combo[0].mask = CLUTTER_MOD1_MASK;
+      keys->iso_next_group_combo[1].mask = CLUTTER_SHIFT_MASK;
       keys->n_iso_next_group_combos = 2;
     }
   else
@@ -534,11 +526,11 @@ devirtualize_modifiers (MetaKeyBindingManager *keys,
   *mask = 0;
 
   if (modifiers & CLUTTER_SHIFT_MASK)
-    *mask |= ShiftMask;
+    *mask |= CLUTTER_SHIFT_MASK;
   if (modifiers & CLUTTER_CONTROL_MASK)
-    *mask |= ControlMask;
+    *mask |= CLUTTER_CONTROL_MASK;
   if (modifiers & CLUTTER_MOD1_MASK)
-    *mask |= Mod1Mask;
+    *mask |= CLUTTER_MOD1_MASK;
   if (modifiers & CLUTTER_META_MASK)
     *mask |= keys->meta_mask;
   if (modifiers & CLUTTER_HYPER_MASK)
@@ -546,13 +538,13 @@ devirtualize_modifiers (MetaKeyBindingManager *keys,
   if (modifiers & CLUTTER_SUPER_MASK)
     *mask |= keys->super_mask;
   if (modifiers & CLUTTER_MOD2_MASK)
-    *mask |= Mod2Mask;
+    *mask |= CLUTTER_MOD2_MASK;
   if (modifiers & CLUTTER_MOD3_MASK)
-    *mask |= Mod3Mask;
+    *mask |= CLUTTER_MOD3_MASK;
   if (modifiers & CLUTTER_MOD4_MASK)
-    *mask |= Mod4Mask;
+    *mask |= CLUTTER_MOD4_MASK;
   if (modifiers & CLUTTER_MOD5_MASK)
-    *mask |= Mod5Mask;
+    *mask |= CLUTTER_MOD5_MASK;
 }
 
 static void
@@ -809,7 +801,7 @@ rebuild_binding_table (MetaKeyBindingManager *keys,
         {
           MetaKeyCombo *combo = tmp->data;
 
-          if (combo && (combo->keysym != None || combo->keycode != 0))
+          if (combo && (combo->keysym != 0 || combo->keycode != 0))
             {
               MetaKeyHandler *handler = HANDLER (pref->name);
 
@@ -832,7 +824,7 @@ rebuild_binding_table (MetaKeyBindingManager *keys,
   while (g)
     {
       MetaKeyGrab *grab = (MetaKeyGrab*)g->data;
-      if (grab->combo.keysym != None || grab->combo.keycode != 0)
+      if (grab->combo.keysym != 0 || grab->combo.keycode != 0)
         {
           MetaKeyHandler *handler = HANDLER ("external-grab");
 
@@ -975,18 +967,30 @@ add_keybinding_internal (MetaDisplay          *display,
   return TRUE;
 }
 
-static gboolean
-add_builtin_keybinding (MetaDisplay          *display,
-                        const char           *name,
-                        GSettings            *settings,
-                        MetaKeyBindingFlags   flags,
-                        MetaKeyBindingAction  action,
-                        MetaKeyHandlerFunc    handler,
-                        int                   handler_arg)
+typedef struct _BuiltinKeybinding {
+  const char *name;
+  MetaKeyBindingFlags flags;
+  MetaKeyBindingAction action;
+  MetaKeyHandlerFunc handler;
+  int handler_arg;
+} BuiltinKeybinding;
+
+static void
+add_builtin_keybindings (MetaDisplay        *display,
+                         GSettings          *settings,
+                         BuiltinKeybinding  *keybindings,
+                         gsize               n_keybindings)
 {
-  return add_keybinding_internal (display, name, settings,
-                                  flags | META_KEY_BINDING_BUILTIN,
-                                  action, handler, handler_arg, NULL, NULL);
+  BuiltinKeybinding *kb;
+  gsize i;
+
+  for(i = 0; i < n_keybindings; i++)
+    {
+      kb = &keybindings[i];
+      add_keybinding_internal (display, kb->name, settings,
+                               kb->flags | META_KEY_BINDING_BUILTIN,
+                               kb->action, kb->handler, kb->handler_arg, NULL, NULL);
+    }
 }
 
 /**
@@ -1208,7 +1212,7 @@ meta_change_button_grab (MetaKeyBindingManager *keys,
   if (window->frame)
     xwindow = window->frame->xwindow;
   else
-    xwindow = window->xwindow;
+    xwindow = meta_window_x11_get_xwindow (window);
 
   /* GrabModeSync means freeze until XAllowEvents */
   if (grab)
@@ -1283,7 +1287,7 @@ meta_display_grab_window_buttons (MetaDisplay *display,
       meta_change_button_grab (keys, window,
                                TRUE,
                                FALSE,
-                               1, keys->window_grab_modifiers | ShiftMask);
+                               1, keys->window_grab_modifiers | CLUTTER_SHIFT_MASK);
     }
 }
 
@@ -1597,25 +1601,27 @@ meta_window_grab_keys (MetaWindow  *window)
 {
   MetaDisplay *display = window->display;
   MetaKeyBindingManager *keys = &display->key_binding_manager;
+  MetaWindowX11Private *priv;
 
   if (meta_is_wayland_compositor ())
     return;
 
+  priv = meta_window_x11_get_private (META_WINDOW_X11 (window));
   if (window->type == META_WINDOW_DOCK
       || window->override_redirect)
     {
-      if (window->keys_grabbed)
-        change_window_keygrabs (keys, window->xwindow, FALSE);
-      window->keys_grabbed = FALSE;
+      if (priv->keys_grabbed)
+        change_window_keygrabs (keys, meta_window_x11_get_xwindow (window), FALSE);
+      priv->keys_grabbed = FALSE;
       return;
     }
 
-  if (window->keys_grabbed)
+  if (priv->keys_grabbed)
     {
-      if (window->frame && !window->grab_on_frame)
-        change_window_keygrabs (keys, window->xwindow, FALSE);
+      if (window->frame && !priv->grab_on_frame)
+        change_window_keygrabs (keys, meta_window_x11_get_xwindow (window), FALSE);
       else if (window->frame == NULL &&
-               window->grab_on_frame)
+               priv->grab_on_frame)
         ; /* continue to regrab on client window */
       else
         return; /* already all good */
@@ -1625,25 +1631,32 @@ meta_window_grab_keys (MetaWindow  *window)
                           meta_window_x11_get_toplevel_xwindow (window),
                           TRUE);
 
-  window->keys_grabbed = TRUE;
-  window->grab_on_frame = window->frame != NULL;
+  priv->keys_grabbed = TRUE;
+  priv->grab_on_frame = window->frame != NULL;
 }
 
 void
 meta_window_ungrab_keys (MetaWindow  *window)
 {
-  if (!meta_is_wayland_compositor () && window->keys_grabbed)
+  MetaWindowX11Private *priv;
+
+  if (meta_is_wayland_compositor ())
+    return;
+
+  priv = meta_window_x11_get_private (META_WINDOW_X11 (window));
+
+  if (priv->keys_grabbed)
     {
       MetaDisplay *display = window->display;
       MetaKeyBindingManager *keys = &display->key_binding_manager;
 
-      if (window->grab_on_frame &&
+      if (priv->grab_on_frame &&
           window->frame != NULL)
         change_window_keygrabs (keys, window->frame->xwindow, FALSE);
-      else if (!window->grab_on_frame)
-        change_window_keygrabs (keys, window->xwindow, FALSE);
+      else if (!priv->grab_on_frame)
+        change_window_keygrabs (keys, meta_window_x11_get_xwindow (window), FALSE);
 
-      window->keys_grabbed = FALSE;
+      priv->keys_grabbed = FALSE;
     }
 }
 
@@ -1762,111 +1775,6 @@ meta_display_ungrab_accelerator (MetaDisplay *display,
   return TRUE;
 }
 
-static gboolean
-grab_keyboard (MetaBackend *backend,
-               Window       xwindow,
-               uint32_t     timestamp,
-               int          grab_mode)
-{
-  MetaBackendX11 *backend_x11;
-  Display *xdisplay;
-  int grab_status;
-
-  unsigned char mask_bits[XIMaskLen (XI_LASTEVENT)] = { 0 };
-  XIEventMask mask = { XIAllMasterDevices, sizeof (mask_bits), mask_bits };
-
-  XISetMask (mask.mask, XI_KeyPress);
-  XISetMask (mask.mask, XI_KeyRelease);
-
-  if (meta_is_wayland_compositor ())
-    return TRUE;
-
-  /* Grab the keyboard, so we get key releases and all key
-   * presses
-   */
-
-  backend_x11 = META_BACKEND_X11 (backend);
-  xdisplay = meta_backend_x11_get_xdisplay (backend_x11);
-
-  /* Strictly, we only need to set grab_mode on the keyboard device
-   * while the pointer should always be XIGrabModeAsync. Unfortunately
-   * there is a bug in the X server, only fixed (link below) in 1.15,
-   * which swaps these arguments for keyboard devices. As such, we set
-   * both the device and the paired device mode which works around
-   * that bug and also works on fixed X servers.
-   *
-   * http://cgit.freedesktop.org/xorg/xserver/commit/?id=9003399708936481083424b4ff8f18a16b88b7b3
-   */
-  grab_status = XIGrabDevice (xdisplay,
-                              META_VIRTUAL_CORE_KEYBOARD_ID,
-                              xwindow,
-                              timestamp,
-                              None,
-                              grab_mode, grab_mode,
-                              False, /* owner_events */
-                              &mask);
-
-  return (grab_status == Success);
-}
-
-static void
-ungrab_keyboard (MetaBackend *backend,
-                 uint32_t     timestamp)
-{
-  MetaBackendX11 *backend_x11;
-  Display *xdisplay;
-
-  if (meta_is_wayland_compositor ())
-    return;
-
-  backend_x11 = META_BACKEND_X11 (backend);
-  xdisplay = meta_backend_x11_get_xdisplay (backend_x11);
-
-  XIUngrabDevice (xdisplay, META_VIRTUAL_CORE_KEYBOARD_ID, timestamp);
-}
-
-void
-meta_display_freeze_keyboard (MetaDisplay *display, guint32 timestamp)
-{
-  MetaContext *context = meta_display_get_context (display);
-  MetaBackend *backend = meta_context_get_backend (context);
-
-  if (!META_IS_BACKEND_X11 (backend))
-    return;
-
-  Window window = meta_backend_x11_get_xwindow (META_BACKEND_X11 (backend));
-  grab_keyboard (backend, window, timestamp, XIGrabModeSync);
-}
-
-void
-meta_display_ungrab_keyboard (MetaDisplay *display, guint32 timestamp)
-{
-  MetaContext *context = meta_display_get_context (display);
-  MetaBackend *backend = meta_context_get_backend (context);
-
-  ungrab_keyboard (backend, timestamp);
-}
-
-void
-meta_display_unfreeze_keyboard (MetaDisplay *display, guint32 timestamp)
-{
-  MetaContext *context = meta_display_get_context (display);
-  MetaBackend *backend = meta_context_get_backend (context);
-
-  if (!META_IS_BACKEND_X11 (backend))
-    return;
-
-  Display *xdisplay = meta_backend_x11_get_xdisplay (META_BACKEND_X11 (backend));
-
-  XIAllowEvents (xdisplay, META_VIRTUAL_CORE_KEYBOARD_ID,
-                 XIAsyncDevice, timestamp);
-  /* We shouldn't need to unfreeze the pointer device here, however we
-   * have to, due to the workaround we do in grab_keyboard().
-   */
-  XIAllowEvents (xdisplay, META_VIRTUAL_CORE_POINTER_ID,
-                 XIAsyncDevice, timestamp);
-}
-
 static void
 invoke_handler (MetaDisplay           *display,
                 MetaKeyHandler        *handler,
@@ -1896,6 +1804,16 @@ meta_key_binding_has_handler_func (MetaKeyBinding *binding)
   return (!!binding->handler->func || !!binding->handler->default_func);
 }
 
+static ClutterModifierType
+get_modifiers (ClutterEvent *event)
+{
+  ClutterModifierType pressed, latched;
+
+  clutter_event_get_key_state (event, &pressed, &latched, NULL);
+
+  return pressed | latched;
+}
+
 static gboolean
 process_event (MetaDisplay          *display,
                MetaWindow           *window,
@@ -1906,14 +1824,14 @@ process_event (MetaDisplay          *display,
     (xkb_keycode_t) clutter_event_get_key_code ((ClutterEvent *) event);
   MetaResolvedKeyCombo resolved_combo = { &keycode, 1 };
   MetaKeyBinding *binding;
+  ClutterModifierType modifiers;
 
   /* we used to have release-based bindings but no longer. */
   if (clutter_event_type ((ClutterEvent *) event) == CLUTTER_KEY_RELEASE)
     return FALSE;
 
-  resolved_combo.mask =
-    mask_from_event_params (keys,
-                            clutter_event_get_state ((ClutterEvent *) event));
+  modifiers = get_modifiers ((ClutterEvent *) event);
+  resolved_combo.mask = mask_from_event_params (keys, modifiers);
 
   binding = get_keybinding (keys, &resolved_combo);
 
@@ -1995,7 +1913,7 @@ process_special_modifier_key (MetaDisplay          *display,
   hardware_keycode = clutter_event_get_key_code ((ClutterEvent *) event);
   time_ms = clutter_event_get_time ((ClutterEvent *) event);
   device = clutter_event_get_device ((ClutterEvent *) event);
-  modifiers = clutter_event_get_state ((ClutterEvent *) event);
+  modifiers = get_modifiers ((ClutterEvent *) event);
 
   if (*modifier_press_only)
     {
@@ -2163,10 +2081,13 @@ static gboolean
 process_iso_next_group (MetaDisplay *display,
                         ClutterKeyEvent *event)
 {
+  MetaContext *context = meta_display_get_context (display);
+  MetaBackend *backend = meta_context_get_backend (context);
   MetaKeyBindingManager *keys = &display->key_binding_manager;
   gboolean activate;
   xkb_keycode_t keycode =
     (xkb_keycode_t) clutter_event_get_key_code ((ClutterEvent *) event);
+  ClutterModifierType modifiers;
   xkb_mod_mask_t mask;
   int i, j;
 
@@ -2174,8 +2095,8 @@ process_iso_next_group (MetaDisplay *display,
     return FALSE;
 
   activate = FALSE;
-  mask = mask_from_event_params (keys,
-                                 clutter_event_get_state ((ClutterEvent *) event));
+  modifiers = get_modifiers ((ClutterEvent *) event);
+  mask = mask_from_event_params (keys, modifiers);
 
   for (i = 0; i < keys->n_iso_next_group_combos; ++i)
     {
@@ -2188,7 +2109,7 @@ process_iso_next_group (MetaDisplay *display,
                  remain frozen. It's the signal handler's responsibility
                  to unfreeze it. */
               if (!meta_display_modifiers_accelerator_activate (display))
-                meta_display_unfreeze_keyboard (display,
+                meta_backend_unfreeze_keyboard (backend,
                                                 clutter_event_get_time ((ClutterEvent *) event));
               activate = TRUE;
               break;
@@ -2762,7 +2683,8 @@ handle_begin_move (MetaDisplay           *display,
                                  META_GRAB_OP_KEYBOARD_MOVING |
                                  META_GRAB_OP_WINDOW_FLAG_UNCONSTRAINED,
                                  device, NULL,
-                                 clutter_event_get_time ((ClutterEvent *) event));
+                                 clutter_event_get_time ((ClutterEvent *) event),
+                                 NULL);
     }
 }
 
@@ -2786,7 +2708,8 @@ handle_begin_resize (MetaDisplay           *display,
                                  META_GRAB_OP_KEYBOARD_RESIZING_UNKNOWN |
                                  META_GRAB_OP_WINDOW_FLAG_UNCONSTRAINED,
                                  device, NULL,
-                                 clutter_event_get_time ((ClutterEvent *) event));
+                                 clutter_event_get_time ((ClutterEvent *) event),
+                                 NULL);
     }
 }
 
@@ -3099,134 +3022,24 @@ meta_keybindings_set_custom_handler (const gchar        *name,
   return TRUE;
 }
 
-static void
-init_builtin_key_bindings (MetaDisplay *display)
-{
-  GSettings *common_keybindings = g_settings_new (SCHEMA_COMMON_KEYBINDINGS);
-  GSettings *mutter_keybindings = g_settings_new (SCHEMA_MUTTER_KEYBINDINGS);
-  GSettings *mutter_wayland_keybindings = g_settings_new (SCHEMA_MUTTER_WAYLAND_KEYBINDINGS);
-
-  add_builtin_keybinding (display,
-                          "switch-to-workspace-1",
-                          common_keybindings,
-                          META_KEY_BINDING_NONE |
-                          META_KEY_BINDING_IGNORE_AUTOREPEAT,
-                          META_KEYBINDING_ACTION_WORKSPACE_1,
-                          handle_switch_to_workspace, 0);
-  add_builtin_keybinding (display,
-                          "switch-to-workspace-2",
-                          common_keybindings,
-                          META_KEY_BINDING_NONE |
-                          META_KEY_BINDING_IGNORE_AUTOREPEAT,
-                          META_KEYBINDING_ACTION_WORKSPACE_2,
-                          handle_switch_to_workspace, 1);
-  add_builtin_keybinding (display,
-                          "switch-to-workspace-3",
-                          common_keybindings,
-                          META_KEY_BINDING_NONE |
-                          META_KEY_BINDING_IGNORE_AUTOREPEAT,
-                          META_KEYBINDING_ACTION_WORKSPACE_3,
-                          handle_switch_to_workspace, 2);
-  add_builtin_keybinding (display,
-                          "switch-to-workspace-4",
-                          common_keybindings,
-                          META_KEY_BINDING_NONE |
-                          META_KEY_BINDING_IGNORE_AUTOREPEAT,
-                          META_KEYBINDING_ACTION_WORKSPACE_4,
-                          handle_switch_to_workspace, 3);
-  add_builtin_keybinding (display,
-                          "switch-to-workspace-5",
-                          common_keybindings,
-                          META_KEY_BINDING_NONE |
-                          META_KEY_BINDING_IGNORE_AUTOREPEAT,
-                          META_KEYBINDING_ACTION_WORKSPACE_5,
-                          handle_switch_to_workspace, 4);
-  add_builtin_keybinding (display,
-                          "switch-to-workspace-6",
-                          common_keybindings,
-                          META_KEY_BINDING_NONE |
-                          META_KEY_BINDING_IGNORE_AUTOREPEAT,
-                          META_KEYBINDING_ACTION_WORKSPACE_6,
-                          handle_switch_to_workspace, 5);
-  add_builtin_keybinding (display,
-                          "switch-to-workspace-7",
-                          common_keybindings,
-                          META_KEY_BINDING_NONE |
-                          META_KEY_BINDING_IGNORE_AUTOREPEAT,
-                          META_KEYBINDING_ACTION_WORKSPACE_7,
-                          handle_switch_to_workspace, 6);
-  add_builtin_keybinding (display,
-                          "switch-to-workspace-8",
-                          common_keybindings,
-                          META_KEY_BINDING_NONE |
-                          META_KEY_BINDING_IGNORE_AUTOREPEAT,
-                          META_KEYBINDING_ACTION_WORKSPACE_8,
-                          handle_switch_to_workspace, 7);
-  add_builtin_keybinding (display,
-                          "switch-to-workspace-9",
-                          common_keybindings,
-                          META_KEY_BINDING_NONE |
-                          META_KEY_BINDING_IGNORE_AUTOREPEAT,
-                          META_KEYBINDING_ACTION_WORKSPACE_9,
-                          handle_switch_to_workspace, 8);
-  add_builtin_keybinding (display,
-                          "switch-to-workspace-10",
-                          common_keybindings,
-                          META_KEY_BINDING_NONE |
-                          META_KEY_BINDING_IGNORE_AUTOREPEAT,
-                          META_KEYBINDING_ACTION_WORKSPACE_10,
-                          handle_switch_to_workspace, 9);
-  add_builtin_keybinding (display,
-                          "switch-to-workspace-11",
-                          common_keybindings,
-                          META_KEY_BINDING_NONE |
-                          META_KEY_BINDING_IGNORE_AUTOREPEAT,
-                          META_KEYBINDING_ACTION_WORKSPACE_11,
-                          handle_switch_to_workspace, 10);
-  add_builtin_keybinding (display,
-                          "switch-to-workspace-12",
-                          common_keybindings,
-                          META_KEY_BINDING_NONE |
-                          META_KEY_BINDING_IGNORE_AUTOREPEAT,
-                          META_KEYBINDING_ACTION_WORKSPACE_12,
-                          handle_switch_to_workspace, 11);
-
-  add_builtin_keybinding (display,
-                          "switch-to-workspace-left",
-                          common_keybindings,
-                          META_KEY_BINDING_NONE,
-                          META_KEYBINDING_ACTION_WORKSPACE_LEFT,
-                          handle_switch_to_workspace, META_MOTION_LEFT);
-
-  add_builtin_keybinding (display,
-                          "switch-to-workspace-right",
-                          common_keybindings,
-                          META_KEY_BINDING_NONE,
-                          META_KEYBINDING_ACTION_WORKSPACE_RIGHT,
-                          handle_switch_to_workspace, META_MOTION_RIGHT);
-
-  add_builtin_keybinding (display,
-                          "switch-to-workspace-up",
-                          common_keybindings,
-                          META_KEY_BINDING_NONE,
-                          META_KEYBINDING_ACTION_WORKSPACE_UP,
-                          handle_switch_to_workspace, META_MOTION_UP);
-
-  add_builtin_keybinding (display,
-                          "switch-to-workspace-down",
-                          common_keybindings,
-                          META_KEY_BINDING_NONE,
-                          META_KEYBINDING_ACTION_WORKSPACE_DOWN,
-                          handle_switch_to_workspace, META_MOTION_DOWN);
-
-  add_builtin_keybinding (display,
-                          "switch-to-workspace-last",
-                          common_keybindings,
-                          META_KEY_BINDING_NONE,
-                          META_KEYBINDING_ACTION_WORKSPACE_LAST,
-                          handle_switch_to_last_workspace, 0);
-
-
+static BuiltinKeybinding COMMON_KEYBINDINGS[] = {
+  { "switch-to-workspace-1", META_KEY_BINDING_NONE | META_KEY_BINDING_IGNORE_AUTOREPEAT, META_KEYBINDING_ACTION_WORKSPACE_1, handle_switch_to_workspace, 0 },
+  { "switch-to-workspace-2", META_KEY_BINDING_NONE | META_KEY_BINDING_IGNORE_AUTOREPEAT, META_KEYBINDING_ACTION_WORKSPACE_2, handle_switch_to_workspace, 1 },
+  { "switch-to-workspace-3", META_KEY_BINDING_NONE | META_KEY_BINDING_IGNORE_AUTOREPEAT, META_KEYBINDING_ACTION_WORKSPACE_3, handle_switch_to_workspace, 2 },
+  { "switch-to-workspace-4", META_KEY_BINDING_NONE | META_KEY_BINDING_IGNORE_AUTOREPEAT, META_KEYBINDING_ACTION_WORKSPACE_4, handle_switch_to_workspace, 3 },
+  { "switch-to-workspace-5", META_KEY_BINDING_NONE | META_KEY_BINDING_IGNORE_AUTOREPEAT, META_KEYBINDING_ACTION_WORKSPACE_5, handle_switch_to_workspace, 4 },
+  { "switch-to-workspace-6", META_KEY_BINDING_NONE | META_KEY_BINDING_IGNORE_AUTOREPEAT, META_KEYBINDING_ACTION_WORKSPACE_6, handle_switch_to_workspace, 5 },
+  { "switch-to-workspace-7", META_KEY_BINDING_NONE | META_KEY_BINDING_IGNORE_AUTOREPEAT, META_KEYBINDING_ACTION_WORKSPACE_7, handle_switch_to_workspace, 6 },
+  { "switch-to-workspace-8", META_KEY_BINDING_NONE | META_KEY_BINDING_IGNORE_AUTOREPEAT, META_KEYBINDING_ACTION_WORKSPACE_8, handle_switch_to_workspace, 7 },
+  { "switch-to-workspace-9", META_KEY_BINDING_NONE | META_KEY_BINDING_IGNORE_AUTOREPEAT, META_KEYBINDING_ACTION_WORKSPACE_9, handle_switch_to_workspace, 8 },
+  { "switch-to-workspace-10", META_KEY_BINDING_NONE | META_KEY_BINDING_IGNORE_AUTOREPEAT, META_KEYBINDING_ACTION_WORKSPACE_10, handle_switch_to_workspace, 9 },
+  { "switch-to-workspace-11", META_KEY_BINDING_NONE | META_KEY_BINDING_IGNORE_AUTOREPEAT, META_KEYBINDING_ACTION_WORKSPACE_11, handle_switch_to_workspace, 10 },
+  { "switch-to-workspace-12", META_KEY_BINDING_NONE | META_KEY_BINDING_IGNORE_AUTOREPEAT, META_KEYBINDING_ACTION_WORKSPACE_12, handle_switch_to_workspace, 11 },
+  { "switch-to-workspace-left", META_KEY_BINDING_NONE, META_KEYBINDING_ACTION_WORKSPACE_LEFT, handle_switch_to_workspace, META_MOTION_LEFT },
+  { "switch-to-workspace-right", META_KEY_BINDING_NONE, META_KEYBINDING_ACTION_WORKSPACE_RIGHT, handle_switch_to_workspace, META_MOTION_RIGHT },
+  { "switch-to-workspace-up", META_KEY_BINDING_NONE, META_KEYBINDING_ACTION_WORKSPACE_UP, handle_switch_to_workspace, META_MOTION_UP },
+  { "switch-to-workspace-down", META_KEY_BINDING_NONE, META_KEYBINDING_ACTION_WORKSPACE_DOWN, handle_switch_to_workspace, META_MOTION_DOWN },
+  { "switch-to-workspace-last", META_KEY_BINDING_NONE, META_KEYBINDING_ACTION_WORKSPACE_LAST, handle_switch_to_last_workspace, 0 },
 
   /* The ones which have inverses.  These can't be bound to any keystroke
    * containing Shift because Shift will invert their "backward" state.
@@ -3237,247 +3050,70 @@ init_builtin_key_bindings (MetaDisplay *display)
    * TODO: handle_switch and handle_cycle should probably really be the
    * same function checking a bit in the parameter for difference.
    */
-
-  add_builtin_keybinding (display,
-                          "switch-group",
-                          common_keybindings,
-                          META_KEY_BINDING_NONE,
-                          META_KEYBINDING_ACTION_SWITCH_GROUP,
-                          handle_switch, META_TAB_LIST_GROUP);
-
-  add_builtin_keybinding (display,
-                          "switch-group-backward",
-                          common_keybindings,
-                          META_KEY_BINDING_IS_REVERSED,
-                          META_KEYBINDING_ACTION_SWITCH_GROUP_BACKWARD,
-                          handle_switch, META_TAB_LIST_GROUP);
-
-  add_builtin_keybinding (display,
-                          "switch-applications",
-                          common_keybindings,
-                          META_KEY_BINDING_NONE,
-                          META_KEYBINDING_ACTION_SWITCH_APPLICATIONS,
-                          handle_switch, META_TAB_LIST_NORMAL);
-
-  add_builtin_keybinding (display,
-                          "switch-applications-backward",
-                          common_keybindings,
-                          META_KEY_BINDING_IS_REVERSED,
-                          META_KEYBINDING_ACTION_SWITCH_APPLICATIONS_BACKWARD,
-                          handle_switch, META_TAB_LIST_NORMAL);
-
-  add_builtin_keybinding (display,
-                          "switch-windows",
-                          common_keybindings,
-                          META_KEY_BINDING_NONE,
-                          META_KEYBINDING_ACTION_SWITCH_WINDOWS,
-                          handle_switch, META_TAB_LIST_NORMAL);
-
-  add_builtin_keybinding (display,
-                          "switch-windows-backward",
-                          common_keybindings,
-                          META_KEY_BINDING_IS_REVERSED,
-                          META_KEYBINDING_ACTION_SWITCH_WINDOWS_BACKWARD,
-                          handle_switch, META_TAB_LIST_NORMAL);
-
-  add_builtin_keybinding (display,
-                          "switch-panels",
-                          common_keybindings,
-                          META_KEY_BINDING_NONE,
-                          META_KEYBINDING_ACTION_SWITCH_PANELS,
-                          handle_switch, META_TAB_LIST_DOCKS);
-
-  add_builtin_keybinding (display,
-                          "switch-panels-backward",
-                          common_keybindings,
-                          META_KEY_BINDING_IS_REVERSED,
-                          META_KEYBINDING_ACTION_SWITCH_PANELS_BACKWARD,
-                          handle_switch, META_TAB_LIST_DOCKS);
-
-  add_builtin_keybinding (display,
-                          "cycle-group",
-                          common_keybindings,
-                          META_KEY_BINDING_NONE,
-                          META_KEYBINDING_ACTION_CYCLE_GROUP,
-                          handle_cycle, META_TAB_LIST_GROUP);
-
-  add_builtin_keybinding (display,
-                          "cycle-group-backward",
-                          common_keybindings,
-                          META_KEY_BINDING_IS_REVERSED,
-                          META_KEYBINDING_ACTION_CYCLE_GROUP_BACKWARD,
-                          handle_cycle, META_TAB_LIST_GROUP);
-
-  add_builtin_keybinding (display,
-                          "cycle-windows",
-                          common_keybindings,
-                          META_KEY_BINDING_NONE,
-                          META_KEYBINDING_ACTION_CYCLE_WINDOWS,
-                          handle_cycle, META_TAB_LIST_NORMAL);
-
-  add_builtin_keybinding (display,
-                          "cycle-windows-backward",
-                          common_keybindings,
-                          META_KEY_BINDING_IS_REVERSED,
-                          META_KEYBINDING_ACTION_CYCLE_WINDOWS_BACKWARD,
-                          handle_cycle, META_TAB_LIST_NORMAL);
-
-  add_builtin_keybinding (display,
-                          "cycle-panels",
-                          common_keybindings,
-                          META_KEY_BINDING_NONE,
-                          META_KEYBINDING_ACTION_CYCLE_PANELS,
-                          handle_cycle, META_TAB_LIST_DOCKS);
-
-  add_builtin_keybinding (display,
-                          "cycle-panels-backward",
-                          common_keybindings,
-                          META_KEY_BINDING_IS_REVERSED,
-                          META_KEYBINDING_ACTION_CYCLE_PANELS_BACKWARD,
-                          handle_cycle, META_TAB_LIST_DOCKS);
+  { "switch-group", META_KEY_BINDING_NONE, META_KEYBINDING_ACTION_SWITCH_GROUP, handle_switch, META_TAB_LIST_GROUP },
+  { "switch-group-backward", META_KEY_BINDING_IS_REVERSED, META_KEYBINDING_ACTION_SWITCH_GROUP_BACKWARD, handle_switch, META_TAB_LIST_GROUP },
+  { "switch-applications", META_KEY_BINDING_NONE, META_KEYBINDING_ACTION_SWITCH_APPLICATIONS, handle_switch, META_TAB_LIST_NORMAL },
+  { "switch-applications-backward", META_KEY_BINDING_IS_REVERSED, META_KEYBINDING_ACTION_SWITCH_APPLICATIONS_BACKWARD, handle_switch, META_TAB_LIST_NORMAL },
+  { "switch-windows", META_KEY_BINDING_NONE, META_KEYBINDING_ACTION_SWITCH_WINDOWS, handle_switch, META_TAB_LIST_NORMAL },
+  { "switch-windows-backward", META_KEY_BINDING_IS_REVERSED, META_KEYBINDING_ACTION_SWITCH_WINDOWS_BACKWARD, handle_switch, META_TAB_LIST_NORMAL },
+  { "switch-panels", META_KEY_BINDING_NONE, META_KEYBINDING_ACTION_SWITCH_PANELS, handle_switch, META_TAB_LIST_DOCKS },
+  { "switch-panels-backward", META_KEY_BINDING_IS_REVERSED, META_KEYBINDING_ACTION_SWITCH_PANELS_BACKWARD, handle_switch, META_TAB_LIST_DOCKS },
+  { "cycle-group", META_KEY_BINDING_NONE, META_KEYBINDING_ACTION_CYCLE_GROUP, handle_cycle, META_TAB_LIST_GROUP },
+  { "cycle-group-backward", META_KEY_BINDING_IS_REVERSED, META_KEYBINDING_ACTION_CYCLE_GROUP_BACKWARD, handle_cycle, META_TAB_LIST_GROUP },
+  { "cycle-windows", META_KEY_BINDING_NONE, META_KEYBINDING_ACTION_CYCLE_WINDOWS, handle_cycle, META_TAB_LIST_NORMAL },
+  { "cycle-windows-backward", META_KEY_BINDING_IS_REVERSED, META_KEYBINDING_ACTION_CYCLE_WINDOWS_BACKWARD, handle_cycle, META_TAB_LIST_NORMAL },
+  { "cycle-panels", META_KEY_BINDING_NONE, META_KEYBINDING_ACTION_CYCLE_PANELS, handle_cycle, META_TAB_LIST_DOCKS },
+  { "cycle-panels-backward", META_KEY_BINDING_IS_REVERSED, META_KEYBINDING_ACTION_CYCLE_PANELS_BACKWARD, handle_cycle, META_TAB_LIST_DOCKS },
 
   /***********************************/
+  { "show-desktop", META_KEY_BINDING_NONE, META_KEYBINDING_ACTION_SHOW_DESKTOP, handle_show_desktop, 0 },
+  { "panel-run-dialog", META_KEY_BINDING_NONE, META_KEYBINDING_ACTION_PANEL_RUN_DIALOG, NULL, META_KEYBINDING_ACTION_PANEL_RUN_DIALOG },
+  { "set-spew-mark", META_KEY_BINDING_NONE, META_KEYBINDING_ACTION_SET_SPEW_MARK, handle_set_spew_mark, 0 },
 
-  add_builtin_keybinding (display,
-                          "show-desktop",
-                          common_keybindings,
-                          META_KEY_BINDING_NONE,
-                          META_KEYBINDING_ACTION_SHOW_DESKTOP,
-                          handle_show_desktop, 0);
-
-  add_builtin_keybinding (display,
-                          "panel-run-dialog",
-                          common_keybindings,
-                          META_KEY_BINDING_NONE,
-                          META_KEYBINDING_ACTION_PANEL_RUN_DIALOG,
-                          NULL, META_KEYBINDING_ACTION_PANEL_RUN_DIALOG);
-
-  add_builtin_keybinding (display,
-                          "set-spew-mark",
-                          common_keybindings,
-                          META_KEY_BINDING_NONE,
-                          META_KEYBINDING_ACTION_SET_SPEW_MARK,
-                          handle_set_spew_mark, 0);
-
-  add_builtin_keybinding (display,
-                          "switch-monitor",
-                          mutter_keybindings,
-                          META_KEY_BINDING_NONE,
-                          META_KEYBINDING_ACTION_SWITCH_MONITOR,
-                          handle_switch_monitor, 0);
-
-  add_builtin_keybinding (display,
-                          "rotate-monitor",
-                          mutter_keybindings,
-                          META_KEY_BINDING_NONE,
-                          META_KEYBINDING_ACTION_ROTATE_MONITOR,
-                          handle_rotate_monitor, 0);
-
-  add_builtin_keybinding (display,
-                          "cancel-input-capture",
-                          mutter_keybindings,
-                          META_KEY_BINDING_IGNORE_AUTOREPEAT |
-                          META_KEY_BINDING_CUSTOM_TRIGGER,
-                          META_KEYBINDING_ACTION_NONE,
-                          handle_cancel_input_capture, 0);
-
-#ifdef HAVE_NATIVE_BACKEND
-  MetaContext *context = meta_display_get_context (display);
-  MetaBackend *backend = meta_context_get_backend (context);
-  if (META_IS_BACKEND_NATIVE (backend))
-    {
-      add_builtin_keybinding (display,
-                              "switch-to-session-1",
-                              mutter_wayland_keybindings,
-                              META_KEY_BINDING_NON_MASKABLE,
-                              META_KEYBINDING_ACTION_NONE,
-                              handle_switch_vt, 1);
-
-      add_builtin_keybinding (display,
-                              "switch-to-session-2",
-                              mutter_wayland_keybindings,
-                              META_KEY_BINDING_NON_MASKABLE,
-                              META_KEYBINDING_ACTION_NONE,
-                              handle_switch_vt, 2);
-
-      add_builtin_keybinding (display,
-                              "switch-to-session-3",
-                              mutter_wayland_keybindings,
-                              META_KEY_BINDING_NON_MASKABLE,
-                              META_KEYBINDING_ACTION_NONE,
-                              handle_switch_vt, 3);
-
-      add_builtin_keybinding (display,
-                              "switch-to-session-4",
-                              mutter_wayland_keybindings,
-                              META_KEY_BINDING_NON_MASKABLE,
-                              META_KEYBINDING_ACTION_NONE,
-                              handle_switch_vt, 4);
-
-      add_builtin_keybinding (display,
-                              "switch-to-session-5",
-                              mutter_wayland_keybindings,
-                              META_KEY_BINDING_NON_MASKABLE,
-                              META_KEYBINDING_ACTION_NONE,
-                              handle_switch_vt, 5);
-
-      add_builtin_keybinding (display,
-                              "switch-to-session-6",
-                              mutter_wayland_keybindings,
-                              META_KEY_BINDING_NON_MASKABLE,
-                              META_KEYBINDING_ACTION_NONE,
-                              handle_switch_vt, 6);
-
-      add_builtin_keybinding (display,
-                              "switch-to-session-7",
-                              mutter_wayland_keybindings,
-                              META_KEY_BINDING_NON_MASKABLE,
-                              META_KEYBINDING_ACTION_NONE,
-                              handle_switch_vt, 7);
-
-      add_builtin_keybinding (display,
-                              "switch-to-session-8",
-                              mutter_wayland_keybindings,
-                              META_KEY_BINDING_NON_MASKABLE,
-                              META_KEYBINDING_ACTION_NONE,
-                              handle_switch_vt, 8);
-
-      add_builtin_keybinding (display,
-                              "switch-to-session-9",
-                              mutter_wayland_keybindings,
-                              META_KEY_BINDING_NON_MASKABLE,
-                              META_KEYBINDING_ACTION_NONE,
-                              handle_switch_vt, 9);
-
-      add_builtin_keybinding (display,
-                              "switch-to-session-10",
-                              mutter_wayland_keybindings,
-                              META_KEY_BINDING_NON_MASKABLE,
-                              META_KEYBINDING_ACTION_NONE,
-                              handle_switch_vt, 10);
-
-      add_builtin_keybinding (display,
-                              "switch-to-session-11",
-                              mutter_wayland_keybindings,
-                              META_KEY_BINDING_NON_MASKABLE,
-                              META_KEYBINDING_ACTION_NONE,
-                              handle_switch_vt, 11);
-
-      add_builtin_keybinding (display,
-                              "switch-to-session-12",
-                              mutter_wayland_keybindings,
-                              META_KEY_BINDING_NON_MASKABLE,
-                              META_KEYBINDING_ACTION_NONE,
-                              handle_switch_vt, 12);
-    }
-#endif /* HAVE_NATIVE_BACKEND */
-
-  add_builtin_keybinding (display,
-                          "restore-shortcuts",
-                          mutter_wayland_keybindings,
-                          META_KEY_BINDING_NON_MASKABLE,
-                          META_KEYBINDING_ACTION_NONE,
-                          handle_restore_shortcuts, 0);
+  { "toggle-above", META_KEY_BINDING_PER_WINDOW | META_KEY_BINDING_IGNORE_AUTOREPEAT, META_KEYBINDING_ACTION_TOGGLE_ABOVE, handle_toggle_above, 0 },
+  { "maximize", META_KEY_BINDING_PER_WINDOW | META_KEY_BINDING_IGNORE_AUTOREPEAT, META_KEYBINDING_ACTION_MAXIMIZE, handle_maximize, 0 },
+  { "unmaximize", META_KEY_BINDING_PER_WINDOW | META_KEY_BINDING_IGNORE_AUTOREPEAT, META_KEYBINDING_ACTION_UNMAXIMIZE, handle_unmaximize, 0 },
+  { "minimize", META_KEY_BINDING_PER_WINDOW | META_KEY_BINDING_IGNORE_AUTOREPEAT, META_KEYBINDING_ACTION_MINIMIZE, handle_minimize, 0 },
+  { "close", META_KEY_BINDING_PER_WINDOW | META_KEY_BINDING_IGNORE_AUTOREPEAT, META_KEYBINDING_ACTION_CLOSE, handle_close, 0 },
+  { "begin-move", META_KEY_BINDING_PER_WINDOW | META_KEY_BINDING_IGNORE_AUTOREPEAT, META_KEYBINDING_ACTION_BEGIN_MOVE, handle_begin_move, 0 },
+  { "begin-resize", META_KEY_BINDING_PER_WINDOW | META_KEY_BINDING_IGNORE_AUTOREPEAT, META_KEYBINDING_ACTION_BEGIN_RESIZE, handle_begin_resize, 0 },
+  { "toggle-on-all-workspaces", META_KEY_BINDING_PER_WINDOW | META_KEY_BINDING_IGNORE_AUTOREPEAT, META_KEYBINDING_ACTION_TOGGLE_ON_ALL_WORKSPACES, handle_toggle_on_all_workspaces, 0 },
+  { "move-to-workspace-1", META_KEY_BINDING_PER_WINDOW | META_KEY_BINDING_IGNORE_AUTOREPEAT, META_KEYBINDING_ACTION_MOVE_TO_WORKSPACE_1, handle_move_to_workspace, 0 },
+  { "move-to-workspace-2", META_KEY_BINDING_PER_WINDOW | META_KEY_BINDING_IGNORE_AUTOREPEAT, META_KEYBINDING_ACTION_MOVE_TO_WORKSPACE_2, handle_move_to_workspace, 1 },
+  { "move-to-workspace-3", META_KEY_BINDING_PER_WINDOW | META_KEY_BINDING_IGNORE_AUTOREPEAT, META_KEYBINDING_ACTION_MOVE_TO_WORKSPACE_3, handle_move_to_workspace, 2 },
+  { "move-to-workspace-4", META_KEY_BINDING_PER_WINDOW | META_KEY_BINDING_IGNORE_AUTOREPEAT, META_KEYBINDING_ACTION_MOVE_TO_WORKSPACE_4, handle_move_to_workspace, 3 },
+  { "move-to-workspace-5", META_KEY_BINDING_PER_WINDOW | META_KEY_BINDING_IGNORE_AUTOREPEAT, META_KEYBINDING_ACTION_MOVE_TO_WORKSPACE_5, handle_move_to_workspace, 4 },
+  { "move-to-workspace-6", META_KEY_BINDING_PER_WINDOW | META_KEY_BINDING_IGNORE_AUTOREPEAT, META_KEYBINDING_ACTION_MOVE_TO_WORKSPACE_6, handle_move_to_workspace, 5 },
+  { "move-to-workspace-7", META_KEY_BINDING_PER_WINDOW | META_KEY_BINDING_IGNORE_AUTOREPEAT, META_KEYBINDING_ACTION_MOVE_TO_WORKSPACE_7, handle_move_to_workspace, 6 },
+  { "move-to-workspace-8", META_KEY_BINDING_PER_WINDOW | META_KEY_BINDING_IGNORE_AUTOREPEAT, META_KEYBINDING_ACTION_MOVE_TO_WORKSPACE_8, handle_move_to_workspace, 7 },
+  { "move-to-workspace-9", META_KEY_BINDING_PER_WINDOW | META_KEY_BINDING_IGNORE_AUTOREPEAT, META_KEYBINDING_ACTION_MOVE_TO_WORKSPACE_9, handle_move_to_workspace, 8 },
+  { "move-to-workspace-10", META_KEY_BINDING_PER_WINDOW | META_KEY_BINDING_IGNORE_AUTOREPEAT, META_KEYBINDING_ACTION_MOVE_TO_WORKSPACE_10, handle_move_to_workspace, 9 },
+  { "move-to-workspace-11", META_KEY_BINDING_PER_WINDOW | META_KEY_BINDING_IGNORE_AUTOREPEAT, META_KEYBINDING_ACTION_MOVE_TO_WORKSPACE_11, handle_move_to_workspace, 10 },
+  { "move-to-workspace-12", META_KEY_BINDING_PER_WINDOW | META_KEY_BINDING_IGNORE_AUTOREPEAT, META_KEYBINDING_ACTION_MOVE_TO_WORKSPACE_12, handle_move_to_workspace, 11 },
+  { "move-to-workspace-last", META_KEY_BINDING_PER_WINDOW | META_KEY_BINDING_IGNORE_AUTOREPEAT, META_KEYBINDING_ACTION_MOVE_TO_WORKSPACE_LAST, handle_move_to_workspace_last, 0 },
+  { "move-to-workspace-left", META_KEY_BINDING_PER_WINDOW, META_KEYBINDING_ACTION_MOVE_TO_WORKSPACE_LEFT, handle_move_to_workspace, META_MOTION_LEFT },
+  { "move-to-workspace-right", META_KEY_BINDING_PER_WINDOW, META_KEYBINDING_ACTION_MOVE_TO_WORKSPACE_RIGHT, handle_move_to_workspace, META_MOTION_RIGHT },
+  { "move-to-workspace-up", META_KEY_BINDING_PER_WINDOW, META_KEYBINDING_ACTION_MOVE_TO_WORKSPACE_UP, handle_move_to_workspace, META_MOTION_UP },
+  { "move-to-workspace-down", META_KEY_BINDING_PER_WINDOW, META_KEYBINDING_ACTION_MOVE_TO_WORKSPACE_DOWN, handle_move_to_workspace, META_MOTION_DOWN },
+  { "move-to-monitor-left", META_KEY_BINDING_PER_WINDOW, META_KEYBINDING_ACTION_MOVE_TO_MONITOR_LEFT,handle_move_to_monitor, META_DISPLAY_LEFT },
+  { "move-to-monitor-right", META_KEY_BINDING_PER_WINDOW, META_KEYBINDING_ACTION_MOVE_TO_MONITOR_RIGHT, handle_move_to_monitor, META_DISPLAY_RIGHT },
+  { "move-to-monitor-down", META_KEY_BINDING_PER_WINDOW, META_KEYBINDING_ACTION_MOVE_TO_MONITOR_DOWN, handle_move_to_monitor, META_DISPLAY_DOWN },
+  { "move-to-monitor-up", META_KEY_BINDING_PER_WINDOW, META_KEYBINDING_ACTION_MOVE_TO_MONITOR_UP, handle_move_to_monitor, META_DISPLAY_UP },
+  { "raise-or-lower", META_KEY_BINDING_PER_WINDOW | META_KEY_BINDING_IGNORE_AUTOREPEAT, META_KEYBINDING_ACTION_RAISE_OR_LOWER, handle_raise_or_lower, 0 },
+  { "raise", META_KEY_BINDING_PER_WINDOW | META_KEY_BINDING_IGNORE_AUTOREPEAT, META_KEYBINDING_ACTION_RAISE, handle_raise, 0 },
+  { "lower", META_KEY_BINDING_PER_WINDOW | META_KEY_BINDING_IGNORE_AUTOREPEAT, META_KEYBINDING_ACTION_LOWER, handle_lower, 0 },
+  { "maximize-vertically", META_KEY_BINDING_PER_WINDOW | META_KEY_BINDING_IGNORE_AUTOREPEAT, META_KEYBINDING_ACTION_MAXIMIZE_VERTICALLY, handle_maximize_vertically, 0 },
+  { "maximize-horizontally", META_KEY_BINDING_PER_WINDOW | META_KEY_BINDING_IGNORE_AUTOREPEAT, META_KEYBINDING_ACTION_MAXIMIZE_HORIZONTALLY, handle_maximize_horizontally, 0 },
+  { "always-on-top", META_KEY_BINDING_PER_WINDOW | META_KEY_BINDING_IGNORE_AUTOREPEAT, META_KEYBINDING_ACTION_ALWAYS_ON_TOP, handle_always_on_top, 0 },
+  { "move-to-corner-nw", META_KEY_BINDING_PER_WINDOW | META_KEY_BINDING_IGNORE_AUTOREPEAT, META_KEYBINDING_ACTION_MOVE_TO_CORNER_NW, handle_move_to_corner_nw, 0 },
+  { "move-to-corner-ne", META_KEY_BINDING_PER_WINDOW | META_KEY_BINDING_IGNORE_AUTOREPEAT, META_KEYBINDING_ACTION_MOVE_TO_CORNER_NE, handle_move_to_corner_ne, 0 },
+  { "move-to-corner-sw", META_KEY_BINDING_PER_WINDOW | META_KEY_BINDING_IGNORE_AUTOREPEAT, META_KEYBINDING_ACTION_MOVE_TO_CORNER_SW, handle_move_to_corner_sw, 0 },
+  { "move-to-corner-se", META_KEY_BINDING_PER_WINDOW | META_KEY_BINDING_IGNORE_AUTOREPEAT, META_KEYBINDING_ACTION_MOVE_TO_CORNER_SE, handle_move_to_corner_se, 0 },
+  { "move-to-side-n", META_KEY_BINDING_PER_WINDOW | META_KEY_BINDING_IGNORE_AUTOREPEAT, META_KEYBINDING_ACTION_MOVE_TO_SIDE_N, handle_move_to_side_n, 0 },
+  { "move-to-side-s", META_KEY_BINDING_PER_WINDOW | META_KEY_BINDING_IGNORE_AUTOREPEAT, META_KEYBINDING_ACTION_MOVE_TO_SIDE_S, handle_move_to_side_s, 0 },
+  { "move-to-side-e", META_KEY_BINDING_PER_WINDOW | META_KEY_BINDING_IGNORE_AUTOREPEAT, META_KEYBINDING_ACTION_MOVE_TO_SIDE_E, handle_move_to_side_e, 0 },
+  { "move-to-side-w", META_KEY_BINDING_PER_WINDOW | META_KEY_BINDING_IGNORE_AUTOREPEAT, META_KEYBINDING_ACTION_MOVE_TO_SIDE_W, handle_move_to_side_w, 0 },
+  { "move-to-center", META_KEY_BINDING_PER_WINDOW | META_KEY_BINDING_IGNORE_AUTOREPEAT, META_KEYBINDING_ACTION_MOVE_TO_CENTER, handle_move_to_center, 0 },
 
   /************************ PER WINDOW BINDINGS ************************/
 
@@ -3485,389 +3121,63 @@ init_builtin_key_bindings (MetaDisplay *display)
    * if no window is active.
    */
 
-  add_builtin_keybinding (display,
-                          "activate-window-menu",
-                          common_keybindings,
-                          META_KEY_BINDING_PER_WINDOW |
-                          META_KEY_BINDING_IGNORE_AUTOREPEAT,
-                          META_KEYBINDING_ACTION_ACTIVATE_WINDOW_MENU,
-                          handle_activate_window_menu, 0);
+  {"activate-window-menu", META_KEY_BINDING_PER_WINDOW | META_KEY_BINDING_IGNORE_AUTOREPEAT, META_KEYBINDING_ACTION_ACTIVATE_WINDOW_MENU, handle_activate_window_menu, 0 },
+  {"toggle-fullscreen", META_KEY_BINDING_PER_WINDOW | META_KEY_BINDING_IGNORE_AUTOREPEAT, META_KEYBINDING_ACTION_TOGGLE_FULLSCREEN, handle_toggle_fullscreen, 0 },
+  {"toggle-maximized", META_KEY_BINDING_PER_WINDOW | META_KEY_BINDING_IGNORE_AUTOREPEAT, META_KEYBINDING_ACTION_TOGGLE_MAXIMIZED, handle_toggle_maximized, 0 },
+};
 
-  add_builtin_keybinding (display,
-                          "toggle-fullscreen",
-                          common_keybindings,
-                          META_KEY_BINDING_PER_WINDOW |
-                          META_KEY_BINDING_IGNORE_AUTOREPEAT,
-                          META_KEYBINDING_ACTION_TOGGLE_FULLSCREEN,
-                          handle_toggle_fullscreen, 0);
+static BuiltinKeybinding MUTTER_KEYBINDINGS[] = {
+  { "switch-monitor", META_KEY_BINDING_NONE, META_KEYBINDING_ACTION_SWITCH_MONITOR, handle_switch_monitor, 0 },
+  { "rotate-monitor", META_KEY_BINDING_NONE, META_KEYBINDING_ACTION_ROTATE_MONITOR, handle_rotate_monitor, 0 },
+  { "cancel-input-capture", META_KEY_BINDING_IGNORE_AUTOREPEAT | META_KEY_BINDING_CUSTOM_TRIGGER, META_KEYBINDING_ACTION_NONE, handle_cancel_input_capture, 0 },
+  { "toggle-tiled-left", META_KEY_BINDING_PER_WINDOW | META_KEY_BINDING_IGNORE_AUTOREPEAT, META_KEYBINDING_ACTION_TOGGLE_TILED_LEFT, handle_toggle_tiled, META_TILE_LEFT },
+  { "toggle-tiled-right", META_KEY_BINDING_PER_WINDOW | META_KEY_BINDING_IGNORE_AUTOREPEAT, META_KEYBINDING_ACTION_TOGGLE_TILED_RIGHT, handle_toggle_tiled, META_TILE_RIGHT },
+};
 
-  add_builtin_keybinding (display,
-                          "toggle-maximized",
-                          common_keybindings,
-                          META_KEY_BINDING_PER_WINDOW |
-                          META_KEY_BINDING_IGNORE_AUTOREPEAT,
-                          META_KEYBINDING_ACTION_TOGGLE_MAXIMIZED,
-                          handle_toggle_maximized, 0);
+static BuiltinKeybinding WAYLAND_KEYBINDINGS[] = {
+  { "restore-shortcuts", META_KEY_BINDING_NON_MASKABLE, META_KEYBINDING_ACTION_NONE, handle_restore_shortcuts, 0 },
+};
 
-  add_builtin_keybinding (display,
-                          "toggle-tiled-left",
-                          mutter_keybindings,
-                          META_KEY_BINDING_PER_WINDOW |
-                          META_KEY_BINDING_IGNORE_AUTOREPEAT,
-                          META_KEYBINDING_ACTION_TOGGLE_TILED_LEFT,
-                          handle_toggle_tiled, META_TILE_LEFT);
+#ifdef HAVE_NATIVE_BACKEND
+static BuiltinKeybinding NATIVE_KEYBINDINGS[] = {
+  { "switch-to-session-1", META_KEY_BINDING_NON_MASKABLE, META_KEYBINDING_ACTION_NONE, handle_switch_vt, 1 },
+  { "switch-to-session-2", META_KEY_BINDING_NON_MASKABLE, META_KEYBINDING_ACTION_NONE, handle_switch_vt, 2 },
+  { "switch-to-session-3", META_KEY_BINDING_NON_MASKABLE, META_KEYBINDING_ACTION_NONE, handle_switch_vt, 3 },
+  { "switch-to-session-4", META_KEY_BINDING_NON_MASKABLE, META_KEYBINDING_ACTION_NONE, handle_switch_vt, 4 },
+  { "switch-to-session-5", META_KEY_BINDING_NON_MASKABLE, META_KEYBINDING_ACTION_NONE, handle_switch_vt, 5 },
+  { "switch-to-session-6", META_KEY_BINDING_NON_MASKABLE, META_KEYBINDING_ACTION_NONE, handle_switch_vt, 6 },
+  { "switch-to-session-7", META_KEY_BINDING_NON_MASKABLE, META_KEYBINDING_ACTION_NONE, handle_switch_vt, 7 },
+  { "switch-to-session-8", META_KEY_BINDING_NON_MASKABLE, META_KEYBINDING_ACTION_NONE, handle_switch_vt, 8 },
+  { "switch-to-session-9", META_KEY_BINDING_NON_MASKABLE, META_KEYBINDING_ACTION_NONE, handle_switch_vt, 9 },
+  { "switch-to-session-10", META_KEY_BINDING_NON_MASKABLE, META_KEYBINDING_ACTION_NONE, handle_switch_vt, 10 },
+  { "switch-to-session-11", META_KEY_BINDING_NON_MASKABLE, META_KEYBINDING_ACTION_NONE, handle_switch_vt, 11 },
+  { "switch-to-session-12", META_KEY_BINDING_NON_MASKABLE, META_KEYBINDING_ACTION_NONE, handle_switch_vt, 12 },
+};
+#endif
 
-  add_builtin_keybinding (display,
-                          "toggle-tiled-right",
-                          mutter_keybindings,
-                          META_KEY_BINDING_PER_WINDOW |
-                          META_KEY_BINDING_IGNORE_AUTOREPEAT,
-                          META_KEYBINDING_ACTION_TOGGLE_TILED_RIGHT,
-                          handle_toggle_tiled, META_TILE_RIGHT);
+static void
+init_builtin_key_bindings (MetaDisplay *display)
+{
+  GSettings *common_keybindings = g_settings_new (SCHEMA_COMMON_KEYBINDINGS);
+  GSettings *mutter_keybindings = g_settings_new (SCHEMA_MUTTER_KEYBINDINGS);
+  GSettings *mutter_wayland_keybindings = g_settings_new (SCHEMA_MUTTER_WAYLAND_KEYBINDINGS);
 
-  add_builtin_keybinding (display,
-                          "toggle-above",
-                          common_keybindings,
-                          META_KEY_BINDING_PER_WINDOW |
-                          META_KEY_BINDING_IGNORE_AUTOREPEAT,
-                          META_KEYBINDING_ACTION_TOGGLE_ABOVE,
-                          handle_toggle_above, 0);
+  add_builtin_keybindings (display, common_keybindings, COMMON_KEYBINDINGS,
+                           sizeof (COMMON_KEYBINDINGS) / sizeof (COMMON_KEYBINDINGS[0]));
+  add_builtin_keybindings (display, mutter_keybindings, MUTTER_KEYBINDINGS,
+                           sizeof (MUTTER_KEYBINDINGS) / sizeof (MUTTER_KEYBINDINGS[0]));
+  add_builtin_keybindings (display, mutter_wayland_keybindings, WAYLAND_KEYBINDINGS,
+                           sizeof (WAYLAND_KEYBINDINGS) / sizeof (WAYLAND_KEYBINDINGS[0]));
 
-  add_builtin_keybinding (display,
-                          "maximize",
-                          common_keybindings,
-                          META_KEY_BINDING_PER_WINDOW |
-                          META_KEY_BINDING_IGNORE_AUTOREPEAT,
-                          META_KEYBINDING_ACTION_MAXIMIZE,
-                          handle_maximize, 0);
-
-  add_builtin_keybinding (display,
-                          "unmaximize",
-                          common_keybindings,
-                          META_KEY_BINDING_PER_WINDOW |
-                          META_KEY_BINDING_IGNORE_AUTOREPEAT,
-                          META_KEYBINDING_ACTION_UNMAXIMIZE,
-                          handle_unmaximize, 0);
-
-  add_builtin_keybinding (display,
-                          "minimize",
-                          common_keybindings,
-                          META_KEY_BINDING_PER_WINDOW |
-                          META_KEY_BINDING_IGNORE_AUTOREPEAT,
-                          META_KEYBINDING_ACTION_MINIMIZE,
-                          handle_minimize, 0);
-
-  add_builtin_keybinding (display,
-                          "close",
-                          common_keybindings,
-                          META_KEY_BINDING_PER_WINDOW |
-                          META_KEY_BINDING_IGNORE_AUTOREPEAT,
-                          META_KEYBINDING_ACTION_CLOSE,
-                          handle_close, 0);
-
-  add_builtin_keybinding (display,
-                          "begin-move",
-                          common_keybindings,
-                          META_KEY_BINDING_PER_WINDOW |
-                          META_KEY_BINDING_IGNORE_AUTOREPEAT,
-                          META_KEYBINDING_ACTION_BEGIN_MOVE,
-                          handle_begin_move, 0);
-
-  add_builtin_keybinding (display,
-                          "begin-resize",
-                          common_keybindings,
-                          META_KEY_BINDING_PER_WINDOW |
-                          META_KEY_BINDING_IGNORE_AUTOREPEAT,
-                          META_KEYBINDING_ACTION_BEGIN_RESIZE,
-                          handle_begin_resize, 0);
-
-  add_builtin_keybinding (display,
-                          "toggle-on-all-workspaces",
-                          common_keybindings,
-                          META_KEY_BINDING_PER_WINDOW |
-                          META_KEY_BINDING_IGNORE_AUTOREPEAT,
-                          META_KEYBINDING_ACTION_TOGGLE_ON_ALL_WORKSPACES,
-                          handle_toggle_on_all_workspaces, 0);
-
-  add_builtin_keybinding (display,
-                          "move-to-workspace-1",
-                          common_keybindings,
-                          META_KEY_BINDING_PER_WINDOW |
-                          META_KEY_BINDING_IGNORE_AUTOREPEAT,
-                          META_KEYBINDING_ACTION_MOVE_TO_WORKSPACE_1,
-                          handle_move_to_workspace, 0);
-
-  add_builtin_keybinding (display,
-                          "move-to-workspace-2",
-                          common_keybindings,
-                          META_KEY_BINDING_PER_WINDOW |
-                          META_KEY_BINDING_IGNORE_AUTOREPEAT,
-                          META_KEYBINDING_ACTION_MOVE_TO_WORKSPACE_2,
-                          handle_move_to_workspace, 1);
-
-  add_builtin_keybinding (display,
-                          "move-to-workspace-3",
-                          common_keybindings,
-                          META_KEY_BINDING_PER_WINDOW |
-                          META_KEY_BINDING_IGNORE_AUTOREPEAT,
-                          META_KEYBINDING_ACTION_MOVE_TO_WORKSPACE_3,
-                          handle_move_to_workspace, 2);
-
-  add_builtin_keybinding (display,
-                          "move-to-workspace-4",
-                          common_keybindings,
-                          META_KEY_BINDING_PER_WINDOW |
-                          META_KEY_BINDING_IGNORE_AUTOREPEAT,
-                          META_KEYBINDING_ACTION_MOVE_TO_WORKSPACE_4,
-                          handle_move_to_workspace, 3);
-
-  add_builtin_keybinding (display,
-                          "move-to-workspace-5",
-                          common_keybindings,
-                          META_KEY_BINDING_PER_WINDOW |
-                          META_KEY_BINDING_IGNORE_AUTOREPEAT,
-                          META_KEYBINDING_ACTION_MOVE_TO_WORKSPACE_5,
-                          handle_move_to_workspace, 4);
-
-  add_builtin_keybinding (display,
-                          "move-to-workspace-6",
-                          common_keybindings,
-                          META_KEY_BINDING_PER_WINDOW |
-                          META_KEY_BINDING_IGNORE_AUTOREPEAT,
-                          META_KEYBINDING_ACTION_MOVE_TO_WORKSPACE_6,
-                          handle_move_to_workspace, 5);
-
-  add_builtin_keybinding (display,
-                          "move-to-workspace-7",
-                          common_keybindings,
-                          META_KEY_BINDING_PER_WINDOW |
-                          META_KEY_BINDING_IGNORE_AUTOREPEAT,
-                          META_KEYBINDING_ACTION_MOVE_TO_WORKSPACE_7,
-                          handle_move_to_workspace, 6);
-
-  add_builtin_keybinding (display,
-                          "move-to-workspace-8",
-                          common_keybindings,
-                          META_KEY_BINDING_PER_WINDOW |
-                          META_KEY_BINDING_IGNORE_AUTOREPEAT,
-                          META_KEYBINDING_ACTION_MOVE_TO_WORKSPACE_8,
-                          handle_move_to_workspace, 7);
-
-  add_builtin_keybinding (display,
-                          "move-to-workspace-9",
-                          common_keybindings,
-                          META_KEY_BINDING_PER_WINDOW |
-                          META_KEY_BINDING_IGNORE_AUTOREPEAT,
-                          META_KEYBINDING_ACTION_MOVE_TO_WORKSPACE_9,
-                          handle_move_to_workspace, 8);
-
-  add_builtin_keybinding (display,
-                          "move-to-workspace-10",
-                          common_keybindings,
-                          META_KEY_BINDING_PER_WINDOW |
-                          META_KEY_BINDING_IGNORE_AUTOREPEAT,
-                          META_KEYBINDING_ACTION_MOVE_TO_WORKSPACE_10,
-                          handle_move_to_workspace, 9);
-
-  add_builtin_keybinding (display,
-                          "move-to-workspace-11",
-                          common_keybindings,
-                          META_KEY_BINDING_PER_WINDOW |
-                          META_KEY_BINDING_IGNORE_AUTOREPEAT,
-                          META_KEYBINDING_ACTION_MOVE_TO_WORKSPACE_11,
-                          handle_move_to_workspace, 10);
-
-  add_builtin_keybinding (display,
-                          "move-to-workspace-12",
-                          common_keybindings,
-                          META_KEY_BINDING_PER_WINDOW |
-                          META_KEY_BINDING_IGNORE_AUTOREPEAT,
-                          META_KEYBINDING_ACTION_MOVE_TO_WORKSPACE_12,
-                          handle_move_to_workspace, 11);
-
-  add_builtin_keybinding (display,
-                          "move-to-workspace-last",
-                          common_keybindings,
-                          META_KEY_BINDING_PER_WINDOW |
-                          META_KEY_BINDING_IGNORE_AUTOREPEAT,
-                          META_KEYBINDING_ACTION_MOVE_TO_WORKSPACE_LAST,
-                          handle_move_to_workspace_last, 0);
-
-  add_builtin_keybinding (display,
-                          "move-to-workspace-left",
-                          common_keybindings,
-                          META_KEY_BINDING_PER_WINDOW,
-                          META_KEYBINDING_ACTION_MOVE_TO_WORKSPACE_LEFT,
-                          handle_move_to_workspace, META_MOTION_LEFT);
-
-  add_builtin_keybinding (display,
-                          "move-to-workspace-right",
-                          common_keybindings,
-                          META_KEY_BINDING_PER_WINDOW,
-                          META_KEYBINDING_ACTION_MOVE_TO_WORKSPACE_RIGHT,
-                          handle_move_to_workspace, META_MOTION_RIGHT);
-
-  add_builtin_keybinding (display,
-                          "move-to-workspace-up",
-                          common_keybindings,
-                          META_KEY_BINDING_PER_WINDOW,
-                          META_KEYBINDING_ACTION_MOVE_TO_WORKSPACE_UP,
-                          handle_move_to_workspace, META_MOTION_UP);
-
-  add_builtin_keybinding (display,
-                          "move-to-workspace-down",
-                          common_keybindings,
-                          META_KEY_BINDING_PER_WINDOW,
-                          META_KEYBINDING_ACTION_MOVE_TO_WORKSPACE_DOWN,
-                          handle_move_to_workspace, META_MOTION_DOWN);
-
-  add_builtin_keybinding (display,
-                          "move-to-monitor-left",
-                          common_keybindings,
-                          META_KEY_BINDING_PER_WINDOW,
-                          META_KEYBINDING_ACTION_MOVE_TO_MONITOR_LEFT,
-                          handle_move_to_monitor, META_DISPLAY_LEFT);
-
-  add_builtin_keybinding (display,
-                          "move-to-monitor-right",
-                          common_keybindings,
-                          META_KEY_BINDING_PER_WINDOW,
-                          META_KEYBINDING_ACTION_MOVE_TO_MONITOR_RIGHT,
-                          handle_move_to_monitor, META_DISPLAY_RIGHT);
-
-  add_builtin_keybinding (display,
-                          "move-to-monitor-down",
-                          common_keybindings,
-                          META_KEY_BINDING_PER_WINDOW,
-                          META_KEYBINDING_ACTION_MOVE_TO_MONITOR_DOWN,
-                          handle_move_to_monitor, META_DISPLAY_DOWN);
-
-  add_builtin_keybinding (display,
-                          "move-to-monitor-up",
-                          common_keybindings,
-                          META_KEY_BINDING_PER_WINDOW,
-                          META_KEYBINDING_ACTION_MOVE_TO_MONITOR_UP,
-                          handle_move_to_monitor, META_DISPLAY_UP);
-
-  add_builtin_keybinding (display,
-                          "raise-or-lower",
-                          common_keybindings,
-                          META_KEY_BINDING_PER_WINDOW |
-                          META_KEY_BINDING_IGNORE_AUTOREPEAT,
-                          META_KEYBINDING_ACTION_RAISE_OR_LOWER,
-                          handle_raise_or_lower, 0);
-
-  add_builtin_keybinding (display,
-                          "raise",
-                          common_keybindings,
-                          META_KEY_BINDING_PER_WINDOW |
-                          META_KEY_BINDING_IGNORE_AUTOREPEAT,
-                          META_KEYBINDING_ACTION_RAISE,
-                          handle_raise, 0);
-
-  add_builtin_keybinding (display,
-                          "lower",
-                          common_keybindings,
-                          META_KEY_BINDING_PER_WINDOW |
-                          META_KEY_BINDING_IGNORE_AUTOREPEAT,
-                          META_KEYBINDING_ACTION_LOWER,
-                          handle_lower, 0);
-
-  add_builtin_keybinding (display,
-                          "maximize-vertically",
-                          common_keybindings,
-                          META_KEY_BINDING_PER_WINDOW |
-                          META_KEY_BINDING_IGNORE_AUTOREPEAT,
-                          META_KEYBINDING_ACTION_MAXIMIZE_VERTICALLY,
-                          handle_maximize_vertically, 0);
-
-  add_builtin_keybinding (display,
-                          "maximize-horizontally",
-                          common_keybindings,
-                          META_KEY_BINDING_PER_WINDOW |
-                          META_KEY_BINDING_IGNORE_AUTOREPEAT,
-                          META_KEYBINDING_ACTION_MAXIMIZE_HORIZONTALLY,
-                          handle_maximize_horizontally, 0);
-
-  add_builtin_keybinding (display,
-                          "always-on-top",
-                          common_keybindings,
-                          META_KEY_BINDING_PER_WINDOW |
-                          META_KEY_BINDING_IGNORE_AUTOREPEAT,
-                          META_KEYBINDING_ACTION_ALWAYS_ON_TOP,
-                          handle_always_on_top, 0);
-
-  add_builtin_keybinding (display,
-                          "move-to-corner-nw",
-                          common_keybindings,
-                          META_KEY_BINDING_PER_WINDOW |
-                          META_KEY_BINDING_IGNORE_AUTOREPEAT,
-                          META_KEYBINDING_ACTION_MOVE_TO_CORNER_NW,
-                          handle_move_to_corner_nw, 0);
-
-  add_builtin_keybinding (display,
-                          "move-to-corner-ne",
-                          common_keybindings,
-                          META_KEY_BINDING_PER_WINDOW |
-                          META_KEY_BINDING_IGNORE_AUTOREPEAT,
-                          META_KEYBINDING_ACTION_MOVE_TO_CORNER_NE,
-                          handle_move_to_corner_ne, 0);
-
-  add_builtin_keybinding (display,
-                          "move-to-corner-sw",
-                          common_keybindings,
-                          META_KEY_BINDING_PER_WINDOW |
-                          META_KEY_BINDING_IGNORE_AUTOREPEAT,
-                          META_KEYBINDING_ACTION_MOVE_TO_CORNER_SW,
-                          handle_move_to_corner_sw, 0);
-
-  add_builtin_keybinding (display,
-                          "move-to-corner-se",
-                          common_keybindings,
-                          META_KEY_BINDING_PER_WINDOW |
-                          META_KEY_BINDING_IGNORE_AUTOREPEAT,
-                          META_KEYBINDING_ACTION_MOVE_TO_CORNER_SE,
-                          handle_move_to_corner_se, 0);
-
-  add_builtin_keybinding (display,
-                          "move-to-side-n",
-                          common_keybindings,
-                          META_KEY_BINDING_PER_WINDOW |
-                          META_KEY_BINDING_IGNORE_AUTOREPEAT,
-                          META_KEYBINDING_ACTION_MOVE_TO_SIDE_N,
-                          handle_move_to_side_n, 0);
-
-  add_builtin_keybinding (display,
-                          "move-to-side-s",
-                          common_keybindings,
-                          META_KEY_BINDING_PER_WINDOW |
-                          META_KEY_BINDING_IGNORE_AUTOREPEAT,
-                          META_KEYBINDING_ACTION_MOVE_TO_SIDE_S,
-                          handle_move_to_side_s, 0);
-
-  add_builtin_keybinding (display,
-                          "move-to-side-e",
-                          common_keybindings,
-                          META_KEY_BINDING_PER_WINDOW |
-                          META_KEY_BINDING_IGNORE_AUTOREPEAT,
-                          META_KEYBINDING_ACTION_MOVE_TO_SIDE_E,
-                          handle_move_to_side_e, 0);
-
-  add_builtin_keybinding (display,
-                          "move-to-side-w",
-                          common_keybindings,
-                          META_KEY_BINDING_PER_WINDOW |
-                          META_KEY_BINDING_IGNORE_AUTOREPEAT,
-                          META_KEYBINDING_ACTION_MOVE_TO_SIDE_W,
-                          handle_move_to_side_w, 0);
-
-  add_builtin_keybinding (display,
-                          "move-to-center",
-                          common_keybindings,
-                          META_KEY_BINDING_PER_WINDOW |
-                          META_KEY_BINDING_IGNORE_AUTOREPEAT,
-                          META_KEYBINDING_ACTION_MOVE_TO_CENTER,
-                          handle_move_to_center, 0);
+#ifdef HAVE_NATIVE_BACKEND
+  MetaContext *context = meta_display_get_context (display);
+  MetaBackend *backend = meta_context_get_backend (context);
+  if (META_IS_BACKEND_NATIVE (backend))
+    {
+      add_builtin_keybindings (display, mutter_wayland_keybindings, NATIVE_KEYBINDINGS,
+                               sizeof (NATIVE_KEYBINDINGS) / sizeof (NATIVE_KEYBINDINGS[0]));
+    }
+#endif /* HAVE_NATIVE_BACKEND */
 
   g_object_unref (common_keybindings);
   g_object_unref (mutter_keybindings);
@@ -3954,15 +3264,15 @@ process_keybinding_key_event (MetaDisplay           *display,
   MetaKeyBindingManager *keys = &display->key_binding_manager;
   xkb_keycode_t keycode =
     (xkb_keycode_t) clutter_event_get_key_code ((ClutterEvent *) event);
+  ClutterModifierType modifiers;
   MetaResolvedKeyCombo resolved_combo = { &keycode, 1 };
   MetaKeyBinding *binding;
 
   if (clutter_event_type ((ClutterEvent *) event) == CLUTTER_KEY_RELEASE)
     return FALSE;
 
-  resolved_combo.mask =
-    mask_from_event_params (keys,
-                            clutter_event_get_state ((ClutterEvent *) event));
+  modifiers = get_modifiers ((ClutterEvent *) event);
+  resolved_combo.mask = mask_from_event_params (keys, modifiers);
 
   binding = get_keybinding (keys, &resolved_combo);
   if (!binding)

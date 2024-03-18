@@ -4,10 +4,12 @@ mtk_headers = [
   'mtk.h',
   'mtk-macros.h',
   'mtk-rectangle.h',
+  'mtk-region.h',
 ]
 
 mtk_sources = [
   'mtk-rectangle.c',
+  'mtk-region.c',
 ]
 
 if have_x11
@@ -48,7 +50,6 @@ if have_introspection
   mtk_introspection_args = introspection_args + [
     '-DMTK_SYSCONFDIR="@0@"'.format(prefix / sysconfdir),
     '-DMTK_COMPILATION=1',
-    '-DCOGL_DISABLE_DEPRECATION_WARNINGS',
     '-DG_LOG_DOMAIN="Mtk"'
   ]
 
@@ -62,13 +63,10 @@ if have_introspection
     export_packages: [libmutter_mtk_name],
     includes: [
       'GObject-2.0',
-      'cairo-1.0',
       'Graphene-1.0',
     ],
     extra_args: mtk_introspection_args + ['--c-include=mtk/mtk.h'],
-    install_dir_gir: pkglibdir,
-    install_dir_typelib: pkglibdir,
-    install: true,
+    kwargs: introspection_common,
   )
 
 endif

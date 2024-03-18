@@ -28,7 +28,7 @@
  *
  */
 
-#include "cogl-config.h"
+#include "config.h"
 
 #include "cogl/cogl-debug.h"
 #include "cogl/cogl-context-private.h"
@@ -41,6 +41,7 @@
 #include "cogl/cogl-profile.h"
 #include "cogl/cogl-attribute-private.h"
 #include "cogl/cogl-point-in-poly-private.h"
+#include "cogl/cogl-trace.h"
 #include "cogl/cogl-private.h"
 #include "cogl/cogl1-context.h"
 
@@ -122,9 +123,12 @@ typedef void (*CoglJournalBatchCallback) (CoglJournalEntry *start,
 typedef gboolean (*CoglJournalBatchTest) (CoglJournalEntry *entry0,
                                           CoglJournalEntry *entry1);
 
-void
-_cogl_journal_free (CoglJournal *journal)
+G_DEFINE_TYPE (CoglJournal, cogl_journal, G_TYPE_OBJECT);
+
+static void
+cogl_journal_dispose (GObject *object)
 {
+  CoglJournal *journal = COGL_JOURNAL (object);
   int i;
 
   if (journal->entries)
@@ -134,15 +138,28 @@ _cogl_journal_free (CoglJournal *journal)
 
   for (i = 0; i < COGL_JOURNAL_VBO_POOL_SIZE; i++)
     if (journal->vbo_pool[i])
-      cogl_object_unref (journal->vbo_pool[i]);
+      g_object_unref (journal->vbo_pool[i]);
 
-  g_free (journal);
+  G_OBJECT_CLASS (cogl_journal_parent_class)->dispose (object);
+}
+
+static void
+cogl_journal_init (CoglJournal *journal)
+{
+}
+
+static void
+cogl_journal_class_init (CoglJournalClass *class)
+{
+  GObjectClass *object_class = G_OBJECT_CLASS (class);
+
+  object_class->dispose = cogl_journal_dispose;
 }
 
 CoglJournal *
 _cogl_journal_new (CoglFramebuffer *framebuffer)
 {
-  CoglJournal *journal = g_new0 (CoglJournal, 1);
+  CoglJournal *journal = g_object_new (COGL_TYPE_JOURNAL, NULL);
 
   journal->framebuffer = framebuffer;
   journal->entries = g_array_new (FALSE, FALSE, sizeof (CoglJournalEntry));
@@ -327,9 +344,10 @@ _cogl_journal_flush_modelview_and_entries (CoglJournalEntry *batch_start,
   if (G_UNLIKELY (COGL_DEBUG_ENABLED (COGL_DEBUG_RECTANGLES)))
     {
       static CoglPipeline *outline = NULL;
-      uint8_t color_intensity;
+      float color_intensity;
       int i;
       CoglAttribute *loop_attributes[1];
+      CoglColor color;
 
       if (outline == NULL)
         outline = cogl_pipeline_new (ctx);
@@ -341,15 +359,16 @@ _cogl_journal_flush_modelview_and_entries (CoglJournalEntry *batch_start,
          in the order 0xff, 0xcc, 0x99, and 0x66. This gives a total
          of 24 colours. If there are more than 24 batches on the stage
          then it will wrap around */
-      color_intensity = 0xff - 0x33 * (ctx->journal_rectangles_color >> 3);
-      cogl_pipeline_set_color4ub (outline,
-                                  (ctx->journal_rectangles_color & 1) ?
-                                  color_intensity : 0,
-                                  (ctx->journal_rectangles_color & 2) ?
-                                  color_intensity : 0,
-                                  (ctx->journal_rectangles_color & 4) ?
-                                  color_intensity : 0,
-                                  0xff);
+      color_intensity = (0xff - 0x33 * (ctx->journal_rectangles_color >> 3) ) / 255.0;
+      cogl_color_init_from_4f (&color,
+                               (ctx->journal_rectangles_color & 1) ?
+                               color_intensity : 0.0,
+                               (ctx->journal_rectangles_color & 2) ?
+                               color_intensity : 0.0,
+                               (ctx->journal_rectangles_color & 4) ?
+                               color_intensity : 0.0,
+                               1.0);
+      cogl_pipeline_set_color (outline, &color);
 
       loop_attributes[0] = attributes[0]; /* we just want the position */
       for (i = 0; i < batch_len; i++)
@@ -429,8 +448,7 @@ compare_entry_pipelines (CoglJournalEntry *entry0, CoglJournalEntry *entry1)
                             entry1->pipeline,
                             (COGL_PIPELINE_STATE_ALL &
                              ~COGL_PIPELINE_STATE_COLOR),
-                            COGL_PIPELINE_LAYER_STATE_ALL,
-                            0))
+                            COGL_PIPELINE_LAYER_STATE_ALL))
     return TRUE;
   else
     return FALSE;
@@ -521,7 +539,7 @@ _cogl_journal_flush_texcoord_vbo_offsets_and_entries (
   /* NB: attributes 0 and 1 are position and color */
 
   for (i = 2; i < state->attributes->len; i++)
-    cogl_object_unref (g_array_index (state->attributes, CoglAttribute *, i));
+    g_object_unref (g_array_index (state->attributes, CoglAttribute *, i));
 
   g_array_set_size (state->attributes, batch_start->n_layers + 2);
 
@@ -589,7 +607,7 @@ _cogl_journal_flush_vbo_offsets_and_entries (CoglJournalEntry *batch_start,
   state->stride = stride;
 
   for (i = 0; i < state->attributes->len; i++)
-    cogl_object_unref (g_array_index (state->attributes, CoglAttribute *, i));
+    g_object_unref (g_array_index (state->attributes, CoglAttribute *, i));
 
   g_array_set_size (state->attributes, 2);
 
@@ -1129,7 +1147,7 @@ create_attribute_buffer (CoglJournal *journal,
   else if (cogl_buffer_get_size (COGL_BUFFER (vbo)) < n_bytes)
     {
       /* If the buffer is too small then we'll just recreate it */
-      cogl_object_unref (vbo);
+      g_object_unref (vbo);
       vbo = cogl_attribute_buffer_new_with_size (ctx, n_bytes);
       journal->vbo_pool[journal->next_vbo_in_pool] = vbo;
     }
@@ -1137,7 +1155,7 @@ create_attribute_buffer (CoglJournal *journal,
   journal->next_vbo_in_pool = ((journal->next_vbo_in_pool + 1) %
                                COGL_JOURNAL_VBO_POOL_SIZE);
 
-  return cogl_object_ref (vbo);
+  return g_object_ref (vbo);
 }
 
 static CoglAttributeBuffer *
@@ -1365,6 +1383,8 @@ _cogl_journal_flush (CoglJournal *journal)
                      "The time spent discarding the Cogl journal after a flush",
                      0 /* no application private data */);
 
+  COGL_TRACE_BEGIN_SCOPED (Flush, "Cogl::Journal::flush()");
+
   if (journal->entries->len == 0)
     {
       post_fences (journal);
@@ -1459,10 +1479,10 @@ _cogl_journal_flush (CoglJournal *journal)
                   &state);
 
   for (i = 0; i < state.attributes->len; i++)
-    cogl_object_unref (g_array_index (state.attributes, CoglAttribute *, i));
+    g_object_unref (g_array_index (state.attributes, CoglAttribute *, i));
   g_array_set_size (state.attributes, 0);
 
-  cogl_object_unref (state.attribute_buffer);
+  g_object_unref (state.attribute_buffer);
 
   COGL_TIMER_START (_cogl_uprof_context, discard_timer);
   _cogl_journal_discard (journal);
@@ -1602,7 +1622,7 @@ _cogl_journal_log_quad (CoglJournal  *journal,
   cogl_framebuffer_get_viewport4fv (framebuffer, entry->viewport);
 
   if (G_UNLIKELY (final_pipeline != pipeline))
-    cogl_object_unref (final_pipeline);
+    g_object_unref (final_pipeline);
 
   modelview_stack =
     _cogl_framebuffer_get_modelview_stack (framebuffer);
@@ -1864,8 +1884,7 @@ _cogl_journal_try_read_pixel (CoglJournal *journal,
       if (!_cogl_pipeline_equal (ctx->opaque_color_pipeline, entry->pipeline,
                                  (COGL_PIPELINE_STATE_ALL &
                                   ~COGL_PIPELINE_STATE_COLOR),
-                                 COGL_PIPELINE_LAYER_STATE_ALL,
-                                 0))
+                                 COGL_PIPELINE_LAYER_STATE_ALL))
         return FALSE;
 
 

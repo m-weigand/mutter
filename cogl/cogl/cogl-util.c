@@ -28,32 +28,12 @@
  *
  */
 
-#include "cogl-config.h"
+#include "config.h"
 
 #include <string.h>
 
 #include "cogl/cogl-util.h"
 #include "cogl/cogl-private.h"
-
-/*
- * cogl_util_next_p2:
- * @a: Value to get the next power of two
- *
- * Calculates the next power of two greater than or equal to @a.
- *
- * Return value: @a if @a is already a power of two, otherwise returns
- *   the next nearest power of two.
- */
-COGL_EXPORT int
-_cogl_util_next_p2 (int a)
-{
-  int rval = 1;
-
-  while (rval < a)
-    rval <<= 1;
-
-  return rval;
-}
 
 unsigned int
 _cogl_util_one_at_a_time_mix (unsigned int hash)
@@ -64,15 +44,6 @@ _cogl_util_one_at_a_time_mix (unsigned int hash)
 
   return hash;
 }
-
-/* tests/conform/test-bitmask.c tests some cogl internals and includes this
- * file directly but since these functions depend on other internal Cogl
- * symbols we hide them from test-bitmask.c
- *
- * XXX: maybe there's a better way for us to handle internal testing
- * to avoid needing hacks like this.
- */
-#ifndef _COGL_IN_TEST_BITMASK
 
 /* Given a set of red, green and blue component masks, a depth and
  * bits per pixel this function tries to determine a corresponding
@@ -194,5 +165,3 @@ _cogl_util_pixel_format_from_masks (unsigned long r_mask,
 
   return image_format;
 }
-
-#endif /* _COGL_IN_TEST_BITMASK */

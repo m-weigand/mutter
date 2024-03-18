@@ -51,27 +51,15 @@ G_BEGIN_DECLS
  * Frame information.
  */
 typedef struct _CoglFrameInfo CoglFrameInfo;
-#define COGL_FRAME_INFO(X) ((CoglFrameInfo *)(X))
 
-/**
- * cogl_frame_info_get_gtype:
- *
- * Returns: a #GType that can be used with the GLib type system.
- */
+#define COGL_TYPE_FRAME_INFO (cogl_frame_info_get_type ())
+
 COGL_EXPORT
-GType cogl_frame_info_get_gtype (void);
-
-/**
- * cogl_is_frame_info:
- * @object: A #CoglObject pointer
- *
- * Gets whether the given object references a #CoglFrameInfo.
- *
- * Return value: %TRUE if the object references a #CoglFrameInfo
- *   and %FALSE otherwise.
- */
-COGL_EXPORT gboolean
-cogl_is_frame_info (void *object);
+G_DECLARE_FINAL_TYPE (CoglFrameInfo,
+                      cogl_frame_info,
+                      COGL,
+                      FRAME_INFO,
+                      GObject)
 
 /**
  * cogl_frame_info_get_frame_counter:
@@ -95,8 +83,8 @@ int64_t cogl_frame_info_get_frame_counter (CoglFrameInfo *info);
  * The presentation time measured in microseconds, is based on
  * CLOCK_MONOTONIC.
  *
- * <note>Some buggy Mesa drivers up to 9.0.1 may
- * incorrectly report non-monotonic timestamps.</note>
+ * Some buggy Mesa drivers up to 9.0.1 may
+ * incorrectly report non-monotonic timestamps.
  *
  * Return value: the presentation time for the frame
  */
@@ -110,20 +98,17 @@ int64_t cogl_frame_info_get_presentation_time_us (CoglFrameInfo *info);
  * Gets the refresh rate in Hertz for the output that the frame was on
  * at the time the frame was presented.
  *
- * <note>Some platforms can't associate a #CoglOutput with a
+ * Some platforms can't associate a #CoglOutput with a
  * #CoglFrameInfo object but are able to report a refresh rate via
  * this api. Therefore if you need this information then this api is
  * more reliable than using cogl_frame_info_get_output() followed by
- * cogl_output_get_refresh_rate().</note>
+ * cogl_output_get_refresh_rate().
  *
  * Return value: the refresh rate in Hertz
  */
 COGL_EXPORT
 float cogl_frame_info_get_refresh_rate (CoglFrameInfo *info);
 
-/**
- * cogl_frame_info_get_global_frame_counter: (skip)
- */
 COGL_EXPORT
 int64_t cogl_frame_info_get_global_frame_counter (CoglFrameInfo *info);
 
@@ -141,6 +126,9 @@ gboolean cogl_frame_info_is_vsync (CoglFrameInfo *info);
 
 COGL_EXPORT
 unsigned int cogl_frame_info_get_sequence (CoglFrameInfo *info);
+
+COGL_EXPORT
+gboolean cogl_frame_info_has_valid_gpu_rendering_duration (CoglFrameInfo *info);
 
 COGL_EXPORT
 int64_t cogl_frame_info_get_rendering_duration_ns (CoglFrameInfo *info);

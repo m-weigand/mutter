@@ -48,7 +48,7 @@
 #include "core/meta-workspace-manager-private.h"
 #include "core/util-private.h"
 #include "meta/group.h"
-#include "meta/meta-x11-errors.h"
+#include "mtk/mtk-x11.h"
 #include "x11/meta-x11-display-private.h"
 #include "x11/window-x11-private.h"
 #include "x11/window-x11.h"
@@ -124,7 +124,7 @@ meta_window_reload_property (MetaWindow      *window,
                              gboolean         initial)
 {
   meta_window_reload_property_from_xwindow (window,
-                                            window->xwindow,
+                                            meta_window_x11_get_xwindow (window),
                                             property,
                                             initial);
 }
@@ -151,7 +151,8 @@ meta_window_load_initial_properties (MetaWindow *window)
     }
   n_properties = j;
 
-  meta_prop_get_values (window->display->x11_display, window->xwindow,
+  meta_prop_get_values (window->display->x11_display,
+                        meta_window_x11_get_xwindow (window),
                         values, n_properties);
 
   j = 0;
@@ -210,16 +211,18 @@ reload_wm_client_machine (MetaWindow    *window,
                           MetaPropValue *value,
                           gboolean       initial)
 {
-  g_free (window->wm_client_machine);
-  window->wm_client_machine = NULL;
+  MetaWindowX11Private *priv =
+    meta_window_x11_get_private (META_WINDOW_X11 (window));
+
+  g_clear_pointer (&priv->wm_client_machine, g_free);
 
   if (value->type != META_PROP_VALUE_INVALID)
-    window->wm_client_machine = g_strdup (value->v.str);
+    priv->wm_client_machine = g_strdup (value->v.str);
 
   meta_verbose ("Window has client machine \"%s\"",
-                window->wm_client_machine ? window->wm_client_machine : "unset");
+                priv->wm_client_machine ? priv->wm_client_machine : "unset");
 
-  if (window->wm_client_machine == NULL)
+  if (priv->wm_client_machine == NULL)
     {
       window->is_remote = FALSE;
     }
@@ -229,7 +232,7 @@ reload_wm_client_machine (MetaWindow    *window,
 
       gethostname (hostname, HOST_NAME_MAX + 1);
 
-      window->is_remote = g_strcmp0 (window->wm_client_machine, hostname) != 0;
+      window->is_remote = g_strcmp0 (priv->wm_client_machine, hostname) != 0;
     }
 }
 
@@ -284,35 +287,6 @@ reload_net_wm_window_type (MetaWindow    *window,
     }
 
   meta_window_x11_recalc_window_type (window);
-}
-
-static void
-reload_icon (MetaWindow    *window,
-             Atom           atom)
-{
-  MetaWindowX11 *window_x11 = META_WINDOW_X11 (window);
-  MetaWindowX11Private *priv = meta_window_x11_get_private (window_x11);
-
-  meta_icon_cache_property_changed (&priv->icon_cache,
-                                    window->display->x11_display,
-                                    atom);
-  meta_window_x11_queue_update_icon (window_x11);
-}
-
-static void
-reload_net_wm_icon (MetaWindow    *window,
-                    MetaPropValue *value,
-                    gboolean       initial)
-{
-  reload_icon (window, window->display->x11_display->atom__NET_WM_ICON);
-}
-
-static void
-reload_kwm_win_icon (MetaWindow    *window,
-                     MetaPropValue *value,
-                     gboolean       initial)
-{
-  reload_icon (window, window->display->x11_display->atom__KWM_WIN_ICON);
 }
 
 static void
@@ -447,17 +421,20 @@ reload_net_wm_user_time_window (MetaWindow    *window,
 {
   if (value->type != META_PROP_VALUE_INVALID)
     {
+      MetaWindowX11 *window_x11 = META_WINDOW_X11 (window);
+      MetaWindowX11Private *priv = meta_window_x11_get_private (window_x11);
       MetaWindow *prev_owner;
+      MetaWindowX11Private *prev_owner_priv;
 
       /* Unregister old NET_WM_USER_TIME_WINDOW */
-      if (window->user_time_window != None)
+      if (priv->user_time_window != None)
         {
           /* See the comment to the meta_display_register_x_window call below. */
           meta_x11_display_unregister_x_window (window->display->x11_display,
-                                                window->user_time_window);
+                                                priv->user_time_window);
           /* Don't get events on not-managed windows */
           XSelectInput (window->display->x11_display->xdisplay,
-                        window->user_time_window,
+                        priv->user_time_window,
                         NoEventMask);
         }
 
@@ -466,16 +443,17 @@ reload_net_wm_user_time_window (MetaWindow    *window,
        */
       prev_owner = meta_x11_display_lookup_x_window (window->display->x11_display,
                                                      value->v.xwindow);
-      if (prev_owner && prev_owner->user_time_window == value->v.xwindow)
+      prev_owner_priv = meta_window_x11_get_private (META_WINDOW_X11 (prev_owner));
+      if (prev_owner && prev_owner_priv->user_time_window == value->v.xwindow)
         {
           meta_x11_display_unregister_x_window (window->display->x11_display,
-                                               value->v.xwindow);
-          prev_owner->user_time_window = None;
+                                                value->v.xwindow);
+          prev_owner_priv->user_time_window = None;
         }
 
       /* Obtain the new NET_WM_USER_TIME_WINDOW and register it */
-      window->user_time_window = value->v.xwindow;
-      if (window->user_time_window != None)
+      priv->user_time_window = value->v.xwindow;
+      if (priv->user_time_window != None)
         {
           /* Kind of a hack; display.c:event_callback() ignores events
            * for unknown windows.  We make window->user_time_window
@@ -490,11 +468,11 @@ reload_net_wm_user_time_window (MetaWindow    *window,
            * and it's not specified in the spec anyway.
            */
           meta_x11_display_register_x_window (window->display->x11_display,
-                                              &window->user_time_window,
+                                              &priv->user_time_window,
                                               window);
           /* Just listen for property notify events */
           XSelectInput (window->display->x11_display->xdisplay,
-                        window->user_time_window,
+                        priv->user_time_window,
                         PropertyChangeMask);
 
           /* Manually load the _NET_WM_USER_TIME field from the given window
@@ -503,7 +481,7 @@ reload_net_wm_user_time_window (MetaWindow    *window,
            */
           meta_window_reload_property_from_xwindow (
             window,
-            window->user_time_window,
+            priv->user_time_window,
             window->display->x11_display->atom__NET_WM_USER_TIME,
             initial);
         }
@@ -527,6 +505,8 @@ set_title_text (MetaWindow  *window,
                 Atom         atom,
                 char       **target)
 {
+  MetaWindowX11Private *priv =
+    meta_window_x11_get_private (META_WINDOW_X11 (window));
   gboolean modified = FALSE;
 
   if (!target)
@@ -546,7 +526,7 @@ set_title_text (MetaWindow  *window,
   else if (meta_window_is_remote (window))
     {
       *target = g_strdup_printf (_("%s (on %s)"),
-                      title, window->wm_client_machine);
+                                 title, priv->wm_client_machine);
       modified = TRUE;
     }
   else
@@ -554,17 +534,17 @@ set_title_text (MetaWindow  *window,
 
   if (modified && atom != None)
     meta_prop_set_utf8_string_hint (window->display->x11_display,
-                                    window->xwindow,
+                                    meta_window_x11_get_xwindow (window),
                                     atom, *target);
 
   /* Bug 330671 -- Don't forget to clear _NET_WM_VISIBLE_(ICON_)NAME */
   if (!modified && previous_was_modified)
     {
-      meta_x11_error_trap_push (window->display->x11_display);
+      mtk_x11_error_trap_push (window->display->x11_display->xdisplay);
       XDeleteProperty (window->display->x11_display->xdisplay,
-                       window->xwindow,
+                       meta_window_x11_get_xwindow (window),
                        atom);
-      meta_x11_error_trap_pop (window->display->x11_display);
+      mtk_x11_error_trap_pop (window->display->x11_display->xdisplay);
     }
 
   return modified;
@@ -646,16 +626,19 @@ reload_wm_name (MetaWindow    *window,
 }
 
 static void
-meta_window_set_opaque_region (MetaWindow     *window,
-                               cairo_region_t *region)
+meta_window_set_opaque_region (MetaWindow *window,
+                               MtkRegion  *region)
 {
-  if (cairo_region_equal (window->opaque_region, region))
+  MetaWindowX11Private *priv =
+    meta_window_x11_get_private (META_WINDOW_X11 (window));
+
+  if (mtk_region_equal (priv->opaque_region, region))
     return;
 
-  g_clear_pointer (&window->opaque_region, cairo_region_destroy);
+  g_clear_pointer (&priv->opaque_region, mtk_region_unref);
 
   if (region != NULL)
-    window->opaque_region = cairo_region_reference (region);
+    priv->opaque_region = mtk_region_ref (region);
 
   meta_compositor_window_shape_changed (window->display->compositor, window);
 }
@@ -665,7 +648,7 @@ reload_opaque_region (MetaWindow    *window,
                       MetaPropValue *value,
                       gboolean       initial)
 {
-  cairo_region_t *opaque_region = NULL;
+  MtkRegion *opaque_region = NULL;
 
   if (value->type != META_PROP_VALUE_INVALID)
     {
@@ -703,18 +686,18 @@ reload_opaque_region (MetaWindow    *window,
           rect_index++;
         }
 
-      opaque_region = cairo_region_create_rectangles (rects, nrects);
+      opaque_region = mtk_region_create_rectangles (rects, nrects);
 
       g_free (rects);
     }
 
  out:
-  if (value->source_xwindow == window->xwindow)
+  if (value->source_xwindow == meta_window_x11_get_xwindow (window))
     meta_window_set_opaque_region (window, opaque_region);
   else if (window->frame && value->source_xwindow == window->frame->xwindow)
     meta_frame_set_opaque_region (window->frame, opaque_region);
 
-  g_clear_pointer (&opaque_region, cairo_region_destroy);
+  g_clear_pointer (&opaque_region, mtk_region_unref);
 }
 
 static void
@@ -1055,7 +1038,7 @@ reload_update_counter (MetaWindow    *window,
     {
       MetaSyncCounter *sync_counter;
 
-      if (value->source_xwindow == window->xwindow)
+      if (value->source_xwindow == meta_window_x11_get_xwindow (window))
         sync_counter = meta_window_x11_get_sync_counter (window);
       else if (window->frame && value->source_xwindow == window->frame->xwindow)
         sync_counter = meta_frame_get_sync_counter (window->frame);
@@ -1102,132 +1085,132 @@ reload_update_counter (MetaWindow    *window,
   (FLAG_TOGGLED_ON(old,new,flag) || FLAG_TOGGLED_OFF(old,new,flag))
 
 static void
-spew_size_hints_differences (const XSizeHints *old,
-                             const XSizeHints *new)
+spew_size_hints_differences (const MetaSizeHints *old,
+                             const MetaSizeHints *new)
 {
-  if (FLAG_CHANGED (old, new, USPosition))
-    meta_topic (META_DEBUG_GEOMETRY, "XSizeHints: USPosition now %s",
-                FLAG_TOGGLED_ON (old, new, USPosition) ? "set" : "unset");
-  if (FLAG_CHANGED (old, new, USSize))
-    meta_topic (META_DEBUG_GEOMETRY, "XSizeHints: USSize now %s",
-                FLAG_TOGGLED_ON (old, new, USSize) ? "set" : "unset");
-  if (FLAG_CHANGED (old, new, PPosition))
-    meta_topic (META_DEBUG_GEOMETRY, "XSizeHints: PPosition now %s",
-                FLAG_TOGGLED_ON (old, new, PPosition) ? "set" : "unset");
-  if (FLAG_CHANGED (old, new, PSize))
-    meta_topic (META_DEBUG_GEOMETRY, "XSizeHints: PSize now %s",
-                FLAG_TOGGLED_ON (old, new, PSize) ? "set" : "unset");
-  if (FLAG_CHANGED (old, new, PMinSize))
-    meta_topic (META_DEBUG_GEOMETRY, "XSizeHints: PMinSize now %s (%d x %d -> %d x %d)",
-                FLAG_TOGGLED_ON (old, new, PMinSize) ? "set" : "unset",
+  if (FLAG_CHANGED (old, new, META_SIZE_HINTS_USER_POSITION))
+    meta_topic (META_DEBUG_GEOMETRY, "XSizeHints: USER_POSITION now %s",
+                FLAG_TOGGLED_ON (old, new, META_SIZE_HINTS_USER_POSITION) ? "set" : "unset");
+  if (FLAG_CHANGED (old, new, META_SIZE_HINTS_USER_SIZE))
+    meta_topic (META_DEBUG_GEOMETRY, "XSizeHints: USER_SIZE now %s",
+                FLAG_TOGGLED_ON (old, new, META_SIZE_HINTS_USER_SIZE) ? "set" : "unset");
+  if (FLAG_CHANGED (old, new, META_SIZE_HINTS_PROGRAM_POSITION))
+    meta_topic (META_DEBUG_GEOMETRY, "XSizeHints: PROGRAM_POSITION now %s",
+                FLAG_TOGGLED_ON (old, new, META_SIZE_HINTS_PROGRAM_POSITION) ? "set" : "unset");
+  if (FLAG_CHANGED (old, new, META_SIZE_HINTS_PROGRAM_SIZE))
+    meta_topic (META_DEBUG_GEOMETRY, "XSizeHints: PROGRAM_SIZE now %s",
+                FLAG_TOGGLED_ON (old, new, META_SIZE_HINTS_PROGRAM_SIZE) ? "set" : "unset");
+  if (FLAG_CHANGED (old, new, META_SIZE_HINTS_PROGRAM_MIN_SIZE))
+    meta_topic (META_DEBUG_GEOMETRY, "XSizeHints: PROGRAM_MIN_SIZE now %s (%d x %d -> %d x %d)",
+                FLAG_TOGGLED_ON (old, new, META_SIZE_HINTS_PROGRAM_MIN_SIZE) ? "set" : "unset",
                 old->min_width, old->min_height,
                 new->min_width, new->min_height);
-  if (FLAG_CHANGED (old, new, PMaxSize))
-    meta_topic (META_DEBUG_GEOMETRY, "XSizeHints: PMaxSize now %s (%d x %d -> %d x %d)",
-                FLAG_TOGGLED_ON (old, new, PMaxSize) ? "set" : "unset",
+  if (FLAG_CHANGED (old, new, META_SIZE_HINTS_PROGRAM_MAX_SIZE))
+    meta_topic (META_DEBUG_GEOMETRY, "XSizeHints: PROGRAM_MAX_SIZE now %s (%d x %d -> %d x %d)",
+                FLAG_TOGGLED_ON (old, new, META_SIZE_HINTS_PROGRAM_MAX_SIZE) ? "set" : "unset",
                 old->max_width, old->max_height,
                 new->max_width, new->max_height);
-  if (FLAG_CHANGED (old, new, PResizeInc))
-    meta_topic (META_DEBUG_GEOMETRY, "XSizeHints: PResizeInc now %s (width_inc %d -> %d height_inc %d -> %d)",
-                FLAG_TOGGLED_ON (old, new, PResizeInc) ? "set" : "unset",
+  if (FLAG_CHANGED (old, new, META_SIZE_HINTS_PROGRAM_RESIZE_INCREMENTS))
+    meta_topic (META_DEBUG_GEOMETRY, "XSizeHints: PROGRAM_RESIZE_INCREMENTS now %s (width_inc %d -> %d height_inc %d -> %d)",
+                FLAG_TOGGLED_ON (old, new, META_SIZE_HINTS_PROGRAM_RESIZE_INCREMENTS) ? "set" : "unset",
                 old->width_inc, new->width_inc,
                 old->height_inc, new->height_inc);
-  if (FLAG_CHANGED (old, new, PAspect))
-    meta_topic (META_DEBUG_GEOMETRY, "XSizeHints: PAspect now %s (min %d/%d -> %d/%d max %d/%d -> %d/%d)",
-                FLAG_TOGGLED_ON (old, new, PAspect) ? "set" : "unset",
+  if (FLAG_CHANGED (old, new, META_SIZE_HINTS_PROGRAM_ASPECT))
+    meta_topic (META_DEBUG_GEOMETRY, "XSizeHints: PROGRAM_ASPECT now %s (min %d/%d -> %d/%d max %d/%d -> %d/%d)",
+                FLAG_TOGGLED_ON (old, new, META_SIZE_HINTS_PROGRAM_ASPECT) ? "set" : "unset",
                 old->min_aspect.x, old->min_aspect.y,
                 new->min_aspect.x, new->min_aspect.y,
                 old->max_aspect.x, old->max_aspect.y,
                 new->max_aspect.x, new->max_aspect.y);
-  if (FLAG_CHANGED (old, new, PBaseSize))
-    meta_topic (META_DEBUG_GEOMETRY, "XSizeHints: PBaseSize now %s (%d x %d -> %d x %d)",
-                FLAG_TOGGLED_ON (old, new, PBaseSize) ? "set" : "unset",
+  if (FLAG_CHANGED (old, new, META_SIZE_HINTS_PROGRAM_BASE_SIZE))
+    meta_topic (META_DEBUG_GEOMETRY, "XSizeHints: PROGRAM_BASE_SIZE now %s (%d x %d -> %d x %d)",
+                FLAG_TOGGLED_ON (old, new, META_SIZE_HINTS_PROGRAM_BASE_SIZE) ? "set" : "unset",
                 old->base_width, old->base_height,
                 new->base_width, new->base_height);
-  if (FLAG_CHANGED (old, new, PWinGravity))
-    meta_topic (META_DEBUG_GEOMETRY, "XSizeHints: PWinGravity now %s  (%d -> %d)",
-                FLAG_TOGGLED_ON (old, new, PWinGravity) ? "set" : "unset",
+  if (FLAG_CHANGED (old, new, META_SIZE_HINTS_PROGRAM_WIN_GRAVITY))
+    meta_topic (META_DEBUG_GEOMETRY, "XSizeHints: PROGRAM_WIN_GRAVITY now %s  (%d -> %d)",
+                FLAG_TOGGLED_ON (old, new, META_SIZE_HINTS_PROGRAM_WIN_GRAVITY) ? "set" : "unset",
                 old->win_gravity, new->win_gravity);
 }
 
 static gboolean
-hints_have_changed (const XSizeHints *old,
-                    const XSizeHints *new)
+hints_have_changed (const MetaSizeHints *old,
+                    const MetaSizeHints *new)
 {
   /* 1. Check if the relevant values have changed if the flag is set. */
 
-  if (FLAG_TOGGLED_ON (old, new, USPosition) ||
-      (FLAG_IS_ON (new, USPosition) &&
+  if (FLAG_TOGGLED_ON (old, new, META_SIZE_HINTS_USER_POSITION) ||
+      (FLAG_IS_ON (new, META_SIZE_HINTS_USER_POSITION) &&
        (old->x != new->x ||
         old->y != new->y)))
     return TRUE;
 
-  if (FLAG_TOGGLED_ON (old, new, USSize) ||
-      (FLAG_IS_ON (new, USSize) &&
+  if (FLAG_TOGGLED_ON (old, new, META_SIZE_HINTS_USER_SIZE) ||
+      (FLAG_IS_ON (new, META_SIZE_HINTS_USER_SIZE) &&
        (old->width != new->width ||
         old->height != new->height)))
     return TRUE;
 
-  if (FLAG_TOGGLED_ON (old, new, PPosition) ||
-      (FLAG_IS_ON (new, PPosition) &&
+  if (FLAG_TOGGLED_ON (old, new, META_SIZE_HINTS_PROGRAM_POSITION) ||
+      (FLAG_IS_ON (new, META_SIZE_HINTS_PROGRAM_POSITION) &&
        (old->x != new->x ||
         old->y != new->y)))
     return TRUE;
 
-  if (FLAG_TOGGLED_ON (old, new, PSize) ||
-      (FLAG_IS_ON (new, PSize) &&
+  if (FLAG_TOGGLED_ON (old, new, META_SIZE_HINTS_PROGRAM_SIZE) ||
+      (FLAG_IS_ON (new, META_SIZE_HINTS_PROGRAM_SIZE) &&
        (old->width != new->width ||
         old->height != new->height)))
     return TRUE;
 
-  if (FLAG_TOGGLED_ON (old, new, PMinSize) ||
-      (FLAG_IS_ON (new, PMinSize) &&
+  if (FLAG_TOGGLED_ON (old, new, META_SIZE_HINTS_PROGRAM_MIN_SIZE) ||
+      (FLAG_IS_ON (new, META_SIZE_HINTS_PROGRAM_MIN_SIZE) &&
        (old->min_width != new->min_width ||
         old->min_height != new->min_height)))
     return TRUE;
 
-  if (FLAG_TOGGLED_ON (old, new, PMaxSize) ||
-      (FLAG_IS_ON (new, PMaxSize) &&
+  if (FLAG_TOGGLED_ON (old, new, META_SIZE_HINTS_PROGRAM_MAX_SIZE) ||
+      (FLAG_IS_ON (new, META_SIZE_HINTS_PROGRAM_MAX_SIZE) &&
        (old->max_width != new->max_width ||
         old->max_height != new->max_height)))
     return TRUE;
 
-  if (FLAG_TOGGLED_ON (old, new, PResizeInc) ||
-      (FLAG_IS_ON (new, PResizeInc) &&
+  if (FLAG_TOGGLED_ON (old, new, META_SIZE_HINTS_PROGRAM_RESIZE_INCREMENTS) ||
+      (FLAG_IS_ON (new, META_SIZE_HINTS_PROGRAM_RESIZE_INCREMENTS) &&
        (old->width_inc != new->width_inc ||
         old->height_inc != new->height_inc)))
     return TRUE;
 
-  if (FLAG_TOGGLED_ON (old, new, PAspect) ||
-      (FLAG_IS_ON (new, PAspect) &&
+  if (FLAG_TOGGLED_ON (old, new, META_SIZE_HINTS_PROGRAM_ASPECT) ||
+      (FLAG_IS_ON (new, META_SIZE_HINTS_PROGRAM_ASPECT) &&
        (old->min_aspect.x != new->min_aspect.x ||
         old->min_aspect.y != new->min_aspect.y ||
         old->max_aspect.x != new->max_aspect.x ||
         old->max_aspect.y != new->max_aspect.y)))
     return TRUE;
 
-  if (FLAG_TOGGLED_ON (old, new, PBaseSize) ||
-      (FLAG_IS_ON (new, PBaseSize) &&
+  if (FLAG_TOGGLED_ON (old, new, META_SIZE_HINTS_PROGRAM_BASE_SIZE) ||
+      (FLAG_IS_ON (new, META_SIZE_HINTS_PROGRAM_BASE_SIZE) &&
        (old->base_width != new->base_width ||
         old->base_height != new->base_height)))
     return TRUE;
 
-  if (FLAG_TOGGLED_ON (old, new, PWinGravity) ||
-      (FLAG_IS_ON (new, PWinGravity) &&
+  if (FLAG_TOGGLED_ON (old, new, META_SIZE_HINTS_PROGRAM_WIN_GRAVITY) ||
+      (FLAG_IS_ON (new, META_SIZE_HINTS_PROGRAM_WIN_GRAVITY) &&
        (old->win_gravity != new->win_gravity)))
     return TRUE;
 
   /* 2. Check if the flags have been unset. */
-  return FLAG_TOGGLED_OFF (old, new, USPosition) ||
-         FLAG_TOGGLED_OFF (old, new, USSize) ||
-         FLAG_TOGGLED_OFF (old, new, PPosition) ||
-         FLAG_TOGGLED_OFF (old, new, PSize) ||
-         FLAG_TOGGLED_OFF (old, new, PMinSize) ||
-         FLAG_TOGGLED_OFF (old, new, PMaxSize) ||
-         FLAG_TOGGLED_OFF (old, new, PResizeInc) ||
-         FLAG_TOGGLED_OFF (old, new, PAspect) ||
-         FLAG_TOGGLED_OFF (old, new, PBaseSize) ||
-         FLAG_TOGGLED_OFF (old, new, PWinGravity);
+  return FLAG_TOGGLED_OFF (old, new, META_SIZE_HINTS_USER_POSITION) ||
+         FLAG_TOGGLED_OFF (old, new, META_SIZE_HINTS_USER_POSITION) ||
+         FLAG_TOGGLED_OFF (old, new, META_SIZE_HINTS_PROGRAM_POSITION) ||
+         FLAG_TOGGLED_OFF (old, new, META_SIZE_HINTS_PROGRAM_SIZE) ||
+         FLAG_TOGGLED_OFF (old, new, META_SIZE_HINTS_PROGRAM_MIN_SIZE) ||
+         FLAG_TOGGLED_OFF (old, new, META_SIZE_HINTS_PROGRAM_MAX_SIZE) ||
+         FLAG_TOGGLED_OFF (old, new, META_SIZE_HINTS_PROGRAM_RESIZE_INCREMENTS) ||
+         FLAG_TOGGLED_OFF (old, new, META_SIZE_HINTS_PROGRAM_ASPECT) ||
+         FLAG_TOGGLED_OFF (old, new, META_SIZE_HINTS_PROGRAM_BASE_SIZE) ||
+         FLAG_TOGGLED_OFF (old, new, META_SIZE_HINTS_PROGRAM_WIN_GRAVITY);
 }
 
 void
@@ -1262,7 +1245,7 @@ meta_set_normal_hints (MetaWindow *window,
    * as if flags were zero
    */
   if (hints)
-    window->size_hints = *hints;
+    window->size_hints = *(MetaSizeHints*)(hints);
   else
     window->size_hints.flags = 0;
 
@@ -1273,14 +1256,14 @@ meta_set_normal_hints (MetaWindow *window,
   window->size_hints.height = h;
 
   /* Get base size hints */
-  if (window->size_hints.flags & PBaseSize)
+  if (window->size_hints.flags & META_SIZE_HINTS_PROGRAM_BASE_SIZE)
     {
       meta_topic (META_DEBUG_GEOMETRY, "Window %s sets base size %d x %d",
                   window->desc,
                   window->size_hints.base_width,
                   window->size_hints.base_height);
     }
-  else if (window->size_hints.flags & PMinSize)
+  else if (window->size_hints.flags & META_SIZE_HINTS_PROGRAM_MIN_SIZE)
     {
       window->size_hints.base_width = window->size_hints.min_width;
       window->size_hints.base_height = window->size_hints.min_height;
@@ -1290,17 +1273,17 @@ meta_set_normal_hints (MetaWindow *window,
       window->size_hints.base_width = 0;
       window->size_hints.base_height = 0;
     }
-  window->size_hints.flags |= PBaseSize;
+  window->size_hints.flags |= META_SIZE_HINTS_PROGRAM_BASE_SIZE;
 
   /* Get min size hints */
-  if (window->size_hints.flags & PMinSize)
+  if (window->size_hints.flags & META_SIZE_HINTS_PROGRAM_MIN_SIZE)
     {
       meta_topic (META_DEBUG_GEOMETRY, "Window %s sets min size %d x %d",
                   window->desc,
                   window->size_hints.min_width,
                   window->size_hints.min_height);
     }
-  else if (window->size_hints.flags & PBaseSize)
+  else if (window->size_hints.flags & META_SIZE_HINTS_PROGRAM_BASE_SIZE)
     {
       window->size_hints.min_width = window->size_hints.base_width;
       window->size_hints.min_height = window->size_hints.base_height;
@@ -1310,10 +1293,10 @@ meta_set_normal_hints (MetaWindow *window,
       window->size_hints.min_width = 0;
       window->size_hints.min_height = 0;
     }
-  window->size_hints.flags |= PMinSize;
+  window->size_hints.flags |= META_SIZE_HINTS_PROGRAM_MIN_SIZE;
 
   /* Get max size hints */
-  if (window->size_hints.flags & PMaxSize)
+  if (window->size_hints.flags & META_SIZE_HINTS_PROGRAM_MAX_SIZE)
     {
       meta_topic (META_DEBUG_GEOMETRY, "Window %s sets max size %d x %d",
                   window->desc,
@@ -1324,11 +1307,11 @@ meta_set_normal_hints (MetaWindow *window,
     {
       window->size_hints.max_width = G_MAXINT;
       window->size_hints.max_height = G_MAXINT;
-      window->size_hints.flags |= PMaxSize;
+      window->size_hints.flags |= META_SIZE_HINTS_PROGRAM_MAX_SIZE;
     }
 
   /* Get resize increment hints */
-  if (window->size_hints.flags & PResizeInc)
+  if (window->size_hints.flags & META_SIZE_HINTS_PROGRAM_RESIZE_INCREMENTS)
     {
       meta_topic (META_DEBUG_GEOMETRY,
                   "Window %s sets resize width inc: %d height inc: %d",
@@ -1340,11 +1323,11 @@ meta_set_normal_hints (MetaWindow *window,
     {
       window->size_hints.width_inc = 1;
       window->size_hints.height_inc = 1;
-      window->size_hints.flags |= PResizeInc;
+      window->size_hints.flags |= META_SIZE_HINTS_PROGRAM_RESIZE_INCREMENTS;
     }
 
   /* Get aspect ratio hints */
-  if (window->size_hints.flags & PAspect)
+  if (window->size_hints.flags & META_SIZE_HINTS_PROGRAM_ASPECT)
     {
       meta_topic (META_DEBUG_GEOMETRY,
                   "Window %s sets min_aspect: %d/%d max_aspect: %d/%d",
@@ -1360,11 +1343,11 @@ meta_set_normal_hints (MetaWindow *window,
       window->size_hints.min_aspect.y = G_MAXINT;
       window->size_hints.max_aspect.x = G_MAXINT;
       window->size_hints.max_aspect.y = 1;
-      window->size_hints.flags |= PAspect;
+      window->size_hints.flags |= META_SIZE_HINTS_PROGRAM_ASPECT;
     }
 
   /* Get gravity hint */
-  if (window->size_hints.flags & PWinGravity)
+  if (window->size_hints.flags & META_SIZE_HINTS_PROGRAM_WIN_GRAVITY)
     {
       meta_topic (META_DEBUG_GEOMETRY, "Window %s sets gravity %d",
                   window->desc,
@@ -1376,7 +1359,7 @@ meta_set_normal_hints (MetaWindow *window,
                   "Window %s doesn't set gravity, using NW",
                   window->desc);
       window->size_hints.win_gravity = META_GRAVITY_NORTH_WEST;
-      window->size_hints.flags |= PWinGravity;
+      window->size_hints.flags |= META_SIZE_HINTS_PROGRAM_WIN_GRAVITY;
     }
 
   /*** Lots of sanity checking ***/
@@ -1579,7 +1562,7 @@ reload_normal_hints (MetaWindow    *window,
 {
   if (value->type != META_PROP_VALUE_INVALID)
     {
-      XSizeHints old_hints;
+      MetaSizeHints old_hints;
       gboolean hints_have_differences;
 
       meta_topic (META_DEBUG_GEOMETRY, "Updating WM_NORMAL_HINTS for %s", window->desc);
@@ -1645,12 +1628,12 @@ reload_wm_hints (MetaWindow    *window,
   Window old_group_leader;
   gboolean urgent;
 
-  old_group_leader = window->xgroup_leader;
+  old_group_leader = priv->xgroup_leader;
 
   /* Fill in defaults */
   window->input = TRUE;
   window->initially_iconic = FALSE;
-  window->xgroup_leader = None;
+  priv->xgroup_leader = None;
   priv->wm_hints_pixmap = None;
   priv->wm_hints_mask = None;
   urgent = FALSE;
@@ -1666,7 +1649,7 @@ reload_wm_hints (MetaWindow    *window,
         window->initially_iconic = (hints->initial_state == IconicState);
 
       if (hints->flags & WindowGroupHint)
-        window->xgroup_leader = hints->window_group;
+        priv->xgroup_leader = hints->window_group;
 
       if (hints->flags & IconPixmapHint)
         priv->wm_hints_pixmap = hints->icon_pixmap;
@@ -1679,26 +1662,21 @@ reload_wm_hints (MetaWindow    *window,
 
       meta_verbose ("Read WM_HINTS input: %d iconic: %d group leader: 0x%lx pixmap: 0x%lx mask: 0x%lx",
                     window->input, window->initially_iconic,
-                    window->xgroup_leader,
+                    priv->xgroup_leader,
                     priv->wm_hints_pixmap,
                     priv->wm_hints_mask);
     }
 
-  if (window->xgroup_leader != old_group_leader)
+  if (priv->xgroup_leader != old_group_leader)
     {
       meta_verbose ("Window %s changed its group leader to 0x%lx",
-                    window->desc, window->xgroup_leader);
+                    window->desc, priv->xgroup_leader);
 
-      meta_window_group_leader_changed (window);
+      meta_window_x11_group_leader_changed (window);
     }
 
   meta_window_set_urgent (window, urgent);
 
-  meta_icon_cache_property_changed (&priv->icon_cache,
-                                    window->display->x11_display,
-                                    XA_WM_HINTS);
-
-  meta_window_x11_queue_update_icon (window_x11);
   meta_window_queue (window, META_QUEUE_MOVE_RESIZE);
 }
 
@@ -1712,7 +1690,7 @@ check_xtransient_for_loop (MetaWindow *window,
         return TRUE;
 
       parent = meta_x11_display_lookup_x_window (parent->display->x11_display,
-                                                 parent->xtransient_for);
+                                                 meta_window_x11_get_xtransient_for (parent));
     }
 
   return FALSE;
@@ -1724,7 +1702,7 @@ reload_transient_for (MetaWindow    *window,
                       gboolean       initial)
 {
   MetaWindow *parent = NULL;
-  Window transient_for;
+  Window transient_for, current_transient_for;
 
   if (value->type != META_PROP_VALUE_INVALID)
     {
@@ -1741,9 +1719,9 @@ reload_transient_for (MetaWindow    *window,
       else if (parent->override_redirect)
         {
           const gchar *window_kind = window->override_redirect ?
-            "override-redirect" : "top-level";
-
-          if (parent->xtransient_for != None)
+                                     "override-redirect" : "top-level";
+          Window parent_xtransient_for = meta_window_x11_get_xtransient_for (parent);
+          if (parent_xtransient_for != None)
             {
               /* We don't have to go through the parents, as per this code it is
                * not possible that a window has the WM_TRANSIENT_FOR set to an
@@ -1753,8 +1731,8 @@ reload_transient_for (MetaWindow    *window,
                             "according to the standard, so we'll fallback to "
                             "the first non-override-redirect window 0x%lx.",
                             parent->desc, window->desc, window_kind,
-                            parent->xtransient_for);
-              transient_for = parent->xtransient_for;
+                            parent_xtransient_for);
+              transient_for = parent_xtransient_for;
               parent =
                 meta_x11_display_lookup_x_window (parent->display->x11_display,
                                                   transient_for);
@@ -1782,18 +1760,19 @@ reload_transient_for (MetaWindow    *window,
   else
     transient_for = None;
 
-  if (transient_for == window->xtransient_for)
+  current_transient_for = meta_window_x11_get_xtransient_for (window);
+  if (transient_for == current_transient_for)
     return;
 
-  window->xtransient_for = transient_for;
 
-  if (window->xtransient_for != None)
-    meta_verbose ("Window %s transient for 0x%lx", window->desc, window->xtransient_for);
+  current_transient_for = transient_for;
+  if (current_transient_for != None)
+    meta_verbose ("Window %s transient for 0x%lx", window->desc, current_transient_for);
   else
     meta_verbose ("Window %s is not transient", window->desc);
 
-  if (window->xtransient_for == None ||
-      window->xtransient_for == window->display->x11_display->xroot)
+  if (current_transient_for == None ||
+      current_transient_for == window->display->x11_display->xroot)
     meta_window_set_transient_for (window, NULL);
   else
     {
@@ -1951,8 +1930,6 @@ meta_x11_display_init_window_prop_hooks (MetaX11Display *x11_display)
     { x11_display->atom__GTK_MENUBAR_OBJECT_PATH,          META_PROP_VALUE_UTF8,         reload_gtk_menubar_object_path,          LOAD_INIT },
     { x11_display->atom__GTK_FRAME_EXTENTS,                META_PROP_VALUE_CARDINAL_LIST,reload_gtk_frame_extents,                LOAD_INIT },
     { x11_display->atom__NET_WM_USER_TIME_WINDOW, META_PROP_VALUE_WINDOW, reload_net_wm_user_time_window, LOAD_INIT },
-    { x11_display->atom__NET_WM_ICON,      META_PROP_VALUE_INVALID,  reload_net_wm_icon,  NONE },
-    { x11_display->atom__KWM_WIN_ICON,     META_PROP_VALUE_INVALID,  reload_kwm_win_icon, NONE },
     { x11_display->atom__NET_WM_ICON_GEOMETRY, META_PROP_VALUE_CARDINAL_LIST, reload_icon_geometry, LOAD_INIT },
     { x11_display->atom_WM_CLIENT_LEADER,  META_PROP_VALUE_INVALID, complain_about_broken_client, NONE },
     { x11_display->atom_SM_CLIENT_ID,      META_PROP_VALUE_INVALID, complain_about_broken_client, NONE },

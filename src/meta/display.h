@@ -20,14 +20,13 @@
 #pragma once
 
 #include <glib-object.h>
-#include <X11/Xlib.h>
 
-#include <meta/types.h>
-#include <meta/prefs.h>
-#include <meta/common.h>
-#include <meta/workspace.h>
-#include <meta/meta-sound-player.h>
-#include <meta/meta-startup-notification.h>
+#include "meta/types.h"
+#include "meta/prefs.h"
+#include "meta/common.h"
+#include "meta/workspace.h"
+#include "meta/meta-sound-player.h"
+#include "meta/meta-startup-notification.h"
 
 /**
  * MetaTabList:
@@ -82,10 +81,6 @@ META_EXPORT
 GType meta_display_get_type (void) G_GNUC_CONST;
 
 #define meta_XFree(p) do { if ((p)) XFree ((p)); } while (0)
-
-META_EXPORT
-G_DEPRECATED_FOR (meta_backend_get_capabilities)
-gboolean meta_display_supports_extended_barriers (MetaDisplay *display);
 
 META_EXPORT
 void meta_display_close (MetaDisplay *display,
@@ -176,18 +171,6 @@ GSList *meta_display_sort_windows_by_stacking (MetaDisplay *display,
 
 META_EXPORT
 void meta_display_clear_mouse_mode (MetaDisplay *display);
-
-META_EXPORT
-void meta_display_freeze_keyboard (MetaDisplay *display,
-                                   guint32      timestamp);
-
-META_EXPORT
-void meta_display_ungrab_keyboard (MetaDisplay *display,
-                                   guint32      timestamp);
-
-META_EXPORT
-void meta_display_unfreeze_keyboard (MetaDisplay *display,
-                                     guint32      timestamp);
 
 META_EXPORT
 gboolean meta_display_is_pointer_emulating_sequence (MetaDisplay          *display,
@@ -302,7 +285,6 @@ MetaSelection * meta_display_get_selection (MetaDisplay *display);
 META_EXPORT
 void meta_display_set_input_focus   (MetaDisplay *display,
                                      MetaWindow  *window,
-                                     gboolean     focus_frame,
                                      guint32      timestamp);
 META_EXPORT
 void meta_display_unset_input_focus (MetaDisplay *display,

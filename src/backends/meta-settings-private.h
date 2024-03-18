@@ -30,8 +30,8 @@ typedef enum _MetaExperimentalFeature
   META_EXPERIMENTAL_FEATURE_NONE = 0,
   META_EXPERIMENTAL_FEATURE_SCALE_MONITOR_FRAMEBUFFER = (1 << 0),
   META_EXPERIMENTAL_FEATURE_KMS_MODIFIERS  = (1 << 1),
-  META_EXPERIMENTAL_FEATURE_RT_SCHEDULER = (1 << 2),
-  META_EXPERIMENTAL_FEATURE_AUTOCLOSE_XWAYLAND  = (1 << 3),
+  META_EXPERIMENTAL_FEATURE_AUTOCLOSE_XWAYLAND  = (1 << 2),
+  META_EXPERIMENTAL_FEATURE_VARIABLE_REFRESH_RATE = (1 << 3),
 } MetaExperimentalFeature;
 
 typedef enum _MetaXwaylandExtension
@@ -56,8 +56,6 @@ gboolean meta_settings_get_global_scaling_factor (MetaSettings *settings,
 META_EXPORT_TEST
 gboolean meta_settings_is_experimental_feature_enabled (MetaSettings           *settings,
                                                         MetaExperimentalFeature feature);
-
-MetaExperimentalFeature meta_settings_get_experimental_features (MetaSettings *settings);
 
 META_EXPORT_TEST
 void meta_settings_override_experimental_features (MetaSettings *settings);

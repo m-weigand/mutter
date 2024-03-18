@@ -49,8 +49,9 @@ typedef struct _CoglIndices CoglIndices;
 G_BEGIN_DECLS
 
 /**
- * SECTION:cogl-indices
- * @short_description: Describe vertex indices stored in a #CoglIndexBuffer.
+ * CoglIndices:
+ *
+ * Describe vertex indices stored in a #CoglIndexBuffer.
  *
  * Indices allow you to avoid duplicating vertices in your vertex data
  * by virtualizing your data and instead providing a sequence of index
@@ -74,7 +75,7 @@ G_BEGIN_DECLS
  * index buffer that specifies the 6 vertices by indexing the shared
  * vertices multiple times.
  *
- * |[
+ * ```c
  *   CoglVertexP2 quad_vertices[] = {
  *     {x0, y0}, //0 = top left
  *     {x1, y1}, //1 = bottom left
@@ -83,7 +84,7 @@ G_BEGIN_DECLS
  *   };
  *   //tell the gpu how to interpret the quad as 2 triangles...
  *   unsigned char indices[] = {0, 1, 2, 0, 2, 3};
- * ]|
+ * ```
  *
  * Even in the above illustration we see a saving of 10bytes for one
  * quad compared to having data for 6 vertices and no indices but if
@@ -106,13 +107,11 @@ G_BEGIN_DECLS
  * for drawing quads as above.
  */
 
-/**
- * cogl_indices_get_gtype:
- *
- * Returns: a #GType that can be used with the GLib type system.
- */
+#define COGL_TYPE_INDICES (cogl_indices_get_type ())
+
 COGL_EXPORT
-GType cogl_indices_get_gtype (void);
+G_DECLARE_FINAL_TYPE (CoglIndices, cogl_indices,
+                      COGL, INDICES, GObject)
 
 COGL_EXPORT CoglIndices *
 cogl_indices_new (CoglContext *context,
@@ -125,11 +124,16 @@ cogl_indices_new_for_buffer (CoglIndicesType type,
                              CoglIndexBuffer *buffer,
                              size_t offset);
 
+/**
+ * cogl_indices_get_buffer:
+ *
+ * Returns: (transfer none): a #CoglIndexBuffer
+ */
 COGL_EXPORT CoglIndexBuffer *
 cogl_indices_get_buffer (CoglIndices *indices);
 
 COGL_EXPORT CoglIndicesType
-cogl_indices_get_type (CoglIndices *indices);
+cogl_indices_get_indices_type (CoglIndices *indices);
 
 COGL_EXPORT size_t
 cogl_indices_get_offset (CoglIndices *indices);
@@ -138,19 +142,12 @@ COGL_EXPORT void
 cogl_indices_set_offset (CoglIndices *indices,
                          size_t offset);
 
+/**
+ * cogl_get_rectangle_indices:
+ *
+ * Returns: (transfer none): a #CoglIndices
+ */
 COGL_EXPORT CoglIndices *
 cogl_get_rectangle_indices (CoglContext *context, int n_rectangles);
-
-/**
- * cogl_is_indices:
- * @object: A #CoglObject pointer
- *
- * Gets whether the given object references a #CoglIndices.
- *
- * Return value: %TRUE if the object references a #CoglIndices
- *   and %FALSE otherwise.
- */
-COGL_EXPORT gboolean
-cogl_is_indices (void *object);
 
 G_END_DECLS

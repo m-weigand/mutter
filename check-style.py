@@ -12,7 +12,7 @@ uncrustify_cfg = 'tools/uncrustify.cfg'
 
 def run_diff(sha):
     proc = subprocess.run(
-        ["git", "diff", "-U0", "--function-context", sha, "HEAD"],
+        ["git", "diff", "-U0", "--function-context", "--default-prefix", sha, "HEAD"],
         stdout=subprocess.PIPE,
         stderr=subprocess.STDOUT,
         encoding="utf-8",
@@ -20,8 +20,8 @@ def run_diff(sha):
     return proc.stdout.strip().splitlines()
 
 def find_chunks(diff):
-    file_entry_re = re.compile('^\+\+\+ b/(.*)$')
-    diff_chunk_re = re.compile('^@@ -\d+,\d+ \+(\d+),(\d+)')
+    file_entry_re = re.compile(r'^\+\+\+ b/(.*)$')
+    diff_chunk_re = re.compile(r'^@@ -\d+,\d+ \+(\d+),(\d+)')
     file = None
     chunks = []
 

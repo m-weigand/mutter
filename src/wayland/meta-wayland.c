@@ -21,10 +21,17 @@
 
 #include "wayland/meta-wayland.h"
 
+#include <glib/gstdio.h>
+
 #include <sys/time.h>
 #include <string.h>
 #include <stdlib.h>
 #include <wayland-server.h>
+
+#ifdef HAVE_TIMERFD
+# include <sys/timerfd.h>
+# include <time.h>
+#endif
 
 #include "clutter/clutter.h"
 #include "cogl/cogl-egl.h"
@@ -97,8 +104,15 @@ typedef struct
 
   MetaWaylandCompositor *compositor;
   ClutterStageView *stage_view;
-  int64_t target_presentation_time_us;
+
+#ifdef HAVE_TIMERFD
+  int tfd;
+  struct itimerspec tfd_spec;
+#endif
 } FrameCallbackSource;
+
+static void meta_wayland_compositor_update_focus (MetaWaylandCompositor *compositor,
+                                                  MetaWindow            *window);
 
 static gboolean
 wayland_event_source_prepare (GSource *base,
@@ -189,6 +203,51 @@ emit_frame_callbacks_for_stage_view (MetaWaylandCompositor *compositor,
     }
 }
 
+#ifdef HAVE_NATIVE_BACKEND
+
+static gboolean
+frame_callback_source_prepare (GSource *base,
+                               int     *timeout)
+{
+  FrameCallbackSource *source = (FrameCallbackSource *)base;
+
+  *timeout = -1;
+
+#ifdef HAVE_TIMERFD
+  if (source->tfd > -1)
+    {
+      int64_t ready_time = g_source_get_ready_time (base);
+      struct itimerspec tfd_spec;
+
+      tfd_spec.it_interval.tv_sec = 0;
+      tfd_spec.it_interval.tv_nsec = 0;
+
+      if (ready_time > -1)
+        {
+          tfd_spec.it_value.tv_sec = ready_time / G_USEC_PER_SEC;
+          tfd_spec.it_value.tv_nsec = (ready_time % G_USEC_PER_SEC) * 1000L;
+        }
+      else
+        {
+          tfd_spec.it_value.tv_sec = 0;
+          tfd_spec.it_value.tv_nsec = 0;
+        }
+
+      if (memcmp (&tfd_spec, &source->tfd_spec, sizeof tfd_spec) != 0)
+        {
+          source->tfd_spec = tfd_spec;
+
+          timerfd_settime (source->tfd,
+                           TFD_TIMER_ABSTIME,
+                           &source->tfd_spec,
+                           NULL);
+        }
+    }
+#endif
+
+  return FALSE;
+}
+
 static gboolean
 frame_callback_source_dispatch (GSource     *source,
                                 GSourceFunc  callback,
@@ -211,9 +270,14 @@ frame_callback_source_finalize (GSource *source)
 
   g_signal_handlers_disconnect_by_data (frame_callback_source->stage_view,
                                         source);
+
+#ifdef HAVE_TIMERFD
+  g_clear_fd (&frame_callback_source->tfd, NULL);
+#endif
 }
 
 static GSourceFuncs frame_callback_source_funcs = {
+  .prepare = frame_callback_source_prepare,
   .dispatch = frame_callback_source_dispatch,
   .finalize = frame_callback_source_finalize,
 };
@@ -257,6 +321,13 @@ frame_callback_source_new (MetaWaylandCompositor *compositor,
                     G_CALLBACK (on_stage_view_destroy),
                     source);
 
+#ifdef HAVE_TIMERFD
+  frame_callback_source->tfd = timerfd_create (CLOCK_MONOTONIC, TFD_NONBLOCK | TFD_CLOEXEC);
+
+  if (frame_callback_source->tfd > -1)
+    g_source_add_unix_fd (source, frame_callback_source->tfd, G_IO_IN);
+#endif
+
   return &frame_callback_source->source;
 }
 
@@ -279,6 +350,7 @@ ensure_source_for_stage_view (MetaWaylandCompositor *compositor,
 
   return source;
 }
+#endif /* HAVE_NATIVE_BACKEND */
 
 static void
 on_after_update (ClutterStage          *stage,
@@ -289,10 +361,8 @@ on_after_update (ClutterStage          *stage,
 #if defined(HAVE_NATIVE_BACKEND)
   MetaContext *context = meta_wayland_compositor_get_context (compositor);
   MetaBackend *backend = meta_context_get_backend (context);
-  MetaFrameNative *frame_native;
-  FrameCallbackSource *frame_callback_source;
   GSource *source;
-  int64_t min_render_time_allowed_us;
+  int64_t frame_deadline_us;
 
   if (!META_IS_BACKEND_NATIVE (backend))
     {
@@ -300,47 +370,29 @@ on_after_update (ClutterStage          *stage,
       return;
     }
 
-  frame_native = meta_frame_native_from_frame (frame);
-
   source = ensure_source_for_stage_view (compositor, stage_view);
-  frame_callback_source = (FrameCallbackSource *) source;
 
-  if (meta_frame_native_had_kms_update (frame_native) ||
-      !clutter_frame_get_min_render_time_allowed (frame,
-                                                  &min_render_time_allowed_us))
+  if (clutter_frame_get_result (frame) ==
+      CLUTTER_FRAME_RESULT_PENDING_PRESENTED ||
+      !clutter_frame_get_frame_deadline (frame,
+                                         &frame_deadline_us))
     {
       g_source_set_ready_time (source, -1);
       emit_frame_callbacks_for_stage_view (compositor, stage_view);
+      return;
     }
-  else
+
+  if (frame_deadline_us <= g_get_monotonic_time ())
     {
-      int64_t target_presentation_time_us;
-      int64_t source_ready_time_us;
-
-      if (!clutter_frame_get_target_presentation_time (frame,
-                                                       &target_presentation_time_us))
-        target_presentation_time_us = 0;
-
-      if (g_source_get_ready_time (source) != -1 &&
-          frame_callback_source->target_presentation_time_us <
-          target_presentation_time_us)
-        emit_frame_callbacks_for_stage_view (compositor, stage_view);
-
-      source_ready_time_us = target_presentation_time_us -
-                             min_render_time_allowed_us;
-
-      if (source_ready_time_us <= g_get_monotonic_time ())
-        {
-          g_source_set_ready_time (source, -1);
-          emit_frame_callbacks_for_stage_view (compositor, stage_view);
-        }
-      else
-        {
-          frame_callback_source->target_presentation_time_us =
-            target_presentation_time_us;
-          g_source_set_ready_time (source, source_ready_time_us);
-        }
+      g_source_set_ready_time (source, -1);
+      emit_frame_callbacks_for_stage_view (compositor, stage_view);
+      return;
     }
+
+  if (g_source_get_ready_time (source) != -1)
+    return;
+
+  g_source_set_ready_time (source, frame_deadline_us);
 #else
   emit_frame_callbacks_for_stage_view (compositor, stage_view);
 #endif
@@ -412,10 +464,7 @@ void
 meta_wayland_compositor_update (MetaWaylandCompositor *compositor,
                                 const ClutterEvent    *event)
 {
-  if (meta_wayland_tablet_manager_consumes_event (compositor->tablet_manager, event))
-    meta_wayland_tablet_manager_update (compositor->tablet_manager, event);
-  else
-    meta_wayland_seat_update (compositor->seat, event);
+  meta_wayland_seat_update (compositor->seat, event);
 }
 
 static MetaWaylandOutput *
@@ -463,6 +512,18 @@ on_presented (ClutterStage          *stage,
     }
 }
 
+static void
+on_started (MetaContext           *context,
+            MetaWaylandCompositor *compositor)
+{
+  MetaDisplay *display = meta_context_get_display (context);
+
+  g_signal_connect_object (display, "focus-window",
+                           G_CALLBACK (meta_wayland_compositor_update_focus),
+                           compositor,
+                           G_CONNECT_SWAPPED);
+}
+
 /**
  * meta_wayland_compositor_handle_event:
  * @compositor: the #MetaWaylandCompositor instance
@@ -476,10 +537,6 @@ gboolean
 meta_wayland_compositor_handle_event (MetaWaylandCompositor *compositor,
                                       const ClutterEvent    *event)
 {
-  if (meta_wayland_tablet_manager_handle_event (compositor->tablet_manager,
-                                                event))
-    return TRUE;
-
   return meta_wayland_seat_handle_event (compositor->seat, event);
 }
 
@@ -622,7 +679,6 @@ meta_wayland_compositor_finalize (GObject *object)
   meta_wayland_activation_finalize (compositor);
   meta_wayland_outputs_finalize (compositor);
   meta_wayland_presentation_time_finalize (compositor);
-  meta_wayland_tablet_manager_finalize (compositor);
 
   g_hash_table_destroy (compositor->scheduled_surface_associations);
 
@@ -634,6 +690,7 @@ meta_wayland_compositor_finalize (GObject *object)
   g_clear_object (&compositor->dma_buf_manager);
 
   g_clear_pointer (&compositor->seat, meta_wayland_seat_free);
+  meta_wayland_tablet_manager_finalize (compositor);
 
   g_clear_pointer (&priv->filter_manager, meta_wayland_filter_manager_free);
   g_clear_pointer (&priv->frame_callback_sources, g_hash_table_destroy);
@@ -778,6 +835,9 @@ meta_wayland_compositor_new (MetaContext *context)
   g_signal_connect (stage, "presented",
                     G_CALLBACK (on_presented), compositor);
 
+  g_signal_connect (context, "started",
+                    G_CALLBACK (on_started), compositor);
+
   if (!wl_global_create (compositor->wayland_display,
                          &wl_compositor_interface,
                          META_WL_COMPOSITOR_VERSION,
@@ -913,34 +973,31 @@ void
 meta_wayland_compositor_restore_shortcuts (MetaWaylandCompositor *compositor,
                                            ClutterInputDevice    *source)
 {
-  MetaWaylandKeyboard *keyboard;
+  MetaWaylandSurface *focus;
 
   /* Clutter is not multi-seat aware yet, use the default seat instead */
-  keyboard = compositor->seat->keyboard;
-  if (!keyboard || !keyboard->focus_surface)
+  focus = meta_wayland_seat_get_input_focus (compositor->seat);
+  if (!focus)
     return;
 
-  if (!meta_wayland_surface_is_shortcuts_inhibited (keyboard->focus_surface,
-                                                    compositor->seat))
+  if (!meta_wayland_surface_is_shortcuts_inhibited (focus, compositor->seat))
     return;
 
-  meta_wayland_surface_restore_shortcuts (keyboard->focus_surface,
-                                          compositor->seat);
+  meta_wayland_surface_restore_shortcuts (focus, compositor->seat);
 }
 
 gboolean
 meta_wayland_compositor_is_shortcuts_inhibited (MetaWaylandCompositor *compositor,
                                                 ClutterInputDevice    *source)
 {
-  MetaWaylandKeyboard *keyboard;
+  MetaWaylandSurface *focus;
 
   /* Clutter is not multi-seat aware yet, use the default seat instead */
-  keyboard = compositor->seat->keyboard;
-  if (keyboard && keyboard->focus_surface != NULL)
-    return meta_wayland_surface_is_shortcuts_inhibited (keyboard->focus_surface,
-                                                        compositor->seat);
+  focus = meta_wayland_seat_get_input_focus (compositor->seat);
+  if (!focus)
+    return FALSE;
 
-  return FALSE;
+  return meta_wayland_surface_is_shortcuts_inhibited (focus, compositor->seat);
 }
 
 void
@@ -1038,12 +1095,6 @@ meta_wayland_compositor_get_context (MetaWaylandCompositor *compositor)
   return compositor->context;
 }
 
-gboolean
-meta_wayland_compositor_is_grabbed (MetaWaylandCompositor *compositor)
-{
-  return meta_wayland_seat_is_grabbed (compositor->seat);
-}
-
 /**
  * meta_wayland_compositor_get_wayland_display:
  * @compositor: The #MetaWaylandCompositor
@@ -1069,4 +1120,32 @@ MetaWaylandTextInput *
 meta_wayland_compositor_get_text_input (MetaWaylandCompositor *compositor)
 {
   return compositor->seat->text_input;
+}
+
+static void
+meta_wayland_compositor_update_focus (MetaWaylandCompositor *compositor,
+                                      MetaWindow            *window)
+{
+  MetaWindow *focus_window = NULL;
+
+  /* Compositor not ready yet */
+  if (!compositor->seat)
+    return;
+
+  if (window && meta_window_get_wayland_surface (window))
+    focus_window = window;
+  else
+    meta_topic (META_DEBUG_FOCUS, "Focus change has no effect, because there is no matching wayland surface");
+
+  meta_wayland_compositor_set_input_focus (compositor, focus_window);
+}
+
+void
+meta_wayland_compositor_sync_focus (MetaWaylandCompositor *compositor)
+{
+  MetaContext *context = meta_wayland_compositor_get_context (compositor);
+  MetaDisplay *display = meta_context_get_display (context);
+
+  meta_wayland_compositor_update_focus (compositor,
+                                        display ? display->focus_window : NULL);
 }

@@ -55,6 +55,7 @@ typedef struct _MetaCursorTrackerPrivate
   MetaBackend *backend;
 
   gboolean is_showing;
+  gboolean pointer_focus;
 
   int track_position_count;
 
@@ -112,8 +113,7 @@ update_displayed_cursor (MetaCursorTracker *tracker)
   MetaDisplay *display = meta_context_get_display (context);
   MetaCursorSprite *cursor = NULL;
 
-  if (display && meta_display_windows_are_interactable (display) &&
-      priv->has_window_cursor)
+  if (display && !meta_display_is_grabbed (display) && priv->has_window_cursor)
     cursor = priv->window_cursor;
   else
     cursor = priv->root_cursor;
@@ -531,12 +531,20 @@ meta_cursor_tracker_set_pointer_visible (MetaCursorTracker *tracker,
 {
   MetaCursorTrackerPrivate *priv =
     meta_cursor_tracker_get_instance_private (tracker);
+  ClutterSeat *seat;
 
   if (visible == priv->is_showing)
     return;
   priv->is_showing = visible;
 
   sync_cursor (tracker);
+
+  seat = clutter_backend_get_default_seat (clutter_get_default_backend ());
+
+  if (priv->is_showing)
+    clutter_seat_inhibit_unfocus (seat);
+  else
+    clutter_seat_uninhibit_unfocus (seat);
 
   g_signal_emit (tracker, signals[VISIBILITY_CHANGED], 0);
 }
@@ -570,11 +578,3 @@ meta_cursor_tracker_unregister_cursor_sprite (MetaCursorTracker *tracker,
   priv->cursor_sprites = g_list_remove (priv->cursor_sprites, sprite);
 }
 
-GList *
-meta_cursor_tracker_peek_cursor_sprites (MetaCursorTracker *tracker)
-{
-  MetaCursorTrackerPrivate *priv =
-    meta_cursor_tracker_get_instance_private (tracker);
-
-  return priv->cursor_sprites;
-}

@@ -36,10 +36,9 @@
 #include "core/boxes-private.h"
 #include "core/stack-tracker.h"
 #include "core/window-private.h"
-#include "meta/meta-x11-errors.h"
 #include "wayland/meta-wayland-actor-surface.h"
 #include "wayland/meta-wayland-private.h"
-#include "wayland/meta-wayland-surface.h"
+#include "wayland/meta-wayland-surface-private.h"
 #include "wayland/meta-wayland-window-configuration.h"
 #include "wayland/meta-wayland-xdg-shell.h"
 
@@ -185,7 +184,6 @@ meta_window_wayland_focus (MetaWindow *window,
     {
       meta_display_set_input_focus (window->display,
                                     window,
-                                    FALSE,
                                     timestamp);
     }
 }
@@ -802,6 +800,18 @@ meta_window_wayland_get_wayland_surface (MetaWindow *window)
   return wl_window->surface;
 }
 
+static gboolean
+meta_window_wayland_set_transient_for (MetaWindow *window,
+                                       MetaWindow *parent)
+{
+  if (window->attached != meta_window_should_attach_to_parent (window))
+    {
+      window->attached = meta_window_should_attach_to_parent (window);
+      meta_window_recalc_features (window);
+    }
+  return TRUE;
+}
+
 static MetaStackLayer
 meta_window_wayland_calculate_layer (MetaWindow *window)
 {
@@ -837,7 +847,6 @@ meta_window_wayland_constructed (GObject *object)
   window->size_hints.height = 0;
 
   window->depth = 24;
-  window->xvisual = NULL;
 
   window->mapped = FALSE;
 
@@ -932,6 +941,7 @@ meta_window_wayland_class_init (MetaWindowWaylandClass *klass)
   window_class->unmap = meta_window_wayland_unmap;
   window_class->is_focus_async = meta_window_wayland_is_focus_async;
   window_class->get_wayland_surface = meta_window_wayland_get_wayland_surface;
+  window_class->set_transient_for = meta_window_wayland_set_transient_for;
 
   obj_props[PROP_SURFACE] =
     g_param_spec_object ("surface", NULL, NULL,
@@ -1310,7 +1320,7 @@ meta_window_wayland_set_min_size (MetaWindow *window,
     {
       window->size_hints.min_width = 0;
       window->size_hints.min_height = 0;
-      window->size_hints.flags &= ~PMinSize;
+      window->size_hints.flags &= ~META_SIZE_HINTS_PROGRAM_MIN_SIZE;
 
       return;
     }
@@ -1325,7 +1335,7 @@ meta_window_wayland_set_min_size (MetaWindow *window,
 
   window->size_hints.min_width = (int) MIN (new_width, G_MAXINT);
   window->size_hints.min_height = (int) MIN (new_height, G_MAXINT);
-  window->size_hints.flags |= PMinSize;
+  window->size_hints.flags |= META_SIZE_HINTS_PROGRAM_MIN_SIZE;
 }
 
 void
@@ -1344,7 +1354,7 @@ meta_window_wayland_set_max_size (MetaWindow *window,
     {
       window->size_hints.max_width = G_MAXINT;
       window->size_hints.max_height = G_MAXINT;
-      window->size_hints.flags &= ~PMaxSize;
+      window->size_hints.flags &= ~META_SIZE_HINTS_PROGRAM_MAX_SIZE;
 
       return;
     }
@@ -1361,7 +1371,7 @@ meta_window_wayland_set_max_size (MetaWindow *window,
                                         new_width : G_MAXINT);
   window->size_hints.max_height = (int)  ((new_height > 0 && new_height < G_MAXINT) ?
                                           new_height : G_MAXINT);
-  window->size_hints.flags |= PMaxSize;
+  window->size_hints.flags |= META_SIZE_HINTS_PROGRAM_MAX_SIZE;
 }
 
 void
@@ -1372,7 +1382,7 @@ meta_window_wayland_get_min_size (MetaWindow *window,
   gint64 current_width, current_height;
   float scale;
 
-  if (!(window->size_hints.flags & PMinSize))
+  if (!(window->size_hints.flags & META_SIZE_HINTS_PROGRAM_MIN_SIZE))
     {
       /* Zero means unlimited */
       *width = 0;
@@ -1404,7 +1414,7 @@ meta_window_wayland_get_max_size (MetaWindow *window,
   gint64 current_height = 0;
   float scale;
 
-  if (!(window->size_hints.flags & PMaxSize))
+  if (!(window->size_hints.flags & META_SIZE_HINTS_PROGRAM_MAX_SIZE))
     {
       /* Zero means unlimited */
       *width = 0;

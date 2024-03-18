@@ -25,22 +25,29 @@
 #include <glib.h>
 #include <gio/gio.h>
 
-#if defined(HAVE_NATIVE_BACKEND) && defined(HAVE_WAYLAND)
+#ifdef HAVE_WAYLAND
 #include <systemd/sd-login.h>
-#endif /* HAVE_WAYLAND && HAVE_NATIVE_BACKEND */
+#endif
 
+#include "backends/meta-monitor.h"
 #include "backends/meta-monitor-manager-private.h"
 #include "backends/meta-virtual-monitor.h"
-#include "backends/x11/cm/meta-backend-x11-cm.h"
 #include "meta/meta-backend.h"
+
+#ifdef HAVE_X11
+#include "backends/x11/cm/meta-backend-x11-cm.h"
 #include "x11/session.h"
+#endif
 
 #ifdef HAVE_NATIVE_BACKEND
 #include "backends/native/meta-backend-native.h"
 #endif
 
-#ifdef HAVE_WAYLAND
+#if defined (HAVE_X11) && defined (HAVE_WAYLAND)
 #include "backends/x11/nested/meta-backend-x11-nested.h"
+#endif
+
+#ifdef HAVE_WAYLAND
 #include "wayland/meta-wayland.h"
 #endif
 
@@ -72,6 +79,7 @@ typedef struct _MetaContextMainOptions
   GList *virtual_monitor_infos;
 #endif
   char *trace_file;
+  gboolean debug_control;
 } MetaContextMainOptions;
 
 struct _MetaContextMain
@@ -301,6 +309,13 @@ meta_context_main_configure (MetaContext   *context,
   meta_context_set_trace_file (context, context_main->options.trace_file);
 #endif
 
+  if (context_main->options.debug_control)
+    {
+      MetaDebugControl *debug_control = meta_context_get_debug_control (context);
+
+      meta_debug_control_export (debug_control);
+    }
+
   g_unsetenv ("DESKTOP_AUTOSTART_ID");
 
   return TRUE;
@@ -415,6 +430,7 @@ meta_context_main_setup (MetaContext  *context,
   return TRUE;
 }
 
+#ifdef HAVE_X11
 static MetaBackend *
 create_x11_cm_backend (MetaContext  *context,
                        GError      **error)
@@ -432,8 +448,9 @@ create_x11_cm_backend (MetaContext  *context,
                          "display-name", context_main->options.x11.display_name,
                          NULL);
 }
+#endif
 
-#ifdef HAVE_WAYLAND
+#if defined (HAVE_X11) && defined (HAVE_WAYLAND)
 static MetaBackend *
 create_nested_backend (MetaContext  *context,
                        GError      **error)
@@ -443,7 +460,9 @@ create_nested_backend (MetaContext  *context,
                          "context", context,
                          NULL);
 }
+#endif
 
+#ifdef HAVE_WAYLAND
 #ifdef HAVE_NATIVE_BACKEND
 static MetaBackend *
 create_headless_backend (MetaContext  *context,
@@ -480,16 +499,19 @@ meta_context_main_create_backend (MetaContext  *context,
   compositor_type = meta_context_get_compositor_type (context);
   switch (compositor_type)
     {
-#ifdef HAVE_X11
     case META_COMPOSITOR_TYPE_X11:
+#ifdef HAVE_X11
       return create_x11_cm_backend (context, error);
 #endif
     case META_COMPOSITOR_TYPE_WAYLAND:
 #ifdef HAVE_WAYLAND
+#ifdef HAVE_X11
       if (context_main->options.nested)
         return create_nested_backend (context, error);
+      else
+#endif
 #ifdef HAVE_NATIVE_BACKEND
-      else if (context_main->options.headless)
+      if (context_main->options.headless)
         return create_headless_backend (context, error);
       else
         return create_native_backend (context, error);
@@ -502,6 +524,7 @@ meta_context_main_create_backend (MetaContext  *context,
   g_assert_not_reached ();
 }
 
+#ifdef HAVE_X11
 static void
 meta_context_main_notify_ready (MetaContext *context)
 {
@@ -517,7 +540,6 @@ meta_context_main_notify_ready (MetaContext *context)
   g_clear_pointer (&context_main->options.sm.save_file, g_free);
 }
 
-#ifdef HAVE_X11
 static gboolean
 meta_context_main_is_x11_sync (MetaContext *context)
 {
@@ -671,6 +693,11 @@ meta_context_main_add_option_entries (MetaContextMain *context_main)
       N_("Profile performance using trace instrumentation"),
       "FILE"
     },
+    {
+      "debug-control", 0, 0, G_OPTION_ARG_NONE,
+      &context_main->options.debug_control,
+      N_("Enable debug control D-Bus interface")
+    },
     { NULL }
   };
 
@@ -732,8 +759,8 @@ meta_context_main_class_init (MetaContextMainClass *klass)
   context_class->is_replacing = meta_context_main_is_replacing;
   context_class->setup = meta_context_main_setup;
   context_class->create_backend = meta_context_main_create_backend;
-  context_class->notify_ready = meta_context_main_notify_ready;
 #ifdef HAVE_X11
+  context_class->notify_ready = meta_context_main_notify_ready;
   context_class->is_x11_sync = meta_context_main_is_x11_sync;
 #endif
 }

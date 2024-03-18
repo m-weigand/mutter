@@ -36,7 +36,7 @@
  * depending on a progress factor, expressed as a floating point value.
  */
 
-#include "clutter/clutter-build-config.h"
+#include "config.h"
 
 #include "clutter/clutter-animatable.h"
 #include "clutter/clutter-interval.h"
@@ -150,8 +150,6 @@ clutter_animatable_set_final_state (ClutterAnimatable *animatable,
  *
  * This function should be used for every property animation
  * involving `ClutterAnimatable`s.
- *
- * This function replaces clutter_animatable_animate_property().
  *
  * Return value: %TRUE if the interpolation was successful,
  *   and %FALSE otherwise

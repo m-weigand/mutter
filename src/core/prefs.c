@@ -39,7 +39,6 @@
 #include "core/prefs-private.h"
 #include "core/util-private.h"
 #include "meta/prefs.h"
-#include "x11/meta-x11-display-private.h"
 
 /* If you add a key, it needs updating in init() and in the gsettings
  * notify listener and of course in the .schemas file.
@@ -92,7 +91,7 @@ static GDesktopTitlebarAction action_right_click_titlebar = G_DESKTOP_TITLEBAR_A
 static gboolean dynamic_workspaces = FALSE;
 static gboolean disable_workarounds = FALSE;
 static gboolean auto_raise = FALSE;
-static gboolean auto_raise_delay = 500;
+static int auto_raise_delay = 500;
 static gboolean focus_change_on_pointer_rest = FALSE;
 static gboolean bell_is_visible = FALSE;
 static gboolean bell_is_audible = TRUE;

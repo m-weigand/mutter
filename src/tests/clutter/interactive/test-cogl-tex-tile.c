@@ -5,6 +5,7 @@
 #include <clutter/clutter.h>
 #include <cogl/cogl.h>
 
+#include "clutter/test-utils.h"
 #include "tests/clutter-test-utils.h"
 
 /* Coglbox declaration
@@ -47,6 +48,7 @@ test_coglbox_paint (ClutterActor        *self,
     clutter_paint_context_get_framebuffer (paint_context);
   CoglContext *ctx = cogl_framebuffer_get_context (framebuffer);
   CoglPipeline *pipeline;
+  CoglColor color;
   gfloat texcoords[4] = { 0.0f, 0.0f, 1.0f, 1.0f };
   gfloat angle;
   gfloat frac;
@@ -70,9 +72,10 @@ test_coglbox_paint (ClutterActor        *self,
   cogl_framebuffer_push_matrix (framebuffer);
 
   pipeline = cogl_pipeline_new (ctx);
-  cogl_pipeline_set_color4ub (pipeline, 0x66, 0x66, 0xdd, 0xff);
+  cogl_color_init_from_4f (&color, 0.4, 0.4, 221.0 / 255.0, 1.0);
+  cogl_pipeline_set_color (pipeline, &color);
   cogl_framebuffer_draw_rectangle (framebuffer, pipeline, 0, 0, 400, 400);
-  cogl_object_unref (pipeline);
+  g_object_unref (pipeline);
 
   cogl_framebuffer_translate (framebuffer, 100, 100, 0);
 
@@ -82,7 +85,7 @@ test_coglbox_paint (ClutterActor        *self,
                                             0, 0, 200, 213,
                                             texcoords[0], texcoords[1],
                                             texcoords[2], texcoords[3]);
-  cogl_object_unref (pipeline);
+  g_object_unref (pipeline);
 
   cogl_framebuffer_pop_matrix (framebuffer);
 }
@@ -92,7 +95,7 @@ test_coglbox_dispose (GObject *object)
 {
   TestCoglbox *coglbox = TEST_COGLBOX (object);
 
-  cogl_object_unref (coglbox->cogl_tex_id);
+  g_object_unref (coglbox->cogl_tex_id);
 
   G_OBJECT_CLASS (test_coglbox_parent_class)->dispose (object);
 }
@@ -106,7 +109,7 @@ test_coglbox_init (TestCoglbox *self)
   gchar *file;
 
   file = g_build_filename (TESTS_DATADIR, "redhand.png", NULL);
-  self->cogl_tex_id = cogl_texture_2d_new_from_file (ctx, file, &error);
+  self->cogl_tex_id = clutter_test_texture_2d_new_from_file (ctx, file, &error);
   if (error)
     g_warning ("Error loading redhand.png: %s", error->message);
   g_free (file);
@@ -156,7 +159,7 @@ test_cogl_tex_tile_main (int argc, char *argv[])
 
   /* Cogl Box */
   coglbox = test_coglbox_new ();
-  clutter_container_add_actor (CLUTTER_CONTAINER (stage), coglbox);
+  clutter_actor_add_child (stage, coglbox);
 
   /* Timeline for animation */
   timeline = clutter_timeline_new_for_actor (stage, 6000); /* 6 second duration */

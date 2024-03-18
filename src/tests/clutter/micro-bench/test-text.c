@@ -19,20 +19,20 @@ on_after_paint (ClutterActor        *actor,
 {
   static GTimer *timer = NULL;
   static int fps = 0;
-  
+
   if (!timer)
     {
       timer = g_timer_new ();
       g_timer_start (timer);
     }
-  
+
   if (g_timer_elapsed (timer, NULL) >= 1)
     {
       printf ("fps: %d\n", fps);
       g_timer_start (timer);
       fps = 0;
     }
-  
+
   ++fps;
 }
 
@@ -57,12 +57,13 @@ main (int argc, char *argv[])
 
   stage = clutter_test_get_stage ();
   clutter_actor_set_size (stage, STAGE_WIDTH, STAGE_HEIGHT);
-  clutter_actor_set_background_color (CLUTTER_ACTOR (stage), CLUTTER_COLOR_Black);
+  clutter_actor_set_background_color (CLUTTER_ACTOR (stage),
+                                      &CLUTTER_COLOR_INIT (0, 0, 0, 255));
   clutter_stage_set_title (CLUTTER_STAGE (stage), "Text");
 
   group = clutter_actor_new ();
   clutter_actor_set_size (group, STAGE_WIDTH, STAGE_WIDTH);
-  clutter_container_add_actor (CLUTTER_CONTAINER (stage), group);
+  clutter_actor_add_child (stage, group);
 
   clutter_threads_add_idle (queue_redraw, stage);
 
@@ -101,14 +102,15 @@ main (int argc, char *argv[])
             }
 
           label = clutter_text_new_with_text (font_name, text);
-          clutter_text_set_color (CLUTTER_TEXT (label), CLUTTER_COLOR_White);
+          clutter_text_set_color (CLUTTER_TEXT (label),
+                                  &CLUTTER_COLOR_INIT (255, 255, 255, 255));
           clutter_actor_set_position (label, (1.0*STAGE_WIDTH/COLS)*col,
                                              (1.0*STAGE_HEIGHT/ROWS)*row);
           /*clutter_actor_set_clip (label, 0,0, (1.0*STAGE_WIDTH/COLS),
                                               (1.0*STAGE_HEIGHT/ROWS));*/
           clutter_actor_set_scale (label, scale, scale);
           clutter_text_set_line_wrap (CLUTTER_TEXT (label), FALSE);
-          clutter_container_add_actor (CLUTTER_CONTAINER (group), label);
+          clutter_actor_add_child (group, label);
         }
   }
   clutter_actor_show (stage);

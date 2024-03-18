@@ -39,7 +39,9 @@
 #include "backends/native/meta-drm-buffer-import.h"
 #include "backends/native/meta-drm-buffer.h"
 #include "backends/native/meta-frame-native.h"
+#include "backends/native/meta-kms-connector.h"
 #include "backends/native/meta-kms-device.h"
+#include "backends/native/meta-kms-plane.h"
 #include "backends/native/meta-kms-utils.h"
 #include "backends/native/meta-kms.h"
 #include "backends/native/meta-output-kms.h"
@@ -47,6 +49,7 @@
 #include "backends/native/meta-render-device.h"
 #include "backends/native/meta-renderer-native-gles3.h"
 #include "backends/native/meta-renderer-native-private.h"
+#include "cogl/cogl.h"
 #include "common/meta-cogl-drm-formats.h"
 
 typedef enum _MetaSharedFramebufferImportStatus
@@ -95,6 +98,8 @@ struct _MetaOnscreenNative
     struct gbm_surface *surface;
     MetaDrmBuffer *current_fb;
     MetaDrmBuffer *next_fb;
+    CoglScanout *current_scanout;
+    CoglScanout *next_scanout;
   } gbm;
 
 #ifdef HAVE_EGL_DEVICE
@@ -104,6 +109,9 @@ struct _MetaOnscreenNative
     MetaDrmBufferDumb *dumb_fb;
   } egl;
 #endif
+
+  gboolean frame_sync_requested;
+  gboolean frame_sync_enabled;
 
   MetaRendererView *view;
 
@@ -134,6 +142,7 @@ free_current_bo (CoglOnscreen *onscreen)
   MetaOnscreenNative *onscreen_native = META_ONSCREEN_NATIVE (onscreen);
 
   g_clear_object (&onscreen_native->gbm.current_fb);
+  g_clear_object (&onscreen_native->gbm.current_scanout);
 }
 
 static void
@@ -148,6 +157,9 @@ meta_onscreen_native_swap_drm_fb (CoglOnscreen *onscreen)
 
   g_set_object (&onscreen_native->gbm.current_fb, onscreen_native->gbm.next_fb);
   g_clear_object (&onscreen_native->gbm.next_fb);
+  g_set_object (&onscreen_native->gbm.current_scanout,
+                onscreen_native->gbm.next_scanout);
+  g_clear_object (&onscreen_native->gbm.next_scanout);
 }
 
 static void
@@ -156,6 +168,7 @@ meta_onscreen_native_clear_next_fb (CoglOnscreen *onscreen)
   MetaOnscreenNative *onscreen_native = META_ONSCREEN_NATIVE (onscreen);
 
   g_clear_object (&onscreen_native->gbm.next_fb);
+  g_clear_object (&onscreen_native->gbm.next_scanout);
 }
 
 static void
@@ -197,7 +210,7 @@ meta_onscreen_native_notify_frame_complete (CoglOnscreen *onscreen)
 
   _cogl_onscreen_notify_frame_sync (onscreen, info);
   _cogl_onscreen_notify_complete (onscreen, info);
-  cogl_object_unref (info);
+  g_object_unref (info);
 }
 
 static void
@@ -410,13 +423,78 @@ meta_onscreen_native_dummy_power_save_page_flip (CoglOnscreen *onscreen)
 }
 
 static void
-meta_onscreen_native_flip_crtc (CoglOnscreen                *onscreen,
-                                MetaRendererView            *view,
-                                MetaCrtc                    *crtc,
-                                MetaKmsUpdate               *kms_update,
-                                MetaKmsPageFlipListenerFlag  flags,
-                                const int                   *rectangles,
-                                int                          n_rectangles)
+apply_transform (MetaCrtcKms            *crtc_kms,
+                 MetaKmsPlaneAssignment *kms_plane_assignment,
+                 MetaKmsPlane           *kms_plane)
+{
+  MetaCrtc *crtc = META_CRTC (crtc_kms);
+  const MetaCrtcConfig *crtc_config;
+  MetaMonitorTransform hw_transform;
+
+  crtc_config = meta_crtc_get_config (crtc);
+
+  hw_transform = crtc_config->transform;
+  if (!meta_kms_plane_is_transform_handled (kms_plane, hw_transform))
+    hw_transform = META_MONITOR_TRANSFORM_NORMAL;
+  if (!meta_kms_plane_is_transform_handled (kms_plane, hw_transform))
+    return;
+
+  meta_kms_plane_update_set_rotation (kms_plane,
+                                      kms_plane_assignment,
+                                      hw_transform);
+}
+
+static MetaKmsPlaneAssignment *
+assign_primary_plane (MetaCrtcKms            *crtc_kms,
+                      MetaDrmBuffer          *buffer,
+                      MetaKmsUpdate          *kms_update,
+                      MetaKmsAssignPlaneFlag  flags,
+                      const graphene_rect_t  *src_rect,
+                      const MtkRectangle     *dst_rect)
+{
+  MetaCrtc *crtc = META_CRTC (crtc_kms);
+  MetaFixed16Rectangle src_rect_fixed16;
+  MetaKmsCrtc *kms_crtc;
+  MetaKmsPlane *primary_kms_plane;
+  MetaKmsPlaneAssignment *plane_assignment;
+
+  src_rect_fixed16 = (MetaFixed16Rectangle) {
+    .x = meta_fixed_16_from_double (src_rect->origin.x),
+    .y = meta_fixed_16_from_double (src_rect->origin.y),
+    .width = meta_fixed_16_from_double (src_rect->size.width),
+    .height = meta_fixed_16_from_double (src_rect->size.height),
+  };
+
+  meta_topic (META_DEBUG_KMS,
+              "Assigning buffer to primary plane update on CRTC "
+              "(%" G_GUINT64_FORMAT ") with src rect %f,%f %fx%f "
+              "and dst rect %d,%d %dx%d",
+              meta_crtc_get_id (crtc), src_rect->origin.x, src_rect->origin.y,
+              src_rect->size.width, src_rect->size.height,
+              dst_rect->x, dst_rect->y, dst_rect->width, dst_rect->height);
+
+  kms_crtc = meta_crtc_kms_get_kms_crtc (crtc_kms);
+  primary_kms_plane = meta_crtc_kms_get_assigned_primary_plane (crtc_kms);
+  plane_assignment = meta_kms_update_assign_plane (kms_update,
+                                                   kms_crtc,
+                                                   primary_kms_plane,
+                                                   buffer,
+                                                   src_rect_fixed16,
+                                                   *dst_rect,
+                                                   flags);
+  apply_transform (crtc_kms, plane_assignment, primary_kms_plane);
+
+  return plane_assignment;
+}
+
+static void
+meta_onscreen_native_flip_crtc (CoglOnscreen           *onscreen,
+                                MetaRendererView       *view,
+                                MetaCrtc               *crtc,
+                                MetaKmsUpdate          *kms_update,
+                                MetaKmsAssignPlaneFlag  flags,
+                                const int              *rectangles,
+                                int                     n_rectangles)
 {
   MetaOnscreenNative *onscreen_native = META_ONSCREEN_NATIVE (onscreen);
   MetaRendererNative *renderer_native = onscreen_native->renderer_native;
@@ -429,7 +507,7 @@ meta_onscreen_native_flip_crtc (CoglOnscreen                *onscreen,
   MetaKmsPlaneAssignment *plane_assignment;
 
   COGL_TRACE_BEGIN_SCOPED (MetaOnscreenNativeFlipCrtcs,
-                           "Onscreen (flip CRTCs)");
+                           "Meta::OnscreenNative::flip_crtc()");
 
   gpu_kms = META_GPU_KMS (meta_crtc_get_gpu (crtc));
 
@@ -440,11 +518,40 @@ meta_onscreen_native_flip_crtc (CoglOnscreen                *onscreen,
   switch (renderer_gpu_data->mode)
     {
     case META_RENDERER_NATIVE_MODE_GBM:
+      graphene_rect_t src_rect;
+      MtkRectangle dst_rect;
+
       buffer = onscreen_native->gbm.next_fb;
 
-      plane_assignment = meta_crtc_kms_assign_primary_plane (crtc_kms,
-                                                             buffer,
-                                                             kms_update);
+      if (onscreen_native->gbm.next_scanout)
+        {
+          cogl_scanout_get_src_rect (onscreen_native->gbm.next_scanout,
+                                     &src_rect);
+          cogl_scanout_get_dst_rect (onscreen_native->gbm.next_scanout,
+                                     &dst_rect);
+        }
+      else
+        {
+          src_rect = (graphene_rect_t) {
+            .origin.x = 0,
+            .origin.y = 0,
+            .size.width = meta_drm_buffer_get_width (buffer),
+            .size.height = meta_drm_buffer_get_height (buffer)
+          };
+          dst_rect = (MtkRectangle) {
+            .x = 0,
+            .y = 0,
+            .width = meta_drm_buffer_get_width (buffer),
+            .height = meta_drm_buffer_get_height (buffer)
+          };
+        }
+
+      plane_assignment = assign_primary_plane (crtc_kms,
+                                               buffer,
+                                               kms_update,
+                                               flags,
+                                               &src_rect,
+                                               &dst_rect);
 
       if (rectangles != NULL && n_rectangles != 0)
         {
@@ -467,10 +574,104 @@ meta_onscreen_native_flip_crtc (CoglOnscreen                *onscreen,
   meta_kms_update_add_page_flip_listener (kms_update,
                                           kms_crtc,
                                           &page_flip_listener_vtable,
-                                          flags,
                                           NULL,
                                           g_object_ref (view),
                                           g_object_unref);
+}
+
+static void
+set_underscan (MetaOutputKms *output_kms,
+               MetaKmsUpdate *kms_update)
+{
+  MetaOutput *output = META_OUTPUT (output_kms);
+  const MetaOutputInfo *output_info = meta_output_get_info (output);
+  MetaKmsConnector *kms_connector =
+    meta_output_kms_get_kms_connector (output_kms);
+
+  if (!output_info->supports_underscanning)
+    return;
+
+  if (meta_output_is_underscanning (output))
+    {
+      MetaCrtc *crtc;
+      const MetaCrtcConfig *crtc_config;
+      const MetaCrtcModeInfo *crtc_mode_info;
+      uint64_t hborder, vborder;
+
+      crtc = meta_output_get_assigned_crtc (output);
+      crtc_config = meta_crtc_get_config (crtc);
+      crtc_mode_info = meta_crtc_mode_get_info (crtc_config->mode);
+
+      hborder = MIN (128, (uint64_t) round (crtc_mode_info->width * 0.05));
+      vborder = MIN (128, (uint64_t) round (crtc_mode_info->height * 0.05));
+
+      g_debug ("Setting underscan of connector %s to %" G_GUINT64_FORMAT " x %" G_GUINT64_FORMAT,
+               meta_kms_connector_get_name (kms_connector),
+               hborder, vborder);
+
+      meta_kms_update_set_underscanning (kms_update,
+                                         kms_connector,
+                                         hborder, vborder);
+    }
+  else
+    {
+      g_debug ("Unsetting underscan of connector %s",
+               meta_kms_connector_get_name (kms_connector));
+
+      meta_kms_update_unset_underscanning (kms_update,
+                                           kms_connector);
+    }
+}
+
+static void
+set_max_bpc (MetaOutputKms *output_kms,
+             MetaKmsUpdate *kms_update)
+{
+  MetaOutput *output = META_OUTPUT (output_kms);
+  const MetaOutputInfo *output_info = meta_output_get_info (output);
+  MetaKmsConnector *kms_connector =
+    meta_output_kms_get_kms_connector (output_kms);
+  unsigned int max_bpc;
+
+  if (!meta_output_get_max_bpc (output, &max_bpc))
+    return;
+
+  if (output_info->max_bpc_min == 0 && output_info->max_bpc_max == 0)
+    return;
+
+  if (max_bpc < output_info->max_bpc_min || max_bpc > output_info->max_bpc_max)
+    {
+      g_warning ("Ignoring out of range value %u for max bpc (%u-%u)",
+                 max_bpc,
+                 (unsigned) output_info->max_bpc_min,
+                 (unsigned) output_info->max_bpc_max);
+      return;
+    }
+
+  meta_kms_update_set_max_bpc (kms_update, kms_connector, max_bpc);
+}
+
+static void
+set_rgb_range (MetaOutputKms *output_kms,
+               MetaKmsUpdate *kms_update)
+{
+  MetaOutput *output = META_OUTPUT (output_kms);
+  const MetaOutputInfo *output_info = meta_output_get_info (output);
+  MetaKmsConnector *kms_connector =
+    meta_output_kms_get_kms_connector (output_kms);
+  MetaOutputRGBRange rgb_range = meta_output_peek_rgb_range (output);
+
+  if (rgb_range == META_OUTPUT_RGB_RANGE_AUTO &&
+      !(output_info->supported_rgb_ranges & (1 << rgb_range)))
+    return;
+
+  if (!(output_info->supported_rgb_ranges & (1 << rgb_range)))
+    {
+      g_warning ("Ignoring unsupported RGB Range");
+      return;
+    }
+
+  meta_kms_update_set_broadcast_rgb (kms_update, kms_connector, rgb_range);
 }
 
 static void
@@ -482,7 +683,7 @@ meta_onscreen_native_set_crtc_mode (CoglOnscreen              *onscreen,
   MetaCrtcKms *crtc_kms = META_CRTC_KMS (onscreen_native->crtc);
 
   COGL_TRACE_BEGIN_SCOPED (MetaOnscreenNativeSetCrtcModes,
-                           "Onscreen (set CRTC modes)");
+                           "Meta::OnscreenNative::set_crtc_mode()");
 
   switch (renderer_gpu_data->mode)
     {
@@ -495,19 +696,40 @@ meta_onscreen_native_set_crtc_mode (CoglOnscreen              *onscreen,
     case META_RENDERER_NATIVE_MODE_EGL_DEVICE:
       {
         MetaDrmBuffer *buffer;
+        graphene_rect_t src_rect;
+        MtkRectangle dst_rect;
 
         buffer = META_DRM_BUFFER (onscreen_native->egl.dumb_fb);
-        meta_crtc_kms_assign_primary_plane (crtc_kms, buffer, kms_update);
+
+        src_rect = (graphene_rect_t) {
+          .origin.x = 0,
+          .origin.y = 0,
+          .size.width = meta_drm_buffer_get_width (buffer),
+          .size.height = meta_drm_buffer_get_height (buffer)
+        };
+
+        dst_rect = (MtkRectangle) {
+          .x = 0,
+          .y = 0,
+          .width = meta_drm_buffer_get_width (buffer),
+          .height = meta_drm_buffer_get_height (buffer)
+        };
+
+        assign_primary_plane (crtc_kms,
+                              buffer,
+                              kms_update,
+                              META_KMS_ASSIGN_PLANE_FLAG_NONE,
+                              &src_rect,
+                              &dst_rect);
         break;
       }
 #endif
     }
 
   meta_crtc_kms_set_mode (crtc_kms, kms_update);
-  meta_output_kms_set_underscan (META_OUTPUT_KMS (onscreen_native->output),
-                                 kms_update);
-  meta_output_kms_set_max_bpc (META_OUTPUT_KMS (onscreen_native->output),
-                               kms_update);
+  set_underscan (META_OUTPUT_KMS (onscreen_native->output), kms_update);
+  set_max_bpc (META_OUTPUT_KMS (onscreen_native->output), kms_update);
+  set_rgb_range (META_OUTPUT_KMS (onscreen_native->output), kms_update);
 }
 
 static void
@@ -616,7 +838,7 @@ copy_shared_framebuffer_gpu (CoglOnscreen                        *onscreen,
   struct gbm_bo *bo;
 
   COGL_TRACE_BEGIN_SCOPED (CopySharedFramebufferSecondaryGpu,
-                           "FB Copy (secondary GPU)");
+                           "copy_shared_framebuffer_gpu()");
 
   render_device = renderer_gpu_data->render_device;
   egl_display = meta_render_device_get_egl_display (render_device);
@@ -719,11 +941,11 @@ copy_shared_framebuffer_primary_gpu (CoglOnscreen                        *onscre
   CoglFramebuffer *dmabuf_fb;
   int dmabuf_fd;
   g_autoptr (GError) error = NULL;
-  CoglPixelFormat cogl_format;
-  int ret;
+  const MetaFormatInfo *format_info;
+  uint64_t modifier;
 
   COGL_TRACE_BEGIN_SCOPED (CopySharedFramebufferPrimaryGpu,
-                           "FB Copy (primary GPU)");
+                           "copy_shared_framebuffer_primary_gpu()");
 
   if (!secondary_gpu_state ||
       secondary_gpu_state->egl_surface == EGL_NO_SURFACE)
@@ -746,8 +968,8 @@ copy_shared_framebuffer_primary_gpu (CoglOnscreen                        *onscre
   g_assert (cogl_framebuffer_get_width (framebuffer) == width);
   g_assert (cogl_framebuffer_get_height (framebuffer) == height);
 
-  ret = meta_cogl_pixel_format_from_drm_format (drm_format, &cogl_format, NULL);
-  g_assert (ret);
+  format_info = meta_format_info_from_drm_format (drm_format);
+  g_assert (format_info);
 
   dmabuf_fd = meta_drm_buffer_dumb_ensure_dmabuf_fd (buffer_dumb, &error);
   if (!dmabuf_fd)
@@ -757,13 +979,14 @@ copy_shared_framebuffer_primary_gpu (CoglOnscreen                        *onscre
       return NULL;
     }
 
+  modifier = DRM_FORMAT_MOD_LINEAR;
   dmabuf_fb =
     meta_renderer_native_create_dma_buf_framebuffer (renderer_native,
                                                      dmabuf_fd,
                                                      width,
                                                      height,
                                                      stride,
-                                                     0, DRM_FORMAT_MOD_LINEAR,
+                                                     0, &modifier,
                                                      drm_format,
                                                      &error);
 
@@ -831,10 +1054,10 @@ copy_shared_framebuffer_cpu (CoglOnscreen                        *onscreen,
   void *buffer_data;
   CoglBitmap *dumb_bitmap;
   CoglPixelFormat cogl_format;
-  gboolean ret;
+  const MetaFormatInfo *format_info;
 
   COGL_TRACE_BEGIN_SCOPED (CopySharedFramebufferCpu,
-                           "FB Copy (CPU)");
+                           "copy_shared_framebuffer_cpu()");
 
   buffer_dumb = secondary_gpu_get_next_dumb_buffer (secondary_gpu_state);
   buffer = META_DRM_BUFFER (buffer_dumb);
@@ -848,8 +1071,9 @@ copy_shared_framebuffer_cpu (CoglOnscreen                        *onscreen,
   g_assert (cogl_framebuffer_get_width (framebuffer) == width);
   g_assert (cogl_framebuffer_get_height (framebuffer) == height);
 
-  ret = meta_cogl_pixel_format_from_drm_format (drm_format, &cogl_format, NULL);
-  g_assert (ret);
+  format_info = meta_format_info_from_drm_format (drm_format);
+  g_assert (format_info);
+  cogl_format = format_info->cogl_format;
 
   dumb_bitmap = cogl_bitmap_new_for_data (cogl_context,
                                           width,
@@ -865,7 +1089,7 @@ copy_shared_framebuffer_cpu (CoglOnscreen                        *onscreen,
                                                  dumb_bitmap))
     g_warning ("Failed to CPU-copy to a secondary GPU output");
 
-  cogl_object_unref (dumb_bitmap);
+  g_object_unref (dumb_bitmap);
 
   secondary_gpu_state->cpu.current_dumb_fb = buffer_dumb;
 
@@ -882,7 +1106,7 @@ update_secondary_gpu_state_pre_swap_buffers (CoglOnscreen *onscreen,
   MetaDrmBuffer *copy = NULL;
 
   COGL_TRACE_BEGIN_SCOPED (MetaRendererNativeGpuStatePreSwapBuffers,
-                           "Onscreen (secondary gpu pre-swap-buffers)");
+                           "update_secondary_gpu_state_pre_swap_buffers()");
 
   secondary_gpu_state = onscreen_native->secondary_gpu_state;
   if (secondary_gpu_state)
@@ -948,7 +1172,7 @@ update_secondary_gpu_state_post_swap_buffers (CoglOnscreen   *onscreen,
   MetaOnscreenNativeSecondaryGpuState *secondary_gpu_state;
 
   COGL_TRACE_BEGIN_SCOPED (MetaRendererNativeGpuStatePostSwapBuffers,
-                           "Onscreen (secondary gpu post-swap-buffers)");
+                           "update_secondary_gpu_state_post_swap_buffers()");
 
   secondary_gpu_state = onscreen_native->secondary_gpu_state;
   if (secondary_gpu_state)
@@ -1075,7 +1299,7 @@ meta_onscreen_native_swap_buffers_with_damage (CoglOnscreen  *onscreen,
   MetaKmsDevice *kms_device;
 
   COGL_TRACE_BEGIN_SCOPED (MetaRendererNativeSwapBuffers,
-                           "Onscreen (swap-buffers)");
+                           "Meta::OnscreenNative::swap_buffers_with_damage()");
 
   secondary_gpu_fb =
     update_secondary_gpu_state_pre_swap_buffers (onscreen,
@@ -1110,6 +1334,9 @@ meta_onscreen_native_swap_buffers_with_damage (CoglOnscreen  *onscreen,
           g_warning ("Failed to lock front buffer on %s: %s",
                      meta_device_file_get_path (render_device_file),
                      error->message);
+
+          frame_info->flags |= COGL_FRAME_INFO_FLAG_SYMBOLIC;
+          meta_onscreen_native_notify_frame_complete (onscreen);
           return;
         }
 
@@ -1174,7 +1401,7 @@ meta_onscreen_native_swap_buffers_with_damage (CoglOnscreen  *onscreen,
                                       onscreen_native->view,
                                       onscreen_native->crtc,
                                       kms_update,
-                                      META_KMS_PAGE_FLIP_LISTENER_FLAG_NONE,
+                                      META_KMS_ASSIGN_PLANE_FLAG_NONE,
                                       rectangles,
                                       n_rectangles);
     }
@@ -1188,7 +1415,7 @@ meta_onscreen_native_swap_buffers_with_damage (CoglOnscreen  *onscreen,
     }
 
   COGL_TRACE_BEGIN_SCOPED (MetaRendererNativePostKmsUpdate,
-                           "Onscreen (post pending update)");
+                           "Meta::OnscreenNative::swap_buffers_with_damage#post_pending_update()");
 
   switch (renderer_gpu_data->mode)
     {
@@ -1255,8 +1482,8 @@ meta_onscreen_native_swap_buffers_with_damage (CoglOnscreen  *onscreen,
 }
 
 gboolean
-meta_onscreen_native_is_buffer_scanout_compatible (CoglOnscreen  *onscreen,
-                                                   MetaDrmBuffer *fb)
+meta_onscreen_native_is_buffer_scanout_compatible (CoglOnscreen *onscreen,
+                                                   CoglScanout  *scanout)
 {
   MetaOnscreenNative *onscreen_native = META_ONSCREEN_NATIVE (onscreen);
   MetaCrtc *crtc = onscreen_native->crtc;
@@ -1265,15 +1492,28 @@ meta_onscreen_native_is_buffer_scanout_compatible (CoglOnscreen  *onscreen,
   MetaKmsDevice *kms_device;
   MetaKmsCrtc *kms_crtc;
   MetaKmsUpdate *test_update;
+  MetaDrmBuffer *buffer;
   g_autoptr (MetaKmsFeedback) kms_feedback = NULL;
   MetaKmsFeedbackResult result;
+  graphene_rect_t src_rect;
+  MtkRectangle dst_rect;
 
   gpu_kms = META_GPU_KMS (meta_crtc_get_gpu (crtc));
   kms_device = meta_gpu_kms_get_kms_device (gpu_kms);
   kms_crtc = meta_crtc_kms_get_kms_crtc (crtc_kms);
 
   test_update = meta_kms_update_new (kms_device);
-  meta_crtc_kms_assign_primary_plane (crtc_kms, fb, test_update);
+
+  cogl_scanout_get_src_rect (scanout, &src_rect);
+  cogl_scanout_get_dst_rect (scanout, &dst_rect);
+
+  buffer = META_DRM_BUFFER (cogl_scanout_get_buffer (scanout));
+  assign_primary_plane (crtc_kms,
+                        buffer,
+                        test_update,
+                        META_KMS_ASSIGN_PLANE_FLAG_DIRECT_SCANOUT,
+                        &src_rect,
+                        &dst_rect);
 
   meta_topic (META_DEBUG_KMS,
               "Posting direct scanout test update for CRTC %u (%s) synchronously",
@@ -1309,7 +1549,7 @@ scanout_result_feedback (const MetaKmsFeedback *kms_feedback,
 
       g_warning ("Direct scanout page flip failed: %s", error->message);
 
-      cogl_scanout_notify_failed (COGL_SCANOUT (onscreen_native->gbm.next_fb),
+      cogl_scanout_notify_failed (onscreen_native->gbm.next_scanout,
                                   onscreen);
       clutter_stage_view_add_redraw_clip (view, NULL);
       clutter_stage_view_schedule_update_now (view);
@@ -1376,10 +1616,16 @@ meta_onscreen_native_direct_scanout (CoglOnscreen   *onscreen,
 
   g_warn_if_fail (renderer_gpu_data->mode == META_RENDERER_NATIVE_MODE_GBM);
   g_warn_if_fail (!onscreen_native->gbm.next_fb);
+  g_warn_if_fail (!onscreen_native->gbm.next_scanout);
 
-  g_set_object (&onscreen_native->gbm.next_fb, META_DRM_BUFFER (scanout));
+  g_set_object (&onscreen_native->gbm.next_scanout, scanout);
+  g_set_object (&onscreen_native->gbm.next_fb,
+                META_DRM_BUFFER (cogl_scanout_get_buffer (scanout)));
 
   frame_info->cpu_time_before_buffer_swap_us = g_get_monotonic_time ();
+
+  if (cogl_has_feature (cogl_context, COGL_FEATURE_ID_TIMESTAMP_QUERY))
+    frame_info->has_valid_gpu_rendering_duration = TRUE;
 
   kms_crtc = meta_crtc_kms_get_kms_crtc (META_CRTC_KMS (onscreen_native->crtc));
   kms_device = meta_kms_crtc_get_device (kms_crtc);
@@ -1395,7 +1641,7 @@ meta_onscreen_native_direct_scanout (CoglOnscreen   *onscreen,
                                   onscreen_native->view,
                                   onscreen_native->crtc,
                                   kms_update,
-                                  META_KMS_PAGE_FLIP_LISTENER_FLAG_NONE,
+                                  META_KMS_ASSIGN_PLANE_FLAG_DIRECT_SCANOUT,
                                   NULL,
                                   0);
 
@@ -1427,6 +1673,55 @@ add_onscreen_frame_info (MetaCrtc *crtc)
 }
 
 void
+meta_onscreen_native_request_frame_sync (MetaOnscreenNative *onscreen_native,
+                                         gboolean            enabled)
+{
+  onscreen_native->frame_sync_requested = enabled;
+}
+
+gboolean
+meta_onscreen_native_is_frame_sync_enabled (MetaOnscreenNative *onscreen_native)
+{
+  return onscreen_native->frame_sync_enabled;
+}
+
+static void
+maybe_update_frame_sync (MetaOnscreenNative *onscreen_native,
+                         ClutterFrame       *frame)
+{
+  MetaCrtcKms *crtc_kms = META_CRTC_KMS (onscreen_native->crtc);
+  MetaKmsCrtc *kms_crtc = meta_crtc_kms_get_kms_crtc (crtc_kms);
+  MetaKmsDevice *kms_device = meta_kms_crtc_get_device (kms_crtc);
+  const MetaKmsCrtcState *crtc_state =
+    meta_kms_crtc_get_current_state (kms_crtc);
+  MetaFrameNative *frame_native = meta_frame_native_from_frame (frame);
+  ClutterStageView *stage_view = CLUTTER_STAGE_VIEW (onscreen_native->view);
+  ClutterFrameClock *frame_clock =
+    clutter_stage_view_get_frame_clock (stage_view);
+  ClutterFrameClockMode frame_clock_mode;
+  MetaKmsUpdate *kms_update;
+  gboolean frame_sync_enabled = FALSE;
+
+  if (meta_output_is_vrr_enabled (onscreen_native->output))
+    frame_sync_enabled = onscreen_native->frame_sync_requested;
+
+  if (frame_sync_enabled != onscreen_native->frame_sync_enabled)
+    {
+      frame_clock_mode = frame_sync_enabled ? CLUTTER_FRAME_CLOCK_MODE_VARIABLE :
+                                              CLUTTER_FRAME_CLOCK_MODE_FIXED;
+      clutter_frame_clock_set_mode (frame_clock, frame_clock_mode);
+      onscreen_native->frame_sync_enabled = frame_sync_enabled;
+    }
+
+  if (crtc_state->vrr.supported &&
+      frame_sync_enabled != crtc_state->vrr.enabled)
+    {
+      kms_update = meta_frame_native_ensure_kms_update (frame_native, kms_device);
+      meta_kms_update_set_vrr (kms_update, kms_crtc, frame_sync_enabled);
+    }
+}
+
+void
 meta_onscreen_native_before_redraw (CoglOnscreen *onscreen,
                                     ClutterFrame *frame)
 {
@@ -1436,6 +1731,7 @@ meta_onscreen_native_before_redraw (CoglOnscreen *onscreen,
 
   meta_kms_device_await_flush (meta_kms_crtc_get_device (kms_crtc),
                                kms_crtc);
+  maybe_update_frame_sync (onscreen_native, frame);
 }
 
 void
@@ -1452,18 +1748,13 @@ meta_onscreen_native_prepare_frame (CoglOnscreen *onscreen,
   if (onscreen_native->is_gamma_lut_invalid)
     {
       const MetaGammaLut *gamma;
+      MetaKmsUpdate *kms_update;
+
+      kms_update = meta_frame_native_ensure_kms_update (frame_native,
+                                                        kms_device);
 
       gamma = meta_crtc_kms_peek_gamma_lut (crtc_kms);
-      if (gamma)
-        {
-          MetaKmsUpdate *kms_update;
-
-          kms_update = meta_frame_native_ensure_kms_update (frame_native,
-                                                            kms_device);
-          meta_kms_update_set_crtc_gamma (kms_update,
-                                          kms_crtc,
-                                          gamma);
-        }
+      meta_kms_update_set_crtc_gamma (kms_update, kms_crtc, gamma);
     }
 
   if (onscreen_native->is_privacy_screen_invalid)
@@ -1580,7 +1871,6 @@ meta_onscreen_native_finish_frame (CoglOnscreen *onscreen,
   meta_kms_update_add_page_flip_listener (kms_update,
                                           kms_crtc,
                                           &page_flip_listener_vtable,
-                                          META_KMS_PAGE_FLIP_LISTENER_FLAG_NONE,
                                           NULL,
                                           g_object_ref (onscreen_native->view),
                                           g_object_unref);
@@ -1634,11 +1924,14 @@ static GArray *
 get_supported_kms_modifiers (MetaCrtcKms *crtc_kms,
                              uint32_t     format)
 {
+  MetaKmsPlane *plane = meta_crtc_kms_get_assigned_primary_plane (crtc_kms);
   GArray *modifiers;
   GArray *crtc_mods;
   unsigned int i;
 
-  crtc_mods = meta_crtc_kms_get_modifiers (crtc_kms, format);
+  g_return_val_if_fail (plane, NULL);
+
+  crtc_mods = meta_kms_plane_get_modifiers_for_format (plane, format);
   if (!crtc_mods)
     return NULL;
 
@@ -1739,8 +2032,76 @@ get_supported_kms_formats (CoglOnscreen *onscreen)
 {
   MetaOnscreenNative *onscreen_native = META_ONSCREEN_NATIVE (onscreen);
   MetaCrtcKms *crtc_kms = META_CRTC_KMS (onscreen_native->crtc);
+  MetaKmsPlane *plane = meta_crtc_kms_get_assigned_primary_plane (crtc_kms);
 
-  return meta_crtc_kms_copy_drm_format_list (crtc_kms);
+  return meta_kms_plane_copy_drm_format_list (plane);
+}
+
+static gboolean
+choose_onscreen_egl_config (CoglOnscreen  *onscreen,
+                            EGLConfig     *out_config,
+                            GError       **error)
+{
+  MetaOnscreenNative *onscreen_native = META_ONSCREEN_NATIVE (onscreen);
+  CoglFramebuffer *framebuffer = COGL_FRAMEBUFFER (onscreen);
+  CoglContext *cogl_context = cogl_framebuffer_get_context (framebuffer);
+  CoglDisplay *cogl_display = cogl_context->display;
+  CoglRenderer *cogl_renderer = cogl_display->renderer;
+  CoglRendererEGL *cogl_renderer_egl = cogl_renderer->winsys;
+  EGLDisplay egl_display = cogl_renderer_egl->edpy;
+  MetaEgl *egl = meta_onscreen_native_get_egl (onscreen_native);
+  MetaCrtcKms *crtc_kms = META_CRTC_KMS (onscreen_native->crtc);
+  MetaKmsPlane *kms_plane = meta_crtc_kms_get_assigned_primary_plane (crtc_kms);
+  EGLint attrs[MAX_EGL_CONFIG_ATTRIBS];
+  g_autoptr (GError) local_error = NULL;
+  static const uint32_t alphaless_10bpc_formats[] = {
+    GBM_FORMAT_XRGB2101010,
+    GBM_FORMAT_XBGR2101010,
+    GBM_FORMAT_RGBX1010102,
+    GBM_FORMAT_BGRX1010102,
+  };
+  static const uint32_t default_formats[] = {
+    GBM_FORMAT_ARGB2101010,
+    GBM_FORMAT_ABGR2101010,
+    GBM_FORMAT_RGBA1010102,
+    GBM_FORMAT_BGRA1010102,
+    GBM_FORMAT_XRGB8888,
+    GBM_FORMAT_ARGB8888,
+  };
+
+  g_return_val_if_fail (META_IS_KMS_PLANE (kms_plane), FALSE);
+
+  cogl_display_egl_determine_attributes (cogl_display,
+                                         &cogl_display->onscreen_template->config,
+                                         attrs);
+
+  /* Secondary GPU contexts use GLES3, which doesn't guarantee that 10 bpc
+   * formats without alpha are renderable
+   */
+  if (!should_surface_be_sharable (onscreen) &&
+      meta_renderer_native_choose_gbm_format (kms_plane,
+                                              egl,
+                                              egl_display,
+                                              attrs,
+                                              alphaless_10bpc_formats,
+                                              G_N_ELEMENTS (alphaless_10bpc_formats),
+                                              "surface",
+                                              out_config,
+                                              error))
+    return TRUE;
+
+  if (meta_renderer_native_choose_gbm_format (kms_plane,
+                                              egl,
+                                              egl_display,
+                                              attrs,
+                                              default_formats,
+                                              G_N_ELEMENTS (default_formats),
+                                              "surface",
+                                              out_config,
+                                              error))
+    return TRUE;
+
+  return FALSE;
 }
 
 static gboolean
@@ -1766,6 +2127,7 @@ create_surfaces_gbm (CoglOnscreen        *onscreen,
   struct gbm_surface *new_gbm_surface = NULL;
   EGLNativeWindowType egl_native_window;
   EGLSurface new_egl_surface;
+  EGLConfig egl_config;
   uint32_t format;
   GArray *modifiers;
 
@@ -1775,9 +2137,14 @@ create_surfaces_gbm (CoglOnscreen        *onscreen,
   render_device_gbm = META_RENDER_DEVICE_GBM (renderer_gpu_data->render_device);
   gbm_device = meta_render_device_gbm_get_gbm_device (render_device_gbm);
 
+  if (!(cogl_renderer_egl->private_features &
+        COGL_EGL_WINSYS_FEATURE_NO_CONFIG_CONTEXT) ||
+      !choose_onscreen_egl_config (onscreen, &egl_config, error))
+    egl_config = cogl_display_egl->egl_config;
+
   format = get_gbm_format_from_egl (egl,
                                     cogl_renderer_egl->edpy,
-                                    cogl_display_egl->egl_config);
+                                    egl_config);
 
   if (meta_renderer_native_use_modifiers (renderer_native))
     modifiers = get_supported_modifiers (onscreen, format);
@@ -1811,7 +2178,7 @@ create_surfaces_gbm (CoglOnscreen        *onscreen,
     {
       g_set_error (error, COGL_WINSYS_ERROR,
                    COGL_WINSYS_ERROR_CREATE_ONSCREEN,
-                   "Failed to allocate surface");
+                   "Failed to allocate surface: %s", g_strerror (errno));
       return FALSE;
     }
 
@@ -1819,7 +2186,7 @@ create_surfaces_gbm (CoglOnscreen        *onscreen,
   new_egl_surface =
     meta_egl_create_window_surface (egl,
                                     cogl_renderer_egl->edpy,
-                                    cogl_display_egl->egl_config,
+                                    egl_config,
                                     egl_native_window,
                                     NULL,
                                     error);
@@ -2053,7 +2420,7 @@ init_secondary_gpu_state_gpu_copy_mode (MetaRendererNative         *renderer_nat
   if (!gbm_surface)
     {
       g_set_error (error, G_IO_ERROR, G_IO_ERROR_FAILED,
-                   "Failed to create gbm_surface: %s", strerror (errno));
+                   "Failed to create gbm_surface: %s", g_strerror (errno));
       return FALSE;
     }
 
@@ -2116,9 +2483,7 @@ pick_secondary_gpu_framebuffer_format_for_cpu (CoglOnscreen *onscreen)
   /* Check if any of our preferred formats are supported. */
   for (k = 0; k < G_N_ELEMENTS (preferred_formats); k++)
     {
-      g_assert (meta_cogl_pixel_format_from_drm_format (preferred_formats[k],
-                                                        NULL,
-                                                        NULL));
+      g_assert (meta_format_info_from_drm_format (preferred_formats[k]));
 
       for (i = 0; i < formats->len; i++)
         {
@@ -2138,7 +2503,7 @@ pick_secondary_gpu_framebuffer_format_for_cpu (CoglOnscreen *onscreen)
     {
       drm_format = g_array_index (formats, uint32_t, i);
 
-      if (meta_cogl_pixel_format_from_drm_format (drm_format, NULL, NULL))
+      if (meta_format_info_from_drm_format (drm_format))
         return drm_format;
     }
 
@@ -2268,15 +2633,18 @@ init_secondary_gpu_state (MetaRendererNative  *renderer_native,
 void
 meta_onscreen_native_invalidate (MetaOnscreenNative *onscreen_native)
 {
+  const MetaOutputInfo *output_info =
+    meta_output_get_info (onscreen_native->output);
+
   if (meta_crtc_get_gamma_lut_size (onscreen_native->crtc) > 0)
     onscreen_native->is_gamma_lut_invalid = TRUE;
-  if (meta_output_is_privacy_screen_supported (onscreen_native->output))
+  if (output_info->supports_privacy_screen)
     onscreen_native->is_privacy_screen_invalid = TRUE;
-  if (meta_output_is_color_space_supported (onscreen_native->output,
-                                            META_OUTPUT_COLORSPACE_DEFAULT))
+  if (output_info->supported_color_spaces &
+      (1 << META_OUTPUT_COLORSPACE_DEFAULT))
     onscreen_native->is_color_space_invalid = TRUE;
-  if (meta_output_is_hdr_metadata_supported (onscreen_native->output,
-                                             META_OUTPUT_HDR_METADATA_EOTF_TRADITIONAL_GAMMA_SDR))
+  if (output_info->supported_hdr_eotfs &
+      (1 << META_OUTPUT_HDR_METADATA_EOTF_TRADITIONAL_GAMMA_SDR))
     onscreen_native->is_hdr_metadata_invalid = TRUE;
 }
 
@@ -2332,6 +2700,7 @@ meta_onscreen_native_new (MetaRendererNative *renderer_native,
 {
   MetaOnscreenNative *onscreen_native;
   CoglFramebufferDriverConfig driver_config;
+  const MetaOutputInfo *output_info = meta_output_get_info (output);
 
   driver_config = (CoglFramebufferDriverConfig) {
     .type = COGL_FRAMEBUFFER_DRIVER_TYPE_BACK,
@@ -2358,7 +2727,7 @@ meta_onscreen_native_new (MetaRendererNative *renderer_native,
                           onscreen_native);
     }
 
-  if (meta_output_is_privacy_screen_supported (output))
+  if (output_info->supports_privacy_screen)
     {
       onscreen_native->is_privacy_screen_invalid = TRUE;
       onscreen_native->privacy_screen_changed_handler_id =
@@ -2367,8 +2736,8 @@ meta_onscreen_native_new (MetaRendererNative *renderer_native,
                           onscreen_native);
     }
 
-  if (meta_output_is_color_space_supported (output,
-                                            META_OUTPUT_COLORSPACE_DEFAULT))
+  if (output_info->supported_color_spaces &
+      (1 << META_OUTPUT_COLORSPACE_DEFAULT))
     {
       onscreen_native->is_color_space_invalid = TRUE;
       onscreen_native->color_space_changed_handler_id =
@@ -2377,8 +2746,8 @@ meta_onscreen_native_new (MetaRendererNative *renderer_native,
                           onscreen_native);
     }
 
-  if (meta_output_is_hdr_metadata_supported (output,
-                                             META_OUTPUT_HDR_METADATA_EOTF_TRADITIONAL_GAMMA_SDR))
+  if (output_info->supported_hdr_eotfs &
+      (1 << META_OUTPUT_HDR_METADATA_EOTF_TRADITIONAL_GAMMA_SDR))
     {
       onscreen_native->is_hdr_metadata_invalid = TRUE;
       onscreen_native->hdr_metadata_changed_handler_id =
@@ -2421,6 +2790,7 @@ meta_onscreen_native_dispose (GObject *object)
     {
     case META_RENDERER_NATIVE_MODE_GBM:
       g_clear_object (&onscreen_native->gbm.next_fb);
+      g_clear_object (&onscreen_native->gbm.next_scanout);
       free_current_bo (onscreen);
       break;
     case META_RENDERER_NATIVE_MODE_SURFACELESS:

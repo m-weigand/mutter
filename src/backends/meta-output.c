@@ -74,6 +74,7 @@ typedef struct _MetaOutputPrivate
 
   MetaOutputHdrMetadata hdr_metadata;
   MetaOutputColorspace color_space;
+  MetaOutputRGBRange rgb_range;
 } MetaOutputPrivate;
 
 G_DEFINE_ABSTRACT_TYPE_WITH_PRIVATE (MetaOutput, meta_output, G_TYPE_OBJECT)
@@ -267,6 +268,9 @@ meta_output_assign_crtc (MetaOutput                 *output,
   priv->is_primary = output_assignment->is_primary;
   priv->is_presentation = output_assignment->is_presentation;
   priv->is_underscanning = output_assignment->is_underscanning;
+
+  if (output_assignment->rgb_range)
+    priv->rgb_range = output_assignment->rgb_range;
 
   priv->has_max_bpc = output_assignment->has_max_bpc;
   if (priv->has_max_bpc)
@@ -464,13 +468,6 @@ meta_output_get_privacy_screen_state (MetaOutput *output)
 }
 
 gboolean
-meta_output_is_privacy_screen_supported (MetaOutput *output)
-{
-  return !(meta_output_get_privacy_screen_state (output) ==
-           META_PRIVACY_SCREEN_UNAVAILABLE);
-}
-
-gboolean
 meta_output_is_privacy_screen_enabled (MetaOutput *output)
 {
   MetaOutputPrivate *priv = meta_output_get_instance_private (output);
@@ -513,37 +510,22 @@ meta_output_set_privacy_screen_enabled (MetaOutput  *output,
 }
 
 gboolean
-meta_output_info_is_color_space_supported (const MetaOutputInfo *output_info,
-                                           MetaOutputColorspace  color_space)
+meta_output_info_get_min_refresh_rate (const MetaOutputInfo *output_info,
+                                       int                  *min_refresh_rate)
 {
-  MetaEdidColorimetry colorimetry;
+  int min_vert_rate_hz;
 
   if (!output_info->edid_info)
     return FALSE;
 
-  colorimetry = output_info->edid_info->colorimetry;
+  min_vert_rate_hz = output_info->edid_info->min_vert_rate_hz;
 
-  switch (color_space)
-    {
-    case META_OUTPUT_COLORSPACE_DEFAULT:
-      return TRUE;
-    case META_OUTPUT_COLORSPACE_BT2020:
-      return !!(colorimetry & META_EDID_COLORIMETRY_BT2020RGB);
-    default:
-      return FALSE;
-    }
-}
-
-gboolean
-meta_output_is_color_space_supported (MetaOutput           *output,
-                                      MetaOutputColorspace  color_space)
-{
-  MetaOutputClass *output_class = META_OUTPUT_GET_CLASS (output);
-
-  if (!output_class->is_color_space_supported)
+  if (min_vert_rate_hz <= 0)
     return FALSE;
 
-  return output_class->is_color_space_supported (output, color_space);
+  *min_refresh_rate = min_vert_rate_hz;
+
+  return TRUE;
 }
 
 void
@@ -580,47 +562,6 @@ meta_output_colorspace_get_name (MetaOutputColorspace color_space)
   g_assert_not_reached ();
 }
 
-gboolean
-meta_output_is_hdr_metadata_supported (MetaOutput *output,
-                                       MetaOutputHdrMetadataEOTF eotf)
-{
-  MetaOutputClass *output_class = META_OUTPUT_GET_CLASS (output);
-  const MetaOutputInfo *output_info = meta_output_get_info (output);
-  MetaEdidTransferFunction tf = 0;
-
-  g_assert (output_info != NULL);
-  if (!output_info->edid_info)
-    return FALSE;
-
-  if ((output_info->edid_info->hdr_static_metadata.sm &
-       META_EDID_STATIC_METADATA_TYPE1) == 0)
-    return FALSE;
-
-  switch (eotf)
-    {
-    case META_OUTPUT_HDR_METADATA_EOTF_TRADITIONAL_GAMMA_SDR:
-      tf = META_EDID_TF_TRADITIONAL_GAMMA_SDR;
-      break;
-    case META_OUTPUT_HDR_METADATA_EOTF_TRADITIONAL_GAMMA_HDR:
-      tf = META_EDID_TF_TRADITIONAL_GAMMA_HDR;
-      break;
-    case META_OUTPUT_HDR_METADATA_EOTF_PQ:
-      tf = META_EDID_TF_PQ;
-      break;
-    case META_OUTPUT_HDR_METADATA_EOTF_HLG:
-      tf = META_EDID_TF_HLG;
-      break;
-    }
-
-  if ((output_info->edid_info->hdr_static_metadata.tf & tf) == 0)
-    return FALSE;
-
-  if (!output_class->is_hdr_metadata_supported)
-    return FALSE;
-
-  return output_class->is_hdr_metadata_supported (output);
-}
-
 void
 meta_output_set_hdr_metadata (MetaOutput            *output,
                               MetaOutputHdrMetadata *metadata)
@@ -640,14 +581,50 @@ meta_output_peek_hdr_metadata (MetaOutput *output)
   return &priv->hdr_metadata;
 }
 
+MetaOutputRGBRange
+meta_output_peek_rgb_range (MetaOutput *output)
+{
+  MetaOutputPrivate *priv = meta_output_get_instance_private (output);
+
+  return priv->rgb_range;
+}
+
+gboolean
+meta_output_is_vrr_enabled (MetaOutput *output)
+{
+  MetaOutputPrivate *priv = meta_output_get_instance_private (output);
+  MetaCrtc *crtc = priv->crtc;
+  const MetaCrtcConfig *crtc_config;
+  const MetaCrtcModeInfo *crtc_mode_info;
+
+  if (!crtc)
+    return FALSE;
+
+  crtc_config = meta_crtc_get_config (crtc);
+  g_assert (crtc_config != NULL);
+  g_assert (crtc_config->mode != NULL);
+
+  crtc_mode_info = meta_crtc_mode_get_info (crtc_config->mode);
+  g_assert (crtc_mode_info != NULL);
+
+  return crtc_mode_info->refresh_rate_mode ==
+         META_CRTC_REFRESH_RATE_MODE_VARIABLE;
+}
+
 static void
 meta_output_init (MetaOutput *output)
 {
   MetaOutputPrivate *priv = meta_output_get_instance_private (output);
 
   priv->backlight = -1;
+  priv->is_primary = FALSE;
+  priv->is_presentation = FALSE;
+  priv->is_underscanning = FALSE;
   priv->color_space = META_OUTPUT_COLORSPACE_DEFAULT;
   priv->hdr_metadata.active = FALSE;
+  priv->has_max_bpc = FALSE;
+  priv->max_bpc = 0;
+  priv->rgb_range = META_OUTPUT_RGB_RANGE_AUTO;
 }
 
 static void

@@ -88,6 +88,7 @@ typedef struct _MonitorTestCaseMode
   int width;
   int height;
   float refresh_rate;
+  MetaCrtcRefreshRateMode refresh_rate_mode;
   MetaCrtcModeFlag flags;
 } MonitorTestCaseMode;
 
@@ -106,6 +107,7 @@ typedef struct _MonitorTestCaseOutput
   gboolean is_laptop_panel;
   gboolean is_underscanning;
   unsigned int max_bpc;
+  MetaOutputRGBRange rgb_range;
   const char *serial;
   MetaMonitorTransform panel_orientation_transform;
   gboolean hotplug_mode;
@@ -144,6 +146,7 @@ typedef struct _MonitorTestCaseMonitorMode
   int width;
   int height;
   float refresh_rate;
+  MetaCrtcRefreshRateMode refresh_rate_mode;
   int n_scales;
   float scales[MAX_N_SCALES];
   MetaCrtcModeFlag flags;
@@ -161,6 +164,7 @@ typedef struct _MonitorTestCaseMonitor
   int height_mm;
   gboolean is_underscanning;
   unsigned int max_bpc;
+  MetaOutputRGBRange rgb_range;
 } MonitorTestCaseMonitor;
 
 typedef struct _MonitorTestCaseLogicalMonitor

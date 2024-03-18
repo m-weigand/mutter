@@ -48,6 +48,7 @@ paint_test_backface_culling (TestState *state,
 {
   int draw_num;
   CoglPipeline *base_pipeline = cogl_pipeline_new (test_ctx);
+  CoglColor color;
 
   cogl_framebuffer_orthographic (framebuffer,
                                  0, 0,
@@ -114,7 +115,10 @@ paint_test_backface_culling (TestState *state,
       /* If the texture is sliced then cogl_polygon doesn't work so
          we'll just use a solid color instead */
       if (cogl_texture_is_sliced (state->texture))
-        cogl_pipeline_set_color4ub (pipeline, 255, 0, 0, 255);
+        {
+          cogl_color_init_from_4f (&color, 1.0, 0.0, 0.0, 1.0);
+          cogl_pipeline_set_color (pipeline, &color);
+        }
 
       /* Draw a front-facing polygon */
       verts[0].x = x1;    verts[0].y = y2;
@@ -131,7 +135,7 @@ paint_test_backface_culling (TestState *state,
                                            4,
                                            verts);
       cogl_primitive_draw (primitive, framebuffer, pipeline);
-      cogl_object_unref (primitive);
+      g_object_unref (primitive);
 
       x1 = x2;
       x2 = x1 + (float)(TEXTURE_RENDER_SIZE);
@@ -151,17 +155,17 @@ paint_test_backface_culling (TestState *state,
                                            4,
                                            verts);
       cogl_primitive_draw (primitive, framebuffer, pipeline);
-      cogl_object_unref (primitive);
+      g_object_unref (primitive);
 
       x1 = x2;
       x2 = x1 + (float)(TEXTURE_RENDER_SIZE);
 
       cogl_framebuffer_pop_matrix (framebuffer);
 
-      cogl_object_unref (pipeline);
+      g_object_unref (pipeline);
     }
 
-  cogl_object_unref (base_pipeline);
+  g_object_unref (base_pipeline);
 }
 
 static void
@@ -248,7 +252,7 @@ paint (TestState *state)
                                    0, TEXTURE_RENDER_SIZE * 8,
                                    state->width,
                                    state->height + TEXTURE_RENDER_SIZE * 8);
-  cogl_object_unref (pipeline);
+  g_object_unref (pipeline);
 
   validate_result (test_fb, 0);
   validate_result (test_fb, 8);
@@ -306,8 +310,8 @@ test_backface_culling (void)
   paint (&state);
 
   g_object_unref (state.offscreen);
-  cogl_object_unref (state.offscreen_tex);
-  cogl_object_unref (state.texture);
+  g_object_unref (state.offscreen_tex);
+  g_object_unref (state.texture);
 
   if (cogl_test_verbose ())
     g_print ("OK\n");

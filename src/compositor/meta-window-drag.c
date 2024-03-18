@@ -26,7 +26,10 @@
 #include "core/frame.h"
 #include "core/window-private.h"
 #include "meta/meta-enum-types.h"
+
+#ifdef HAVE_X11_CLIENT
 #include "x11/window-x11.h"
+#endif
 
 enum {
   PROP_0,
@@ -53,6 +56,8 @@ struct _MetaWindowDrag {
   MetaGrabOp grab_op;
   ClutterGrab *grab;
 
+  graphene_point_t pos_hint;
+
   ClutterInputDevice *leading_device;
   ClutterEventSequence *leading_touch_sequence;
   double anchor_rel_x;
@@ -71,11 +76,12 @@ struct _MetaWindowDrag {
   /* if TRUE, window was maximized at start of current grab op */
   gboolean shaken_loose;
 
-  gulong unmanaging_id;
+  gulong unmanaged_id;
   gulong size_changed_id;
 
   guint tile_preview_timeout_id;
   guint preview_tile_mode : 2;
+  guint pos_hint_set : 1;
 };
 
 G_DEFINE_FINAL_TYPE (MetaWindowDrag, meta_window_drag, G_TYPE_OBJECT)
@@ -175,7 +181,7 @@ meta_window_drag_finalize (GObject *object)
 
   hide_tile_preview (window_drag);
   g_clear_pointer (&window_drag->handler, clutter_actor_destroy);
-  g_clear_pointer (&window_drag->grab, clutter_grab_unref);
+  g_clear_object (&window_drag->grab);
   g_clear_object (&window_drag->effective_grab_window);
 
   G_OBJECT_CLASS (meta_window_drag_parent_class)->finalize (object);
@@ -328,6 +334,8 @@ meta_cursor_for_grab_op (MetaGrabOp op)
       return META_CURSOR_EAST_RESIZE;
       break;
     case META_GRAB_OP_MOVING:
+      return META_CURSOR_DEFAULT;
+      break;
     case META_GRAB_OP_KEYBOARD_MOVING:
     case META_GRAB_OP_KEYBOARD_RESIZING_UNKNOWN:
       return META_CURSOR_MOVE_OR_RESIZE_WINDOW;
@@ -380,7 +388,7 @@ meta_window_drag_end (MetaWindowDrag *window_drag)
 
   clutter_grab_dismiss (window_drag->grab);
 
-  g_clear_signal_handler (&window_drag->unmanaging_id, grab_window);
+  g_clear_signal_handler (&window_drag->unmanaged_id, grab_window);
   g_clear_signal_handler (&window_drag->size_changed_id, grab_window);
 
   meta_topic (META_DEBUG_WINDOW_OPS,
@@ -391,17 +399,14 @@ meta_window_drag_end (MetaWindowDrag *window_drag)
 
   clear_move_resize_later (window_drag);
 
-  if (meta_is_wayland_compositor ())
-    meta_display_sync_wayland_input_focus (display);
-
   g_signal_emit_by_name (display, "grab-op-end", grab_window, grab_op);
 
   g_signal_emit (window_drag, signals[ENDED], 0);
 }
 
 static void
-on_grab_window_unmanaging (MetaWindow     *window,
-                           MetaWindowDrag *window_drag)
+on_grab_window_unmanaged (MetaWindow     *window,
+                          MetaWindowDrag *window_drag)
 {
   meta_window_drag_end (window_drag);
 }
@@ -1498,9 +1503,11 @@ update_resize (MetaWindowDrag          *window_drag,
    * resize the window when the window responds, or when we time
    * the response out.
    */
+#ifdef HAVE_X11_CLIENT
   if (window->client_type == META_WINDOW_CLIENT_TYPE_X11 &&
       meta_window_x11_is_awaiting_sync_response (window))
     return;
+#endif
 
   meta_window_get_frame_rect (window, &old_rect);
 
@@ -1779,6 +1786,11 @@ meta_window_drag_begin (MetaWindowDrag       *window_drag,
     {
       warp_grab_pointer (window_drag, window, grab_op, &root_x, &root_y);
     }
+  else if (window_drag->pos_hint_set)
+    {
+      root_x = window_drag->pos_hint.x;
+      root_y = window_drag->pos_hint.y;
+    }
   else
     {
       ClutterBackend *clutter_backend = meta_backend_get_clutter_backend (backend);
@@ -1848,9 +1860,9 @@ meta_window_drag_begin (MetaWindowDrag       *window_drag,
   meta_window_ungrab_keys (grab_window);
 
   g_set_object (&window_drag->effective_grab_window, grab_window);
-  window_drag->unmanaging_id =
-    g_signal_connect (grab_window, "unmanaging",
-                      G_CALLBACK (on_grab_window_unmanaging), window_drag);
+  window_drag->unmanaged_id =
+    g_signal_connect (grab_window, "unmanaged",
+                      G_CALLBACK (on_grab_window_unmanaged), window_drag);
 
   window_drag->leading_device = device;
   window_drag->leading_touch_sequence = sequence;
@@ -1881,12 +1893,6 @@ meta_window_drag_begin (MetaWindowDrag       *window_drag,
     CLAMP ((double) (root_y - window_drag->initial_window_pos.y) /
            window_drag->initial_window_pos.height,
            0, 1);
-
-  if (meta_is_wayland_compositor ())
-    {
-      meta_display_sync_wayland_input_focus (display);
-      meta_display_cancel_touch (display);
-    }
 
   g_signal_emit_by_name (display, "grab-op-begin", grab_window, grab_op);
 
@@ -1920,4 +1926,13 @@ void
 meta_window_drag_update_edges (MetaWindowDrag *window_drag)
 {
   meta_window_drag_edge_resistance_cleanup (window_drag);
+}
+
+void
+meta_window_drag_set_position_hint (MetaWindowDrag   *window_drag,
+                                    graphene_point_t *pos_hint)
+{
+  window_drag->pos_hint_set = pos_hint != NULL;
+  if (pos_hint)
+    window_drag->pos_hint = *pos_hint;
 }

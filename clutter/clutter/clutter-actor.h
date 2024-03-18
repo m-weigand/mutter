@@ -51,56 +51,10 @@ G_BEGIN_DECLS
 #define CLUTTER_IS_ACTOR_CLASS(klass)   (G_TYPE_CHECK_CLASS_TYPE ((klass), CLUTTER_TYPE_ACTOR))
 #define CLUTTER_ACTOR_GET_CLASS(obj)    (G_TYPE_INSTANCE_GET_CLASS ((obj), CLUTTER_TYPE_ACTOR, ClutterActorClass))
 
-/**
- * CLUTTER_ACTOR_SET_FLAGS:
- * @a: a #ClutterActor
- * @f: the #ClutterActorFlags to set
- *
- * Sets the given flags on a #ClutterActor
- *
- * Deprecated: 1.24: Changing flags directly is heavily discouraged in
- *   newly written code. #ClutterActor will take care of setting the
- *   internal state.
- */
-#define CLUTTER_ACTOR_SET_FLAGS(a,f) \
-  CLUTTER_MACRO_DEPRECATED \
-  (((ClutterActor*)(a))->flags |= (f))
-
-/**
- * CLUTTER_ACTOR_UNSET_FLAGS:
- * @a: a #ClutterActor
- * @f: the #ClutterActorFlags to unset
- *
- * Unsets the given flags on a #ClutterActor
- *
- * Deprecated: 1.24: Changing flags directly is heavily discouraged in
- *   newly written code. #ClutterActor will take care of unsetting the
- *   internal state.
- */
-#define CLUTTER_ACTOR_UNSET_FLAGS(a,f) \
-  CLUTTER_MACRO_DEPRECATED \
-  (((ClutterActor*)(a))->flags &= ~(f))
+G_DEFINE_AUTOPTR_CLEANUP_FUNC (ClutterActor, g_object_unref)
 
 typedef struct _ClutterActorClass    ClutterActorClass;
 typedef struct _ClutterActorPrivate  ClutterActorPrivate;
-
-/**
- * ClutterCallback:
- * @actor: a #ClutterActor
- * @data: (closure): user data
- *
- * Generic callback
- */
-typedef void (*ClutterCallback) (ClutterActor *actor,
-                                 gpointer      data);
-
-/**
- * CLUTTER_CALLBACK:
- * @f: a function
- *
- * Convenience macro to cast a function to #ClutterCallback
- */
-#define CLUTTER_CALLBACK(f)        ((ClutterCallback) (f))
 
 
 struct _ClutterActor
@@ -119,9 +73,9 @@ struct _ClutterActor
 
 /**
  * ClutterActorClass:
- * @show: signal class handler for #ClutterActor::show; it must chain
+ * @show: signal class handler for [signal@Clutter.Actor::show]; it must chain
  *   up to the parent's implementation
- * @hide: signal class handler for #ClutterActor::hide; it must chain
+ * @hide: signal class handler for [signal@Clutter.Actor::hide]; it must chain
  *   up to the parent's implementation
  * @hide_all: virtual function for containers and composite actors, to
  *   determine which children should be shown when calling
@@ -161,26 +115,26 @@ struct _ClutterActor
  *   have changed, the cached transformation must be invalidated by calling
  *   clutter_actor_invalidate_transform(); it must chain up to the parent's
  *   implementation
- * @parent_set: signal class handler for the #ClutterActor::parent-set
- * @destroy: signal class handler for #ClutterActor::destroy. It must
+ * @parent_set: signal class handler for the [signal@Clutter.Actor::parent-set]
+ * @destroy: signal class handler for [signal@Clutter.Actor::destroy]. It must
  *   chain up to the parent's implementation
  * @pick: virtual function, used to draw an outline of the actor with
  *   the given color
- * @event: class handler for #ClutterActor::event
- * @button_press_event: class handler for #ClutterActor::button-press-event
+ * @event: class handler for [signal@Clutter.Actor::event]
+ * @button_press_event: class handler for [signal@Clutter.Actor::button-press-event]
  * @button_release_event: class handler for
- *   #ClutterActor::button-release-event
- * @scroll_event: signal class closure for #ClutterActor::scroll-event
- * @key_press_event: signal class closure for #ClutterActor::key-press-event
+ *   [signal@Clutter.Actor::button-release-event]
+ * @scroll_event: signal class closure for [signal@Clutter.Actor::scroll-event]
+ * @key_press_event: signal class closure for [signal@Clutter.Actor::key-press-event]
  * @key_release_event: signal class closure for
- *   #ClutterActor::key-release-event
- * @motion_event: signal class closure for #ClutterActor::motion-event
- * @enter_event: signal class closure for #ClutterActor::enter-event
- * @leave_event: signal class closure for #ClutterActor::leave-event
- * @captured_event: signal class closure for #ClutterActor::captured-event
- * @key_focus_in: signal class closure for #ClutterActor::key-focus-in
- * @key_focus_out: signal class closure for #ClutterActor::key-focus-out
- * @queue_relayout: class handler for #ClutterActor::queue-relayout
+ *   [signal@Clutter.Actor::key-release-event]
+ * @motion_event: signal class closure for [signal@Clutter.Actor::motion-event]
+ * @enter_event: signal class closure for [signal@Clutter.Actor::enter-event]
+ * @leave_event: signal class closure for [signal@Clutter.Actor::leave-event]
+ * @captured_event: signal class closure for [signal@Clutter.Actor::captured-event]
+ * @key_focus_in: signal class closure for [signal@Clutter.Actor::key-focus-in]
+ * @key_focus_out: signal class closure for [signal@Clutter.Actor::key-focus-out]
+ * @queue_relayout: class handler for [signal@Clutter.Actor::queue-relayout]
  * @get_accessible: virtual function, returns the accessible object that
  *   describes the actor to an assistive technology.
  * @get_paint_volume: virtual function, for sub-classes to define their
@@ -191,7 +145,7 @@ struct _ClutterActor
  *   clutter_actor_set_offscreen_redirect() for details.
  * @paint_node: virtual function for creating paint nodes and attaching
  *   them to the render tree
- * @touch_event: signal class closure for #ClutterActor::touch-event
+ * @touch_event: signal class closure for [signal@Clutter.Actor::touch-event]
  *
  * Base class for actors.
  */
@@ -276,6 +230,14 @@ struct _ClutterActorClass
   void     (* resource_scale_changed) (ClutterActor *self);
   float    (* calculate_resource_scale) (ClutterActor *self,
                                          int           phase);
+
+  void     (* child_added)          (ClutterActor         *self,
+                                     ClutterActor         *child);
+  void     (* child_removed)        (ClutterActor         *self,
+                                     ClutterActor         *child);
+
+  /* private */
+  GType layout_manager_type;
 };
 
 /**
@@ -327,6 +289,9 @@ void                            clutter_actor_paint                             
 CLUTTER_EXPORT
 void                            clutter_actor_continue_paint                    (ClutterActor                *self,
                                                                                  ClutterPaintContext         *paint_context);
+CLUTTER_EXPORT
+ClutterPaintNode *              clutter_actor_create_texture_paint_node         (ClutterActor                *self,
+                                                                                 CoglTexture                 *texture);
 CLUTTER_EXPORT
 void                            clutter_actor_pick                              (ClutterActor                *actor,
                                                                                  ClutterPickContext          *pick_context);
@@ -614,7 +579,7 @@ void                            clutter_actor_get_background_color              
 CLUTTER_EXPORT
 const ClutterPaintVolume *      clutter_actor_get_paint_volume                  (ClutterActor               *self);
 CLUTTER_EXPORT
-const ClutterPaintVolume *      clutter_actor_get_transformed_paint_volume      (ClutterActor               *self,
+ClutterPaintVolume *            clutter_actor_get_transformed_paint_volume      (ClutterActor               *self,
                                                                                  ClutterActor               *relative_to_ancestor);
 
 /* Events */
@@ -907,5 +872,11 @@ void clutter_actor_invalidate_transform (ClutterActor *self);
 
 CLUTTER_EXPORT
 void clutter_actor_invalidate_paint_volume (ClutterActor *self);
+
+CLUTTER_EXPORT
+void clutter_actor_class_set_layout_manager_type (ClutterActorClass *actor_class,
+                                                  GType              type);
+CLUTTER_EXPORT
+GType clutter_actor_class_get_layout_manager_type (ClutterActorClass *actor_class);
 
 G_END_DECLS

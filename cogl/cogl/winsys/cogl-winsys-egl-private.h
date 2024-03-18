@@ -30,7 +30,6 @@
 
 #pragma once
 
-#include "cogl/cogl-defines.h"
 #include "cogl/cogl-context.h"
 #include "cogl/cogl-context-private.h"
 #include "cogl/cogl-framebuffer-private.h"
@@ -93,14 +92,15 @@ typedef struct _CoglWinsysEGLVtable
 
 typedef enum _CoglEGLWinsysFeature
 {
-  COGL_EGL_WINSYS_FEATURE_SWAP_REGION                   =1L<<0,
-  COGL_EGL_WINSYS_FEATURE_EGL_IMAGE_FROM_X11_PIXMAP     =1L<<1,
-  COGL_EGL_WINSYS_FEATURE_EGL_IMAGE_FROM_WAYLAND_BUFFER =1L<<2,
-  COGL_EGL_WINSYS_FEATURE_CREATE_CONTEXT                =1L<<3,
-  COGL_EGL_WINSYS_FEATURE_BUFFER_AGE                    =1L<<4,
-  COGL_EGL_WINSYS_FEATURE_FENCE_SYNC                    =1L<<5,
-  COGL_EGL_WINSYS_FEATURE_SURFACELESS_CONTEXT           =1L<<6,
-  COGL_EGL_WINSYS_FEATURE_CONTEXT_PRIORITY              =1L<<7,
+  COGL_EGL_WINSYS_FEATURE_SWAP_REGION                   = 1L << 0,
+  COGL_EGL_WINSYS_FEATURE_EGL_IMAGE_FROM_X11_PIXMAP     = 1L << 1,
+  COGL_EGL_WINSYS_FEATURE_EGL_IMAGE_FROM_WAYLAND_BUFFER = 1L << 2,
+  COGL_EGL_WINSYS_FEATURE_CREATE_CONTEXT                = 1L << 3,
+  COGL_EGL_WINSYS_FEATURE_BUFFER_AGE                    = 1L << 4,
+  COGL_EGL_WINSYS_FEATURE_FENCE_SYNC                    = 1L << 5,
+  COGL_EGL_WINSYS_FEATURE_SURFACELESS_CONTEXT           = 1L << 6,
+  COGL_EGL_WINSYS_FEATURE_CONTEXT_PRIORITY              = 1L << 7,
+  COGL_EGL_WINSYS_FEATURE_NO_CONFIG_CONTEXT             = 1L << 8,
 } CoglEGLWinsysFeature;
 
 typedef struct _CoglRendererEGL
@@ -193,7 +193,7 @@ COGL_EXPORT gboolean
 _cogl_winsys_egl_renderer_connect_common (CoglRenderer *renderer,
                                           GError **error);
 
-void
+COGL_EXPORT void
 cogl_display_egl_determine_attributes (CoglDisplay                 *display,
                                        const CoglFramebufferConfig *config,
                                        EGLint                      *attributes);

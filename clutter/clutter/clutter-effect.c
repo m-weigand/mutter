@@ -35,12 +35,12 @@
  *
  * Effects should be the preferred way to affect the paint sequence of an
  * actor without sub-classing the actor itself and overriding the
- * #ClutterActorClass.paint()_ virtual function.
+ * [vfunc@Clutter.Actor.paint] virtual function.
  *
  * ## Implementing a ClutterEffect
  *
  * Creating a sub-class of #ClutterEffect requires overriding the
- * #ClutterEffectClass.paint() method. The implementation of the function should look
+ * [vfunc@Clutter.Effect.paint] method. The implementation of the function should look
  * something like this:
  *
  * ```c
@@ -84,8 +84,8 @@
  *  typedef struct {
  *    ClutterEffect parent_instance;
  *
- *    CoglHandle rect_1;
- *    CoglHandle rect_2;
+ *    CoglPipeline *rect_1;
+ *    CoglPipeline *rect_2;
  *  } MyEffect;
  *
  *  typedef struct _ClutterEffectClass MyEffectClass;
@@ -97,17 +97,18 @@
  *                       ClutterActor     *actor)
  *  {
  *    MyEffect *self = MY_EFFECT (meta);
+ *    CoglColor color;
  *
  *    // Clear the previous state //
  *    if (self->rect_1)
  *      {
- *        cogl_object_unref (self->rect_1);
+ *        g_object_unref (self->rect_1);
  *        self->rect_1 = NULL;
  *      }
  *
  *    if (self->rect_2)
  *      {
- *        cogl_object_unref (self->rect_2);
+ *        g_object_unref (self->rect_2);
  *        self->rect_2 = NULL;
  *      }
  *
@@ -119,12 +120,14 @@
  *      return;
  *
  *    // Create a red material
- *    self->rect_1 = cogl_material_new ();
- *    cogl_material_set_color4f (self->rect_1, 1.0, 0.0, 0.0, 1.0);
+ *    self->rect_1 = cogl_pipeline_new ();
+ *    cogl_color_init_from_4f (&color, 1.0, 1.0, 1.0, 1.0);
+ *    cogl_pipeline_set_color (self->rect_1, &color);
  *
  *    // Create a green material
- *    self->rect_2 = cogl_material_new ();
- *    cogl_material_set_color4f (self->rect_2, 0.0, 1.0, 0.0, 1.0);
+ *    self->rect_2 = cogl_pipeline_new ();
+ *    cogl_color_init_from_4f (&color, 0.0, 1.0, 0.0, 1.0);
+ *    cogl_pipeline_set_color (self->rect_2, &color);
  *  }
  *
  *  static gboolean
@@ -159,7 +162,7 @@
  * ```
  */
 
-#include "clutter/clutter-build-config.h"
+#include "config.h"
 
 #include "clutter/clutter-effect.h"
 

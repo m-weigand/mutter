@@ -30,29 +30,20 @@
  *  Neil Roberts <neil@linux.intel.com>
  */
 
-#include "cogl-config.h"
+#include "config.h"
 
 #include "cogl/cogl-primitive-texture.h"
 #include "cogl/cogl-texture-private.h"
 
-gboolean
-cogl_is_primitive_texture (void *object)
-{
-  return (cogl_is_texture (object) &&
-          COGL_TEXTURE (object)->vtable->is_primitive);
-}
 
 void
-cogl_primitive_texture_set_auto_mipmap (CoglPrimitiveTexture *primitive_texture,
-                                        gboolean value)
+cogl_primitive_texture_set_auto_mipmap (CoglTexture *texture,
+                                        gboolean     value)
 {
-  CoglTexture *texture;
+  g_return_if_fail (COGL_IS_TEXTURE (texture) &&
+                    texture->is_primitive);
 
-  g_return_if_fail (cogl_is_primitive_texture (primitive_texture));
+  g_assert (COGL_TEXTURE_GET_CLASS (texture)->set_auto_mipmap != NULL);
 
-  texture = COGL_TEXTURE (primitive_texture);
-
-  g_assert (texture->vtable->set_auto_mipmap != NULL);
-
-  texture->vtable->set_auto_mipmap (texture, value);
+  COGL_TEXTURE_GET_CLASS (texture)->set_auto_mipmap (texture, value);
 }

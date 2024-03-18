@@ -29,10 +29,9 @@
  *   Georges Basile Stavracas Neto <georges.stavracas@gmail.com>
  */
 
-#include "cogl-config.h"
+#include "config.h"
 
 #include "cogl/cogl-dma-buf-handle.h"
-#include "cogl/cogl-object.h"
 
 #include <errno.h>
 #include <gio/gio.h>

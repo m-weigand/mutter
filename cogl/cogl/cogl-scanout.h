@@ -30,15 +30,21 @@
 #include "cogl/cogl-types.h"
 #include "cogl/cogl-framebuffer.h"
 #include "cogl/cogl-onscreen.h"
+#include "mtk/mtk.h"
 
 #include <glib-object.h>
 
 #define COGL_TYPE_SCANOUT (cogl_scanout_get_type ())
 COGL_EXPORT
-G_DECLARE_INTERFACE (CoglScanout, cogl_scanout,
-                     COGL, SCANOUT, GObject)
+G_DECLARE_FINAL_TYPE (CoglScanout, cogl_scanout,
+                      COGL, SCANOUT, GObject)
 
-struct _CoglScanoutInterface
+#define COGL_TYPE_SCANOUT_BUFFER (cogl_scanout_buffer_get_type ())
+COGL_EXPORT
+G_DECLARE_INTERFACE (CoglScanoutBuffer, cogl_scanout_buffer,
+                     COGL, SCANOUT_BUFFER, GObject)
+
+struct _CoglScanoutBufferInterface
 {
   GTypeInterface parent_iface;
 
@@ -47,6 +53,9 @@ struct _CoglScanoutInterface
                                    int               x,
                                    int               y,
                                    GError          **error);
+
+  int (*get_width) (CoglScanoutBuffer *scanout_buffer);
+  int (*get_height) (CoglScanoutBuffer *scanout_buffer);
 };
 
 COGL_EXPORT
@@ -56,6 +65,36 @@ gboolean cogl_scanout_blit_to_framebuffer (CoglScanout      *scanout,
                                            int               y,
                                            GError          **error);
 
+int cogl_scanout_buffer_get_width (CoglScanoutBuffer *scanout_buffer);
+int cogl_scanout_buffer_get_height (CoglScanoutBuffer *scanout_buffer);
+
+/**
+ * cogl_scanout_get_buffer:
+ *
+ * Returns: (transfer none): a #CoglScanoutBuffer
+ */
+COGL_EXPORT
+CoglScanoutBuffer * cogl_scanout_get_buffer (CoglScanout *scanout);
+
 COGL_EXPORT
 void cogl_scanout_notify_failed (CoglScanout  *scanout,
                                  CoglOnscreen *onscreen);
+
+COGL_EXPORT
+CoglScanout * cogl_scanout_new (CoglScanoutBuffer *scanout_buffer);
+
+COGL_EXPORT
+void cogl_scanout_get_src_rect (CoglScanout     *scanout,
+                                graphene_rect_t *rect);
+
+COGL_EXPORT
+void cogl_scanout_set_src_rect (CoglScanout           *scanout,
+                                const graphene_rect_t *rect);
+
+COGL_EXPORT
+void cogl_scanout_get_dst_rect (CoglScanout  *scanout,
+                                MtkRectangle *rect);
+
+COGL_EXPORT
+void cogl_scanout_set_dst_rect (CoglScanout        *scanout,
+                                const MtkRectangle *rect);

@@ -101,7 +101,7 @@ MetaXWaylandManager *   meta_wayland_compositor_get_xwayland_manager (MetaWaylan
 META_EXPORT_TEST
 MetaContext * meta_wayland_compositor_get_context (MetaWaylandCompositor *compositor);
 
-gboolean meta_wayland_compositor_is_grabbed (MetaWaylandCompositor *compositor);
-
 META_EXPORT_TEST
 MetaWaylandFilterManager * meta_wayland_compositor_get_filter_manager (MetaWaylandCompositor *compositor);
+
+void meta_wayland_compositor_sync_focus (MetaWaylandCompositor *compositor);

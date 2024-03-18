@@ -28,7 +28,7 @@
  *
  */
 
-#include "cogl-config.h"
+#include "config.h"
 
 #include <string.h>
 
@@ -47,77 +47,23 @@
 static gboolean
 _cogl_driver_gl_real_context_init (CoglContext *context)
 {
+  GLuint vertex_array;
 
   _cogl_driver_gl_context_init (context);
 
-  if ((context->driver == COGL_DRIVER_GL3))
-    {
-      GLuint vertex_array;
-
-      /* In a forward compatible context, GL 3 doesn't support rendering
-       * using the default vertex array object. Cogl doesn't use vertex
-       * array objects yet so for now we just create a dummy array
-       * object that we will use as our own default object. Eventually
-       * it could be good to attach the vertex array objects to
-       * CoglPrimitives */
-      context->glGenVertexArrays (1, &vertex_array);
-      context->glBindVertexArray (vertex_array);
-    }
+  /* In a forward compatible context, GL 3 doesn't support rendering
+   * using the default vertex array object. Cogl doesn't use vertex
+   * array objects yet so for now we just create a dummy array
+   * object that we will use as our own default object. Eventually
+   * it could be good to attach the vertex array objects to
+   * CoglPrimitives */
+  context->glGenVertexArrays (1, &vertex_array);
+  context->glBindVertexArray (vertex_array);
 
   /* There's no enable for this in GLES2, it's always on */
-  if (context->driver == COGL_DRIVER_GL3)
-    GE (context, glEnable (GL_PROGRAM_POINT_SIZE) );
+  GE (context, glEnable (GL_PROGRAM_POINT_SIZE) );
 
   return TRUE;
-}
-
-static gboolean
-_cogl_driver_pixel_format_from_gl_internal (CoglContext *context,
-                                            GLenum gl_int_format,
-                                            CoglPixelFormat *out_format)
-{
-  /* It doesn't really matter we convert to exact same
-     format (some have no cogl match anyway) since format
-     is re-matched against cogl when getting or setting
-     texture image data.
-  */
-
-  switch (gl_int_format)
-    {
-    case GL_ALPHA: case GL_ALPHA4: case GL_ALPHA8:
-    case GL_ALPHA12: case GL_ALPHA16:
-      /* Cogl only supports one single-component texture so if we have
-       * ended up with a red texture then it is probably being used as
-       * a component-alpha texture */
-    case GL_RED:
-
-      *out_format = COGL_PIXEL_FORMAT_A_8;
-      return TRUE;
-
-    case GL_LUMINANCE: case GL_LUMINANCE4: case GL_LUMINANCE8:
-    case GL_LUMINANCE12: case GL_LUMINANCE16:
-
-      *out_format = COGL_PIXEL_FORMAT_G_8;
-      return TRUE;
-
-    case GL_RG:
-      *out_format = COGL_PIXEL_FORMAT_RG_88;
-      return TRUE;
-
-    case GL_RGB: case GL_RGB4: case GL_RGB5: case GL_RGB8:
-    case GL_RGB10: case GL_RGB12: case GL_RGB16: case GL_R3_G3_B2:
-
-      *out_format = COGL_PIXEL_FORMAT_RGB_888;
-      return TRUE;
-
-    case GL_RGBA: case GL_RGBA2: case GL_RGBA4: case GL_RGB5_A1:
-    case GL_RGBA8: case GL_RGB10_A2: case GL_RGBA12: case GL_RGBA16:
-
-      *out_format = COGL_PIXEL_FORMAT_RGBA_8888;
-      return TRUE;
-    }
-
-  return FALSE;
 }
 
 static CoglPixelFormat
@@ -134,81 +80,78 @@ _cogl_driver_pixel_format_to_gl (CoglContext     *context,
 
   required_format = format;
 
+  /* For a pixel format to be used as a framebuffer attachment the corresponding
+   * GL internal format must be color-renderable.
+   *
+   * GL core 3.1
+   * The following base internal formats from table 3.11 are color-renderable:
+   * RED, RG, RGB, and RGBA. The sized internal formats from table 3.12 that
+   * have a color-renderable base internal format are also color-renderable. No
+   * other formats, including compressed internal formats, are color-renderable.
+   *
+   * All sized formats from table 3.12 have a color-renderable base internal
+   * format and are therefore color-renderable.
+   *
+   * Only a subset of those formats are required to be supported as
+   * color-renderable (3.8.1 Required Texture Formats). Notably absent from the
+   * required renderbuffer color formats are RGB8, RGB16F and GL_RGB10. They are
+   * required to be supported as texture-renderable though, so using those
+   * internal formats is okay but allocating a framebuffer with those formats
+   * might fail.
+   */
+
   /* Find GL equivalents */
   switch (format)
     {
     case COGL_PIXEL_FORMAT_A_8:
-      /* If the driver doesn't natively support alpha textures then we
+      /* The driver doesn't natively support alpha textures so we
        * will use a red component texture with a swizzle to implement
        * the texture */
-      if (_cogl_has_private_feature
-          (context, COGL_PRIVATE_FEATURE_ALPHA_TEXTURES) == 0)
-        {
-          glintformat = GL_RED;
-          glformat = GL_RED;
-        }
-      else
-        {
-          glintformat = GL_ALPHA;
-          glformat = GL_ALPHA;
-        }
+      glintformat = GL_R8;
+      glformat = GL_RED;
       gltype = GL_UNSIGNED_BYTE;
       break;
-    case COGL_PIXEL_FORMAT_G_8:
-      glintformat = GL_LUMINANCE;
-      glformat = GL_LUMINANCE;
+    case COGL_PIXEL_FORMAT_R_8:
+      glintformat = GL_R8;
+      glformat = GL_RED;
       gltype = GL_UNSIGNED_BYTE;
       break;
 
     case COGL_PIXEL_FORMAT_RG_88:
-      if (cogl_has_feature (context, COGL_FEATURE_ID_TEXTURE_RG))
-        {
-          glintformat = GL_RG;
-          glformat = GL_RG;
-        }
-      else
-        {
-          /* If red-green textures aren't supported then we'll use RGB
-           * as an internal format. Note this should only end up
-           * mattering for downloading the data because Cogl will
-           * refuse to allocate a texture with RG components if RG
-           * textures aren't supported */
-          glintformat = GL_RGB;
-          glformat = GL_RGB;
-          required_format = COGL_PIXEL_FORMAT_RGB_888;
-        }
+      glintformat = GL_RG8;
+      glformat = GL_RG;
       gltype = GL_UNSIGNED_BYTE;
       break;
 
     case COGL_PIXEL_FORMAT_RGB_888:
-      glintformat = GL_RGB;
+      glintformat = GL_RGBA8;
       glformat = GL_RGB;
       gltype = GL_UNSIGNED_BYTE;
       break;
     case COGL_PIXEL_FORMAT_BGR_888:
-      glintformat = GL_RGB;
+      glintformat = GL_RGBA8;
       glformat = GL_BGR;
       gltype = GL_UNSIGNED_BYTE;
       break;
     case COGL_PIXEL_FORMAT_RGBX_8888:
-      glintformat = GL_RGB;
+      glintformat = GL_RGB8;
       glformat = GL_RGBA;
       gltype = GL_UNSIGNED_BYTE;
       break;
     case COGL_PIXEL_FORMAT_RGBA_8888:
     case COGL_PIXEL_FORMAT_RGBA_8888_PRE:
-      glintformat = GL_RGBA;
+      glintformat = GL_RGBA8;
       glformat = GL_RGBA;
       gltype = GL_UNSIGNED_BYTE;
       break;
     case COGL_PIXEL_FORMAT_BGRX_8888:
-      glintformat = GL_RGB;
+      glintformat = GL_RGB8;
       glformat = GL_BGRA;
       gltype = GL_UNSIGNED_BYTE;
       break;
     case COGL_PIXEL_FORMAT_BGRA_8888:
     case COGL_PIXEL_FORMAT_BGRA_8888_PRE:
-      glintformat = GL_RGBA;
+      glintformat = GL_RGBA8;
       glformat = GL_BGRA;
       gltype = GL_UNSIGNED_BYTE;
       break;
@@ -217,7 +160,7 @@ _cogl_driver_pixel_format_to_gl (CoglContext     *context,
        * have no GL equivalent unless defined using
        * system word byte ordering */
     case COGL_PIXEL_FORMAT_XRGB_8888:
-      glintformat = GL_RGB;
+      glintformat = GL_RGB8;
       glformat = GL_BGRA;
 #if G_BYTE_ORDER == G_LITTLE_ENDIAN
       gltype = GL_UNSIGNED_INT_8_8_8_8;
@@ -227,7 +170,7 @@ _cogl_driver_pixel_format_to_gl (CoglContext     *context,
       break;
     case COGL_PIXEL_FORMAT_ARGB_8888:
     case COGL_PIXEL_FORMAT_ARGB_8888_PRE:
-      glintformat = GL_RGBA;
+      glintformat = GL_RGBA8;
       glformat = GL_BGRA;
 #if G_BYTE_ORDER == G_LITTLE_ENDIAN
       gltype = GL_UNSIGNED_INT_8_8_8_8;
@@ -237,7 +180,7 @@ _cogl_driver_pixel_format_to_gl (CoglContext     *context,
       break;
 
     case COGL_PIXEL_FORMAT_XBGR_8888:
-      glintformat = GL_RGB;
+      glintformat = GL_RGB8;
       glformat = GL_RGBA;
 #if G_BYTE_ORDER == G_LITTLE_ENDIAN
       gltype = GL_UNSIGNED_INT_8_8_8_8;
@@ -247,7 +190,7 @@ _cogl_driver_pixel_format_to_gl (CoglContext     *context,
       break;
     case COGL_PIXEL_FORMAT_ABGR_8888:
     case COGL_PIXEL_FORMAT_ABGR_8888_PRE:
-      glintformat = GL_RGBA;
+      glintformat = GL_RGBA8;
       glformat = GL_RGBA;
 #if G_BYTE_ORDER == G_LITTLE_ENDIAN
       gltype = GL_UNSIGNED_INT_8_8_8_8;
@@ -258,38 +201,38 @@ _cogl_driver_pixel_format_to_gl (CoglContext     *context,
 
     case COGL_PIXEL_FORMAT_RGBA_1010102:
     case COGL_PIXEL_FORMAT_RGBA_1010102_PRE:
-      glintformat = GL_RGBA;
+      glintformat = GL_RGB10_A2;
       glformat = GL_RGBA;
       gltype = GL_UNSIGNED_INT_10_10_10_2;
       break;
 
     case COGL_PIXEL_FORMAT_BGRA_1010102:
     case COGL_PIXEL_FORMAT_BGRA_1010102_PRE:
-      glintformat = GL_RGBA;
+      glintformat = GL_RGB10_A2;
       glformat = GL_BGRA;
       gltype = GL_UNSIGNED_INT_10_10_10_2;
       break;
 
     case COGL_PIXEL_FORMAT_XBGR_2101010:
-      glintformat = GL_RGB;
+      glintformat = GL_RGB10;
       glformat = GL_RGBA;
       gltype = GL_UNSIGNED_INT_2_10_10_10_REV;
       break;
     case COGL_PIXEL_FORMAT_ABGR_2101010:
     case COGL_PIXEL_FORMAT_ABGR_2101010_PRE:
-      glintformat = GL_RGBA;
+      glintformat = GL_RGB10_A2;
       glformat = GL_RGBA;
       gltype = GL_UNSIGNED_INT_2_10_10_10_REV;
       break;
 
     case COGL_PIXEL_FORMAT_XRGB_2101010:
-      glintformat = GL_RGB;
+      glintformat = GL_RGB10;
       glformat = GL_BGRA;
       gltype = GL_UNSIGNED_INT_2_10_10_10_REV;
       break;
     case COGL_PIXEL_FORMAT_ARGB_2101010:
     case COGL_PIXEL_FORMAT_ARGB_2101010_PRE:
-      glintformat = GL_RGBA;
+      glintformat = GL_RGB10_A2;
       glformat = GL_BGRA;
       gltype = GL_UNSIGNED_INT_2_10_10_10_REV;
       break;
@@ -304,60 +247,83 @@ _cogl_driver_pixel_format_to_gl (CoglContext     *context,
       break;
     case COGL_PIXEL_FORMAT_RGBA_4444:
     case COGL_PIXEL_FORMAT_RGBA_4444_PRE:
-      glintformat = GL_RGBA;
+      glintformat = GL_RGBA4;
       glformat = GL_RGBA;
       gltype = GL_UNSIGNED_SHORT_4_4_4_4;
       break;
     case COGL_PIXEL_FORMAT_RGBA_5551:
     case COGL_PIXEL_FORMAT_RGBA_5551_PRE:
-      glintformat = GL_RGBA;
+      glintformat = GL_RGB5_A1;
       glformat = GL_RGBA;
       gltype = GL_UNSIGNED_SHORT_5_5_5_1;
       break;
 
     case COGL_PIXEL_FORMAT_RGBX_FP_16161616:
-      glintformat = GL_RGB;
+      glintformat = GL_RGB16F;
       glformat = GL_RGBA;
       gltype = GL_HALF_FLOAT;
       break;
     case COGL_PIXEL_FORMAT_RGBA_FP_16161616:
     case COGL_PIXEL_FORMAT_RGBA_FP_16161616_PRE:
-      glintformat = GL_RGBA;
+      glintformat = GL_RGBA16F;
       glformat = GL_RGBA;
       gltype = GL_HALF_FLOAT;
       break;
     case COGL_PIXEL_FORMAT_BGRX_FP_16161616:
-      glintformat = GL_RGB;
+      glintformat = GL_RGB16F;
       glformat = GL_BGRA;
       gltype = GL_HALF_FLOAT;
       break;
     case COGL_PIXEL_FORMAT_BGRA_FP_16161616:
     case COGL_PIXEL_FORMAT_BGRA_FP_16161616_PRE:
-      glintformat = GL_RGBA;
-      glformat = GL_BGRA;
-      gltype = GL_HALF_FLOAT;
-      break;
-    case COGL_PIXEL_FORMAT_XRGB_FP_16161616:
-      glintformat = GL_RGB;
+      glintformat = GL_RGBA16F;
       glformat = GL_BGRA;
       gltype = GL_HALF_FLOAT;
       break;
     case COGL_PIXEL_FORMAT_ARGB_FP_16161616:
     case COGL_PIXEL_FORMAT_ARGB_FP_16161616_PRE:
-      glintformat = GL_RGBA;
-      glformat = GL_BGRA;
-      gltype = GL_HALF_FLOAT;
-      break;
-    case COGL_PIXEL_FORMAT_XBGR_FP_16161616:
-      glintformat = GL_RGB;
-      glformat = GL_RGBA;
-      gltype = GL_HALF_FLOAT;
-      break;
     case COGL_PIXEL_FORMAT_ABGR_FP_16161616:
     case COGL_PIXEL_FORMAT_ABGR_FP_16161616_PRE:
-      glintformat = GL_RGBA;
+      required_format =
+        _cogl_driver_pixel_format_to_gl (context,
+                                         COGL_PIXEL_FORMAT_RGBA_FP_16161616 |
+                                         (format & COGL_PREMULT_BIT),
+                                         &glintformat,
+                                         &glformat,
+                                         &gltype);
+      break;
+    case COGL_PIXEL_FORMAT_XRGB_FP_16161616:
+    case COGL_PIXEL_FORMAT_XBGR_FP_16161616:
+      required_format =
+        _cogl_driver_pixel_format_to_gl (context,
+                                         COGL_PIXEL_FORMAT_RGBX_FP_16161616,
+                                         &glintformat,
+                                         &glformat,
+                                         &gltype);
+      break;
+
+    case COGL_PIXEL_FORMAT_RGBA_FP_32323232:
+    case COGL_PIXEL_FORMAT_RGBA_FP_32323232_PRE:
+      glintformat = GL_RGBA32F;
       glformat = GL_RGBA;
-      gltype = GL_HALF_FLOAT;
+      gltype = GL_FLOAT;
+      break;
+
+    case COGL_PIXEL_FORMAT_R_16:
+      glintformat = GL_R16;
+      glformat = GL_RED;
+      gltype = GL_UNSIGNED_SHORT;
+      break;
+    case COGL_PIXEL_FORMAT_RG_1616:
+      glintformat = GL_RG16;
+      glformat = GL_RG;
+      gltype = GL_UNSIGNED_SHORT;
+      break;
+    case COGL_PIXEL_FORMAT_RGBA_16161616:
+    case COGL_PIXEL_FORMAT_RGBA_16161616_PRE:
+      glintformat = GL_RGBA16;
+      glformat = GL_RGBA;
+      gltype = GL_UNSIGNED_SHORT;
       break;
 
     case COGL_PIXEL_FORMAT_DEPTH_16:
@@ -365,20 +331,13 @@ _cogl_driver_pixel_format_to_gl (CoglContext     *context,
       glformat = GL_DEPTH_COMPONENT;
       gltype = GL_UNSIGNED_SHORT;
       break;
-    case COGL_PIXEL_FORMAT_DEPTH_32:
-      glintformat = GL_DEPTH_COMPONENT32;
-      glformat = GL_DEPTH_COMPONENT;
-      gltype = GL_UNSIGNED_INT;
-      break;
 
     case COGL_PIXEL_FORMAT_DEPTH_24_STENCIL_8:
-      glintformat = GL_DEPTH_STENCIL;
+      glintformat = GL_DEPTH24_STENCIL8;
       glformat = GL_DEPTH_STENCIL;
       gltype = GL_UNSIGNED_INT_24_8;
       break;
 
-    case COGL_PIXEL_FORMAT_G_16:
-    case COGL_PIXEL_FORMAT_RG_1616:
     case COGL_PIXEL_FORMAT_ANY:
     case COGL_PIXEL_FORMAT_YUV:
       g_assert_not_reached ();
@@ -399,13 +358,18 @@ _cogl_driver_pixel_format_to_gl (CoglContext     *context,
   return required_format;
 }
 
-static gboolean
-_cogl_driver_read_pixels_format_supported (CoglContext *context,
-                                           GLenum       glintformat,
-                                           GLenum       glformat,
-                                           GLenum       gltype)
+static CoglPixelFormat
+_cogl_driver_get_read_pixels_format (CoglContext     *context,
+                                     CoglPixelFormat  from,
+                                     CoglPixelFormat  to,
+                                     GLenum          *gl_format_out,
+                                     GLenum          *gl_type_out)
 {
-  return TRUE;
+  return _cogl_driver_pixel_format_to_gl (context,
+                                          to,
+                                          NULL,
+                                          gl_format_out,
+                                          gl_type_out);
 }
 
 static gboolean
@@ -438,13 +402,12 @@ check_gl_version (CoglContext *ctx,
       return FALSE;
     }
 
-  /* We require GLSL 1.20, which is implied by OpenGL 2.1. */
-  if (!COGL_CHECK_GL_VERSION (major, minor, 2, 1))
+  if (!COGL_CHECK_GL_VERSION (major, minor, 3, 1))
     {
       g_set_error (error,
                    COGL_DRIVER_ERROR,
                    COGL_DRIVER_ERROR_INVALID_VERSION,
-                   "OpenGL 2.1 or better is required");
+                   "OpenGL 3.1 or better is required");
       return FALSE;
     }
 
@@ -467,16 +430,13 @@ _cogl_driver_update_features (CoglContext *ctx,
      we can expect */
   ctx->glGetString =
     (void *) _cogl_renderer_get_proc_address (ctx->display->renderer,
-                                              "glGetString",
-                                              TRUE);
+                                              "glGetString");
   ctx->glGetStringi =
     (void *) _cogl_renderer_get_proc_address (ctx->display->renderer,
-                                              "glGetStringi",
-                                              TRUE);
+                                              "glGetStringi");
   ctx->glGetIntegerv =
     (void *) _cogl_renderer_get_proc_address (ctx->display->renderer,
-                                              "glGetIntegerv",
-                                              TRUE);
+                                              "glGetIntegerv");
 
   gl_extensions = _cogl_context_get_gl_extensions (ctx);
 
@@ -524,21 +484,11 @@ _cogl_driver_update_features (CoglContext *ctx,
     COGL_FLAGS_SET (private_features,
                     COGL_PRIVATE_FEATURE_MESA_PACK_INVERT, TRUE);
 
-  if (!ctx->glGenRenderbuffers)
-    {
-      g_set_error (error,
-                   COGL_DRIVER_ERROR,
-                   COGL_DRIVER_ERROR_NO_SUITABLE_DRIVER_FOUND,
-                   "Framebuffer objects are required to use the GL driver");
-      return FALSE;
-    }
   COGL_FLAGS_SET (private_features,
                   COGL_PRIVATE_FEATURE_QUERY_FRAMEBUFFER_BITS,
                   TRUE);
 
-  if (ctx->glBlitFramebuffer)
-    COGL_FLAGS_SET (ctx->features,
-                    COGL_FEATURE_ID_BLIT_FRAMEBUFFER, TRUE);
+  COGL_FLAGS_SET (ctx->features, COGL_FEATURE_ID_BLIT_FRAMEBUFFER, TRUE);
 
   COGL_FLAGS_SET (private_features, COGL_PRIVATE_FEATURE_PBOS, TRUE);
 
@@ -549,9 +499,8 @@ _cogl_driver_update_features (CoglContext *ctx,
     COGL_FLAGS_SET (private_features,
                     COGL_PRIVATE_FEATURE_TEXTURE_2D_FROM_EGL_IMAGE, TRUE);
 
-  if (_cogl_check_extension ("GL_EXT_packed_depth_stencil", gl_extensions))
-    COGL_FLAGS_SET (private_features,
-                    COGL_PRIVATE_FEATURE_EXT_PACKED_DEPTH_STENCIL, TRUE);
+  COGL_FLAGS_SET (private_features,
+                  COGL_PRIVATE_FEATURE_EXT_PACKED_DEPTH_STENCIL, TRUE);
 
   if (ctx->glGenSamplers)
     COGL_FLAGS_SET (private_features,
@@ -573,29 +522,19 @@ _cogl_driver_update_features (CoglContext *ctx,
   COGL_FLAGS_SET (private_features,
                   COGL_PRIVATE_FEATURE_TEXTURE_MAX_LEVEL, TRUE);
 
-  if (COGL_CHECK_GL_VERSION (gl_major, gl_minor, 3, 1) ||
-      _cogl_check_extension ("GL_EXT_texture_lod_bias", gl_extensions))
-    {
-      COGL_FLAGS_SET (private_features,
-                      COGL_PRIVATE_FEATURE_TEXTURE_LOD_BIAS, TRUE);
-    }
+  COGL_FLAGS_SET (private_features,
+                  COGL_PRIVATE_FEATURE_TEXTURE_LOD_BIAS, TRUE);
 
   if (ctx->glFenceSync)
     COGL_FLAGS_SET (ctx->features, COGL_FEATURE_ID_FENCE, TRUE);
 
-  if (COGL_CHECK_GL_VERSION (gl_major, gl_minor, 3, 0) ||
-      _cogl_check_extension ("GL_ARB_texture_rg", gl_extensions))
-    COGL_FLAGS_SET (ctx->features,
-                    COGL_FEATURE_ID_TEXTURE_RG,
-                    TRUE);
+  COGL_FLAGS_SET (ctx->features, COGL_FEATURE_ID_TEXTURE_RG, TRUE);
 
-  COGL_FLAGS_SET (private_features,
-                  COGL_PRIVATE_FEATURE_TEXTURE_FORMAT_RGBA1010102, TRUE);
+  COGL_FLAGS_SET (ctx->features, COGL_FEATURE_ID_TEXTURE_RGBA1010102, TRUE);
 
-  if (COGL_CHECK_GL_VERSION (gl_major, gl_minor, 3, 0))
-    COGL_FLAGS_SET (private_features,
-                    COGL_PRIVATE_FEATURE_TEXTURE_FORMAT_HALF_FLOAT,
-                    TRUE);
+  COGL_FLAGS_SET (ctx->features, COGL_FEATURE_ID_TEXTURE_HALF_FLOAT, TRUE);
+
+  COGL_FLAGS_SET (ctx->features, COGL_FEATURE_ID_TEXTURE_NORM16, TRUE);
 
   if (ctx->glGenQueries && ctx->glQueryCounter && ctx->glGetInteger64v)
     COGL_FLAGS_SET (ctx->features, COGL_FEATURE_ID_TIMESTAMP_QUERY, TRUE);
@@ -626,9 +565,8 @@ _cogl_driver_gl =
     _cogl_driver_gl_context_deinit,
     _cogl_driver_gl_is_hardware_accelerated,
     _cogl_gl_get_graphics_reset_status,
-    _cogl_driver_pixel_format_from_gl_internal,
     _cogl_driver_pixel_format_to_gl,
-    _cogl_driver_read_pixels_format_supported,
+    _cogl_driver_get_read_pixels_format,
     _cogl_driver_update_features,
     _cogl_driver_gl_create_framebuffer_driver,
     _cogl_driver_gl_flush_framebuffer_state,

@@ -26,7 +26,7 @@
  * SOFTWARE.
  */
 
-#include "cogl-config.h"
+#include "config.h"
 
 #include <glib.h>
 #include <string.h>
@@ -154,7 +154,7 @@ _cogl_pango_display_list_add_texture (CoglPangoDisplayList *dl,
       /* Get rid of the vertex buffer so that it will be recreated */
       if (node->d.texture.primitive != NULL)
         {
-          cogl_object_unref (node->d.texture.primitive);
+          g_object_unref (node->d.texture.primitive);
           node->d.texture.primitive = NULL;
         }
     }
@@ -167,7 +167,7 @@ _cogl_pango_display_list_add_texture (CoglPangoDisplayList *dl,
       node->color_override = dl->color_override;
       node->color = dl->color;
       node->pipeline = NULL;
-      node->d.texture.texture = cogl_object_ref (texture);
+      node->d.texture.texture = g_object_ref (texture);
       node->d.texture.rectangles
         = g_array_new (FALSE, FALSE, sizeof (CoglPangoDisplayListRectangle));
       node->d.texture.primitive = NULL;
@@ -364,9 +364,9 @@ emit_vertex_buffer_geometry (CoglFramebuffer *fb,
 
       node->d.texture.primitive = prim;
 
-      cogl_object_unref (buffer);
-      cogl_object_unref (attributes[0]);
-      cogl_object_unref (attributes[1]);
+      g_object_unref (buffer);
+      g_object_unref (attributes[0]);
+      g_object_unref (attributes[1]);
     }
 
   cogl_primitive_draw (node->d.texture.primitive,
@@ -417,13 +417,12 @@ _cogl_pango_display_list_render (CoglFramebuffer *fb,
       if (node->color_override)
         /* Use the override color but preserve the alpha from the
            draw color */
-        cogl_color_init_from_4ub (&draw_color,
-                                  cogl_color_get_red_byte (&node->color),
-                                  cogl_color_get_green_byte (&node->color),
-                                  cogl_color_get_blue_byte (&node->color),
-                                  (cogl_color_get_alpha_byte (&node->color) *
-                                   cogl_color_get_alpha_byte (color) /
-                                   255));
+        cogl_color_init_from_4f (&draw_color,
+                                 cogl_color_get_red (&node->color),
+                                 cogl_color_get_green (&node->color),
+                                 cogl_color_get_blue (&node->color),
+                                 (cogl_color_get_alpha (&node->color) *
+                                  cogl_color_get_alpha (color)));
       else
         draw_color = *color;
       cogl_color_premultiply (&draw_color);
@@ -461,15 +460,15 @@ _cogl_pango_display_list_node_free (CoglPangoDisplayListNode *node)
     {
       g_array_free (node->d.texture.rectangles, TRUE);
       if (node->d.texture.texture != NULL)
-        cogl_object_unref (node->d.texture.texture);
+        g_object_unref (node->d.texture.texture);
       if (node->d.texture.primitive != NULL)
-        cogl_object_unref (node->d.texture.primitive);
+        g_object_unref (node->d.texture.primitive);
     }
   else if (node->type == COGL_PANGO_DISPLAY_LIST_TRAPEZOID)
-    cogl_object_unref (node->d.trapezoid.primitive);
+    g_object_unref (node->d.trapezoid.primitive);
 
   if (node->pipeline)
-    cogl_object_unref (node->pipeline);
+    g_object_unref (node->pipeline);
 
   g_free (node);
 }

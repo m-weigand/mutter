@@ -133,7 +133,8 @@ main (int argc, char *argv[])
 
   stage = clutter_test_get_stage ();
   clutter_actor_set_size (stage, STAGE_WIDTH, STAGE_HEIGHT);
-  clutter_actor_set_background_color (CLUTTER_ACTOR (stage), CLUTTER_COLOR_Black);
+  clutter_actor_set_background_color (CLUTTER_ACTOR (stage),
+                                      &CLUTTER_COLOR_INIT (0, 0, 0, 255));
   clutter_stage_set_title (CLUTTER_STAGE (stage), "Text Performance");
 
   g_signal_connect (CLUTTER_STAGE (stage), "after-paint", G_CALLBACK (on_after_paint), NULL);
@@ -175,10 +176,10 @@ main (int argc, char *argv[])
   for (row=0; row<rows; row++)
     for (col=0; col<cols; col++)
       {
-	label = create_label();
+        label = create_label();
         clutter_actor_set_scale (label, scale, scale);
-	clutter_actor_set_position (label, w * col * scale, h * row * scale);
-	clutter_container_add_actor (CLUTTER_CONTAINER (stage), label);
+        clutter_actor_set_position (label, w * col * scale, h * row * scale);
+        clutter_actor_add_child (stage, label);
       }
 
   clutter_actor_show (stage);

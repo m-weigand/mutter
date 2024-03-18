@@ -103,7 +103,6 @@ struct _ClutterPaintVolume
 
 void                _clutter_paint_volume_init_static          (ClutterPaintVolume *pv,
                                                                 ClutterActor *actor);
-ClutterPaintVolume *_clutter_paint_volume_new                  (ClutterActor       *actor);
 void                _clutter_paint_volume_copy_static          (const ClutterPaintVolume *src_pv,
                                                                 ClutterPaintVolume *dst_pv);
 void                _clutter_paint_volume_set_from_volume      (ClutterPaintVolume *pv,
@@ -112,13 +111,8 @@ void                _clutter_paint_volume_set_from_volume      (ClutterPaintVolu
 void                _clutter_paint_volume_complete             (ClutterPaintVolume *pv);
 void                _clutter_paint_volume_transform            (ClutterPaintVolume      *pv,
                                                                 const graphene_matrix_t *matrix);
-void                _clutter_paint_volume_project              (ClutterPaintVolume      *pv,
-                                                                const graphene_matrix_t *modelview,
-                                                                const graphene_matrix_t *projection,
-                                                                const float             *viewport);
 void                _clutter_paint_volume_get_bounding_box     (ClutterPaintVolume *pv,
                                                                 ClutterActorBox    *box);
-void                _clutter_paint_volume_axis_align           (ClutterPaintVolume *pv);
 void                _clutter_paint_volume_set_reference_actor  (ClutterPaintVolume *pv,
                                                                 ClutterActor *actor);
 

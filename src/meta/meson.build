@@ -52,13 +52,13 @@ if have_wayland
   mutter_public_headers += [
     'meta-wayland-client.h',
     'meta-wayland-compositor.h',
+    'meta-wayland-surface.h',
   ]
 endif
 
 if have_x11
   mutter_public_headers += [
     'meta-x11-display.h',
-    'meta-x11-errors.h',
   ]
 endif
 

@@ -26,16 +26,19 @@
 #include "backends/meta-screen-cast-window.h"
 #include "compositor/compositor-private.h"
 #include "compositor/meta-shaped-texture-private.h"
-#include "compositor/meta-surface-actor-x11.h"
 #include "compositor/meta-surface-actor.h"
 #include "compositor/meta-window-actor-private.h"
 #include "core/boxes-private.h"
 #include "core/window-private.h"
 #include "meta/window.h"
 
+#ifdef HAVE_X11_CLIENT
+#include "compositor/meta-surface-actor-x11.h"
+#endif
+
 #ifdef HAVE_WAYLAND
 #include "compositor/meta-surface-actor-wayland.h"
-#include "wayland/meta-wayland-surface.h"
+#include "wayland/meta-wayland-surface-private.h"
 #endif
 
 typedef enum
@@ -211,9 +214,7 @@ meta_window_actor_class_init (MetaWindowActorClass *klass)
                   G_TYPE_NONE, 0);
 
   obj_props[PROP_META_WINDOW] =
-    g_param_spec_object ("meta-window",
-                         "MetaWindow",
-                         "The displayed MetaWindow",
+    g_param_spec_object ("meta-window", NULL, NULL,
                          META_TYPE_WINDOW,
                          G_PARAM_READWRITE | G_PARAM_CONSTRUCT_ONLY);
   g_object_class_install_properties (object_class, N_PROPS, obj_props);
@@ -494,12 +495,14 @@ init_surface_actor (MetaWindowActor *self)
   MetaWindow *window = priv->window;
   MetaSurfaceActor *surface_actor = NULL;
 
+#ifdef HAVE_X11_CLIENT
   if (!meta_is_wayland_compositor ())
     {
       surface_actor = meta_surface_actor_x11_new (window);
     }
-#ifdef HAVE_WAYLAND
   else
+#endif
+#ifdef HAVE_WAYLAND
     {
       MetaWaylandSurface *surface = meta_window_get_wayland_surface (window);
       surface_actor = surface ? meta_wayland_surface_get_actor (surface) : NULL;
@@ -950,10 +953,11 @@ meta_window_actor_sync_actor_geometry (MetaWindowActor *self,
 
   /* When running as a Wayland compositor we catch size changes when new
    * buffers are attached */
+#ifdef HAVE_X11_CLIENT
   if (META_IS_SURFACE_ACTOR_X11 (priv->surface))
     meta_surface_actor_x11_set_size (META_SURFACE_ACTOR_X11 (priv->surface),
                                      actor_rect.width, actor_rect.height);
-
+#endif
   /* Normally we want freezing a window to also freeze its position; this allows
    * windows to atomically move and resize together, either under app control,
    * or because the user is resizing from the left/top. But on initial placement
@@ -1444,7 +1448,7 @@ meta_window_actor_blit_to_framebuffer (MetaScreenCastWindow *screen_cast_window,
 
   clutter_actor_inhibit_culling (actor);
 
-  cogl_color_init_from_4ub (&clear_color, 0, 0, 0, 0);
+  cogl_color_init_from_4f (&clear_color, 0.0, 0.0, 0.0, 0.0);
   cogl_framebuffer_clear (framebuffer, COGL_BUFFER_BIT_COLOR, &clear_color);
   cogl_framebuffer_orthographic (framebuffer,
                                  0, 0,
@@ -1574,7 +1578,7 @@ create_framebuffer_from_window_actor (MetaWindowActor  *self,
   ClutterBackend *clutter_backend = meta_backend_get_clutter_backend (backend);
   CoglContext *cogl_context =
     clutter_backend_get_cogl_context (clutter_backend);
-  CoglTexture2D *texture;
+  CoglTexture *texture;
   CoglOffscreen *offscreen;
   CoglFramebuffer *framebuffer;
   CoglColor clear_color;
@@ -1589,13 +1593,12 @@ create_framebuffer_from_window_actor (MetaWindowActor  *self,
   if (!texture)
     return NULL;
 
-  cogl_primitive_texture_set_auto_mipmap (COGL_PRIMITIVE_TEXTURE (texture),
-                                          FALSE);
+  cogl_primitive_texture_set_auto_mipmap (texture, FALSE);
 
-  offscreen = cogl_offscreen_new_with_texture (COGL_TEXTURE (texture));
+  offscreen = cogl_offscreen_new_with_texture (texture);
   framebuffer = COGL_FRAMEBUFFER (offscreen);
 
-  cogl_object_unref (texture);
+  g_object_unref (texture);
 
   if (!cogl_framebuffer_allocate (framebuffer, error))
     {
@@ -1603,7 +1606,7 @@ create_framebuffer_from_window_actor (MetaWindowActor  *self,
       return NULL;
     }
 
-  cogl_color_init_from_4ub (&clear_color, 0, 0, 0, 0);
+  cogl_color_init_from_4f (&clear_color, 0.0, 0.0, 0.0, 0.0);
   cogl_framebuffer_clear (framebuffer, COGL_BUFFER_BIT_COLOR, &clear_color);
   cogl_framebuffer_orthographic (framebuffer, 0, 0, clip->width, clip->height,
                                  0, 1.0);
@@ -1724,7 +1727,7 @@ meta_window_actor_get_image (MetaWindowActor *self,
                                 0, 0,
                                 framebuffer_clip.width * resource_scale,
                                 framebuffer_clip.height * resource_scale,
-                                CLUTTER_CAIRO_FORMAT_ARGB32,
+                                COGL_PIXEL_FORMAT_CAIRO_ARGB32_COMPAT,
                                 cairo_image_surface_get_data (surface));
 
   g_object_unref (framebuffer);

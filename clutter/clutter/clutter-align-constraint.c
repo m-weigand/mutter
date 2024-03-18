@@ -24,7 +24,7 @@
 
 /**
  * ClutterAlignConstraint:
- * 
+ *
  * A constraint aligning the position of an actor
  *
  * #ClutterAlignConstraint is a [class@Constraint] that aligns the position
@@ -32,7 +32,7 @@
  * [class@Actor] using an alignment factor
  */
 
-#include "clutter/clutter-build-config.h"
+#include "config.h"
 
 #include "clutter/clutter-align-constraint.h"
 
@@ -45,10 +45,6 @@
 
 #include <math.h>
 
-#define CLUTTER_ALIGN_CONSTRAINT_CLASS(klass)    (G_TYPE_CHECK_CLASS_CAST ((klass), CLUTTER_TYPE_ALIGN_CONSTRAINT, ClutterAlignConstraintClass))
-#define CLUTTER_IS_ALIGN_CONSTRAINT_CLASS(klass) (G_TYPE_CHECK_CLASS_TYPE ((klass), CLUTTER_TYPE_ALIGN_CONSTRAINT))
-#define CLUTTER_ALIGN_CONSTRAINT_GET_CLASS(obj)  (G_TYPE_INSTANCE_GET_CLASS ((obj), CLUTTER_TYPE_ALIGN_CONSTRAINT, ClutterAlignConstraintClass))
-
 struct _ClutterAlignConstraint
 {
   ClutterConstraint parent_instance;
@@ -58,11 +54,6 @@ struct _ClutterAlignConstraint
   ClutterAlignAxis align_axis;
   graphene_point_t pivot;
   gfloat factor;
-};
-
-struct _ClutterAlignConstraintClass
-{
-  ClutterConstraintClass parent_class;
 };
 
 enum
@@ -79,9 +70,9 @@ enum
 
 static GParamSpec *obj_props[PROP_LAST];
 
-G_DEFINE_TYPE (ClutterAlignConstraint,
-               clutter_align_constraint,
-               CLUTTER_TYPE_CONSTRAINT);
+G_DEFINE_FINAL_TYPE (ClutterAlignConstraint,
+                     clutter_align_constraint,
+                     CLUTTER_TYPE_CONSTRAINT);
 
 static void
 source_queue_relayout (ClutterActor           *actor,
@@ -291,7 +282,9 @@ clutter_align_constraint_class_init (ClutterAlignConstraintClass *klass)
   obj_props[PROP_SOURCE] =
     g_param_spec_object ("source", NULL, NULL,
                            CLUTTER_TYPE_ACTOR,
-                           CLUTTER_PARAM_READWRITE | G_PARAM_CONSTRUCT);
+                           G_PARAM_READWRITE |
+                           G_PARAM_STATIC_STRINGS |
+                           G_PARAM_CONSTRUCT);
 
   /**
    * ClutterAlignConstraint:align-axis:
@@ -302,7 +295,9 @@ clutter_align_constraint_class_init (ClutterAlignConstraintClass *klass)
     g_param_spec_enum ("align-axis", NULL, NULL,
                        CLUTTER_TYPE_ALIGN_AXIS,
                        CLUTTER_ALIGN_X_AXIS,
-                       CLUTTER_PARAM_READWRITE | G_PARAM_CONSTRUCT);
+                       G_PARAM_READWRITE |
+                       G_PARAM_STATIC_STRINGS |
+                       G_PARAM_CONSTRUCT);
 
   /**
    * ClutterAlignConstraint:pivot-point:
@@ -340,7 +335,9 @@ clutter_align_constraint_class_init (ClutterAlignConstraintClass *klass)
     g_param_spec_float ("factor", NULL, NULL,
                         0.0, 1.0,
                         0.0,
-                        CLUTTER_PARAM_READWRITE | G_PARAM_CONSTRUCT);
+                        G_PARAM_READWRITE |
+                        G_PARAM_STATIC_STRINGS |
+                        G_PARAM_CONSTRUCT);
 
   gobject_class->dispose = clutter_align_constraint_dispose;
   gobject_class->set_property = clutter_align_constraint_set_property;
@@ -495,7 +492,7 @@ clutter_align_constraint_set_align_axis (ClutterAlignConstraint *align,
  * clutter_align_constraint_get_align_axis:
  * @align: a #ClutterAlignConstraint
  *
- * Retrieves the value set using clutter_align_constraint_set_align_axis()
+ * Retrieves the value set using [method@Clutter.AlignConstraint.set_align_axis]
  *
  * Return value: the alignment axis
  */
@@ -549,7 +546,7 @@ clutter_align_constraint_set_pivot_point (ClutterAlignConstraint *align,
  * @pivot_point: (out caller-allocates): return location for a #GraphenePoint
  *
  * Gets the pivot point used by the constraint set with
- * clutter_align_constraint_set_pivot_point(). If no custom pivot
+ * [method@Clutter.AlignConstraint.set_pivot_point]. If no custom pivot
  * point is set, -1 is set.
  */
 void
@@ -597,7 +594,7 @@ clutter_align_constraint_set_factor (ClutterAlignConstraint *align,
  * clutter_align_constraint_get_factor:
  * @align: a #ClutterAlignConstraint
  *
- * Retrieves the factor set using clutter_align_constraint_set_factor()
+ * Retrieves the factor set using [method@Clutter.AlignConstraint.set_factor]
  *
  * Return value: the alignment factor
  */

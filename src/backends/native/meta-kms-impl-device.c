@@ -21,6 +21,8 @@
 
 #include <errno.h>
 #include <glib/gstdio.h>
+#include <linux/dma-buf.h>
+#include <sys/ioctl.h>
 #include <sys/timerfd.h>
 #include <xf86drm.h>
 
@@ -70,8 +72,16 @@ typedef struct _CrtcDeadline
     gboolean armed;
     gboolean is_deadline_page_flip;
     int64_t expected_presentation_time_us;
+    gboolean has_expected_presentation_time;
   } deadline;
 } CrtcFrame;
+
+typedef enum _MetaDeadlineTimerState
+{
+  META_DEADLINE_TIMER_STATE_ENABLED,
+  META_DEADLINE_TIMER_STATE_DISABLED,
+  META_DEADLINE_TIMER_STATE_INHIBITED,
+} MetaDeadlineTimerState;
 
 typedef struct _MetaKmsImplDevicePrivate
 {
@@ -98,7 +108,10 @@ typedef struct _MetaKmsImplDevicePrivate
 
   GHashTable *crtc_frames;
 
-  gboolean deadline_timer_inhibited;
+  MetaDeadlineTimerState deadline_timer_state;
+
+  gboolean sync_file_retrieved;
+  int sync_file;
 } MetaKmsImplDevicePrivate;
 
 static void
@@ -1026,6 +1039,60 @@ meta_kms_impl_device_get_fd (MetaKmsImplDevice *impl_device)
   return meta_device_file_get_fd (priv->device_file);
 }
 
+/**
+ * meta_kms_impl_device_get_signaled_sync_file:
+ * @impl_device: a #MetaKmsImplDevice object
+ *
+ * Returns a file descriptor which references a sync_file. The file descriptor
+ * must not be closed by the caller.
+ *
+ * Always returns the same file descriptor for the same impl_device. The
+ * referenced sync_file will always be considered signaled.
+ *
+ * Returns a negative value if a sync_file fd couldn't be retrieved.
+ */
+int
+meta_kms_impl_device_get_signaled_sync_file (MetaKmsImplDevice *impl_device)
+{
+  MetaKmsImplDevicePrivate *priv =
+    meta_kms_impl_device_get_instance_private (impl_device);
+
+  meta_assert_in_kms_impl (meta_kms_impl_get_kms (priv->impl));
+
+  if (!priv->sync_file_retrieved)
+    {
+      uint32_t syncobj_handle;
+      int drm_fd, ret;
+
+      priv->sync_file = -1;
+      priv->sync_file_retrieved = TRUE;
+
+      drm_fd = meta_kms_impl_device_get_fd (impl_device);
+      ret = drmSyncobjCreate (drm_fd,
+                              DRM_SYNCOBJ_CREATE_SIGNALED,
+                              &syncobj_handle);
+      if (ret < 0)
+        {
+          meta_topic (META_DEBUG_KMS,
+                      "drmSyncobjCreate failed: %s",
+                      g_strerror (errno));
+          return -1;
+        }
+
+      ret = drmSyncobjExportSyncFile (drm_fd, syncobj_handle, &priv->sync_file);
+      if (ret < 0)
+        {
+          meta_topic (META_DEBUG_KMS,
+                      "drmSyncobjExportSyncFile failed: %s",
+                      g_strerror (errno));
+        }
+
+      drmSyncobjDestroy (drm_fd, syncobj_handle);
+    }
+
+  return priv->sync_file;
+}
+
 static void
 disarm_crtc_frame_deadline_timer (CrtcFrame *crtc_frame)
 {
@@ -1072,6 +1139,7 @@ arm_crtc_frame_deadline_timer (CrtcFrame *crtc_frame,
                    TFD_TIMER_ABSTIME, &its, NULL);
 
   crtc_frame->deadline.expected_presentation_time_us = next_presentation_us;
+  crtc_frame->deadline.has_expected_presentation_time = next_presentation_us != 0;
   crtc_frame->deadline.armed = TRUE;
 }
 
@@ -1113,14 +1181,23 @@ crtc_page_flip_feedback_flipped (MetaKmsCrtc  *crtc,
       };
       presentation_time_us = meta_timeval_to_microseconds (&page_flip_timeval);
 
-      meta_topic (META_DEBUG_KMS,
-                  "Deadline page flip presentation time: %"G_GINT64_FORMAT" us, "
-                  "expected %"G_GINT64_FORMAT" us "
-                  "(diff: %"G_GINT64_FORMAT")",
-                  presentation_time_us,
-                  crtc_frame->deadline.expected_presentation_time_us,
-                  crtc_frame->deadline.expected_presentation_time_us -
-                  presentation_time_us);
+      if (crtc_frame->deadline.has_expected_presentation_time)
+        {
+          meta_topic (META_DEBUG_KMS,
+                      "Deadline page flip presentation time: %" G_GINT64_FORMAT " us, "
+                      "expected %" G_GINT64_FORMAT " us "
+                      "(diff: %" G_GINT64_FORMAT ")",
+                      presentation_time_us,
+                      crtc_frame->deadline.expected_presentation_time_us,
+                      crtc_frame->deadline.expected_presentation_time_us -
+                      presentation_time_us);
+        }
+      else
+        {
+          meta_topic (META_DEBUG_KMS,
+                      "Deadline page flip presentation time: %" G_GINT64_FORMAT " us",
+                      presentation_time_us);
+        }
     }
 
   notify_crtc_frame_ready (crtc_frame);
@@ -1208,7 +1285,7 @@ do_process (MetaKmsImplDevice *impl_device,
   MetaKmsResourceChanges changes = META_KMS_RESOURCE_CHANGE_NONE;
 
   COGL_TRACE_BEGIN_SCOPED (MetaKmsImplDeviceProcess,
-                           "KMS device impl (processing)");
+                           "Meta::KmsImplDevice::do_process()");
 
   update = meta_kms_impl_filter_update (impl, latch_crtc, update, flags);
 
@@ -1251,7 +1328,6 @@ do_process (MetaKmsImplDevice *impl_device,
           meta_kms_update_add_page_flip_listener (update,
                                                   crtc_frame->crtc,
                                                   &crtc_page_flip_listener_vtable,
-                                                  META_KMS_PAGE_FLIP_LISTENER_FLAG_NONE,
                                                   thread_context,
                                                   crtc_frame, NULL);
           crtc_frame->pending_page_flip = TRUE;
@@ -1345,7 +1421,7 @@ is_using_deadline_timer (MetaKmsImplDevice *impl_device)
   MetaKmsImplDevicePrivate *priv =
     meta_kms_impl_device_get_instance_private (impl_device);
 
-  if (priv->deadline_timer_inhibited)
+  if (priv->deadline_timer_state != META_DEADLINE_TIMER_STATE_ENABLED)
     {
       return FALSE;
     }
@@ -1564,11 +1640,22 @@ meta_kms_impl_device_schedule_process (MetaKmsImplDevice *impl_device,
   if (ensure_deadline_timer_armed (impl_device, crtc_frame, &error))
     return;
 
-  if (!g_error_matches (error, G_IO_ERROR, G_IO_ERROR_NOT_FOUND))
-    g_warning ("Failed to determine deadline: %s", error->message);
-
   priv = meta_kms_impl_device_get_instance_private (impl_device);
-  priv->deadline_timer_inhibited = TRUE;
+
+  if (g_error_matches (error, G_IO_ERROR, G_IO_ERROR_PERMISSION_DENIED))
+    {
+      meta_topic (META_DEBUG_KMS, "Could not determine deadline: %s",
+                  error->message);
+
+      priv->deadline_timer_state = META_DEADLINE_TIMER_STATE_INHIBITED;
+    }
+  else
+    {
+      if (!g_error_matches (error, G_IO_ERROR, G_IO_ERROR_NOT_FOUND))
+        g_warning ("Failed to determine deadline: %s", error->message);
+
+      priv->deadline_timer_state = META_DEADLINE_TIMER_STATE_DISABLED;
+    }
 
 needs_flush:
   meta_kms_device_set_needs_flush (meta_kms_crtc_get_device (crtc), crtc);
@@ -1825,6 +1912,8 @@ meta_kms_impl_device_finalize (GObject *object)
   g_free (priv->driver_description);
   g_free (priv->path);
 
+  g_clear_fd (&priv->sync_file, NULL);
+
   G_OBJECT_CLASS (meta_kms_impl_device_parent_class)->finalize (object);
 }
 
@@ -1863,6 +1952,16 @@ meta_kms_impl_device_init_mode_setting (MetaKmsImplDevice  *impl_device,
 }
 
 void
+meta_kms_impl_device_resume (MetaKmsImplDevice *impl_device)
+{
+  MetaKmsImplDevicePrivate *priv =
+    meta_kms_impl_device_get_instance_private (impl_device);
+
+  if (priv->deadline_timer_state == META_DEADLINE_TIMER_STATE_INHIBITED)
+    priv->deadline_timer_state = META_DEADLINE_TIMER_STATE_ENABLED;
+}
+
+void
 meta_kms_impl_device_prepare_shutdown (MetaKmsImplDevice *impl_device)
 {
   MetaKmsImplDevicePrivate *priv =
@@ -1897,7 +1996,7 @@ get_driver_info (int    fd,
 }
 
 static void
-maybe_inhibit_deadline_timer (MetaKmsImplDevice *impl_device)
+maybe_disable_deadline_timer (MetaKmsImplDevice *impl_device)
 {
   MetaKmsImplDevicePrivate *priv =
     meta_kms_impl_device_get_instance_private (impl_device);
@@ -1910,7 +2009,7 @@ maybe_inhibit_deadline_timer (MetaKmsImplDevice *impl_device)
     {
       if (g_strcmp0 (deadline_timer_deny_list[i], priv->driver_name) == 0)
         {
-          priv->deadline_timer_inhibited = TRUE;
+          priv->deadline_timer_state = META_DEADLINE_TIMER_STATE_DISABLED;
           break;
         }
     }
@@ -1941,11 +2040,13 @@ meta_kms_impl_device_initable_init (GInitable     *initable,
       priv->driver_description = g_strdup ("Unknown");
     }
 
-  maybe_inhibit_deadline_timer (impl_device);
+  maybe_disable_deadline_timer (impl_device);
 
   priv->crtc_frames =
     g_hash_table_new_full (NULL, NULL,
                            NULL, (GDestroyNotify) crtc_frame_free);
+
+  priv->sync_file = -1;
 
   return TRUE;
 }

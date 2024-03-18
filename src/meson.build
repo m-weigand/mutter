@@ -17,7 +17,6 @@ mutter_pkg_deps = [
   gio_unix_dep,
   glib_dep,
   gsettings_desktop_schemas_dep,
-  pango_dep,
 ]
 
 mutter_pkg_private_deps = [
@@ -25,8 +24,8 @@ mutter_pkg_private_deps = [
   lcms2_dep,
   gmodule_no_export_dep,
   gnome_settings_daemon_dep,
-  json_glib_dep,
   xkbcommon_dep,
+  gdk_pixbuf_dep,
   libeis_dep,
 ]
 
@@ -176,12 +175,7 @@ mutter_deps = [
 ]
 
 mutter_c_args = [
-  '-DCLUTTER_ENABLE_COMPOSITOR_API',
-  '-DCOGL_ENABLE_EXPERIMENTAL_API',
-  '-DCOGL_ENABLE_EXPERIMENTAL_2_0_API',
   '-DCOGL_ENABLE_MUTTER_API',
-  '-DCLUTTER_DISABLE_DEPRECATION_WARNINGS',
-  '-DCOGL_DISABLE_DEPRECATION_WARNINGS',
   '-DSN_API_NOT_YET_FROZEN=1',
   '-DGETTEXT_PACKAGE="@0@"'.format(meson.project_name()),
 ]
@@ -299,7 +293,6 @@ mutter_sources = [
   'compositor/edge-resistance.c',
   'compositor/edge-resistance.h',
   'compositor/meta-background-actor.c',
-  'compositor/meta-background-actor-private.h',
   'compositor/meta-background-content.c',
   'compositor/meta-background-content-private.h',
   'compositor/meta-background.c',
@@ -340,8 +333,6 @@ mutter_sources = [
   'compositor/meta-window-group.c',
   'compositor/meta-window-group-private.h',
   'compositor/meta-window-shape.c',
-  'compositor/region-utils.c',
-  'compositor/region-utils.h',
   'core/bell.c',
   'core/bell.h',
   'core/boxes.c',
@@ -370,6 +361,8 @@ mutter_sources = [
   'core/meta-context-main.h',
   'core/meta-context-private.h',
   'core/meta-context.c',
+  'core/meta-debug-control.c',
+  'core/meta-debug-control.h',
   'core/meta-fraction.c',
   'core/meta-fraction.h',
   'core/meta-gesture-tracker.c',
@@ -481,8 +474,6 @@ if have_x11_client
     'x11/group-private.h',
     'x11/group-props.c',
     'x11/group-props.h',
-    'x11/iconcache.c',
-    'x11/iconcache.h',
     'x11/meta-selection-source-x11.c',
     'x11/meta-selection-source-x11-private.h',
     'x11/meta-startup-notification-x11.c',
@@ -491,7 +482,6 @@ if have_x11_client
     'x11/meta-sync-counter.h',
     'x11/meta-x11-display.c',
     'x11/meta-x11-display-private.h',
-    'x11/meta-x11-errors.c',
     'x11/meta-x11-event-source.c',
     'x11/meta-x11-selection.c',
     'x11/meta-x11-selection-private.h',
@@ -635,6 +625,8 @@ if have_wayland
     'wayland/meta-wayland-inhibit-shortcuts-dialog.c',
     'wayland/meta-wayland-inhibit-shortcuts-dialog.h',
     'wayland/meta-wayland-inhibit-shortcuts.h',
+    'wayland/meta-wayland-input.c',
+    'wayland/meta-wayland-input.h',
     'wayland/meta-wayland-input-device.c',
     'wayland/meta-wayland-input-device.h',
     'wayland/meta-wayland-keyboard.c',
@@ -671,7 +663,7 @@ if have_wayland
     'wayland/meta-wayland-subsurface.c',
     'wayland/meta-wayland-subsurface.h',
     'wayland/meta-wayland-surface.c',
-    'wayland/meta-wayland-surface.h',
+    'wayland/meta-wayland-surface-private.h',
     'wayland/meta-wayland-tablet.c',
     'wayland/meta-wayland-tablet-cursor-surface.c',
     'wayland/meta-wayland-tablet-cursor-surface.h',
@@ -740,6 +732,8 @@ if have_native_backend
     'backends/native/meta-backend-native-types.h',
     'backends/native/meta-barrier-native.c',
     'backends/native/meta-barrier-native.h',
+    'backends/native/meta-bezier.c',
+    'backends/native/meta-bezier.h',
     'backends/native/meta-clutter-backend-native.c',
     'backends/native/meta-clutter-backend-native.h',
     'backends/native/meta-crtc-kms.c',
@@ -930,6 +924,11 @@ dbus_interfaces = [
     'object_manager': true,
   },
   {
+    'name': 'meta-dbus-input-capture',
+    'interface': 'org.gnome.Mutter.InputCapture.xml',
+    'prefix': 'org.gnome.Mutter',
+  },
+  {
     'name': 'meta-dbus-input-mapping',
     'interface': 'org.gnome.Mutter.InputMapping.xml',
     'prefix': 'org.gnome.Mutter.',
@@ -938,6 +937,11 @@ dbus_interfaces = [
     'name': 'meta-dbus-service-channel',
     'interface': 'org.gnome.Mutter.ServiceChannel.xml',
     'prefix': 'org.gnome.Mutter.',
+  },
+  {
+    'name': 'meta-dbus-debug-control',
+    'interface': 'org.gnome.Mutter.DebugControl.xml',
+    'prefix': 'org.gnome.Mutter',
   },
 ]
 
@@ -1041,13 +1045,6 @@ foreach dbus_interface: dbus_interfaces
   mutter_built_sources += dbus_sources
 endforeach
 
-dbus_input_capture_built_sources = gnome.gdbus_codegen('meta-dbus-input-capture',
-    dbus_interfaces_dir / 'org.gnome.Mutter.InputCapture.xml',
-    interface_prefix: 'org.gnome.Mutter',
-    namespace: 'MetaDBus',
-)
-mutter_built_sources += dbus_input_capture_built_sources
-
 wayland_protocol_server_headers = []
 wayland_protocol_client_headers = []
 wayland_protocol_sources = []
@@ -1064,7 +1061,7 @@ if have_wayland
     ['gtk-shell', 'private', ],
     ['idle-inhibit', 'unstable', 'v1', ],
     ['keyboard-shortcuts-inhibit', 'unstable', 'v1', ],
-    ['linux-dmabuf', 'unstable', 'v1', ],
+    ['linux-dmabuf', 'stable', 'v1', ],
     ['pointer-constraints', 'unstable', 'v1', ],
     ['pointer-gestures', 'unstable', 'v1', ],
     ['presentation-time', 'stable', ],
@@ -1102,7 +1099,12 @@ if have_wayland
     protocol_type = p.get(1)
 
     if protocol_type == 'stable'
-      output_base = protocol_name
+      if p.length() == 3
+        protocol_version = p.get(2)
+        output_base = '@0@-@1@'.format(protocol_name, protocol_version)
+      else
+        output_base = protocol_name
+      endif
       input = protocols_dir / protocol_type / protocol_name / '@0@.xml'.format(output_base)
     elif protocol_type == 'staging'
       protocol_version = p.get(2)
@@ -1263,6 +1265,7 @@ if have_introspection
     namespace: 'Meta',
     symbol_prefix: 'meta',
     includes: [
+      'Gio-2.0',
       'GObject-2.0',
       'GDesktopEnums-3.0',
       'xlib-2.0',
@@ -1276,11 +1279,9 @@ if have_introspection
       libmutter_dep,
       mutter_deps,
     ],
-    export_packages: 'libmutter-@0@'.format(libmutter_api_version),
+    export_packages: ['libmutter-@0@'.format(libmutter_api_version)],
     extra_args: mutter_c_args + introspection_args,
-    install_dir_gir: pkglibdir,
-    install_dir_typelib: pkglibdir,
-    install: true
+    kwargs: introspection_common,
   )
 endif
 

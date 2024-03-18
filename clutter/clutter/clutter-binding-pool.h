@@ -34,35 +34,13 @@
 G_BEGIN_DECLS
 
 #define CLUTTER_TYPE_BINDING_POOL       (clutter_binding_pool_get_type ())
-#define CLUTTER_BINDING_POOL(obj)       (G_TYPE_CHECK_INSTANCE_CAST ((obj), CLUTTER_TYPE_BINDING_POOL, ClutterBindingPool))
-#define CLUTTER_IS_BINDING_POOL(obj)    (G_TYPE_CHECK_INSTANCE_TYPE ((obj), CLUTTER_TYPE_BINDING_POOL))
-
-typedef struct _ClutterBindingPool      ClutterBindingPool;
-typedef struct _ClutterBindingPoolClass ClutterBindingPoolClass;
-
-/**
- * ClutterBindingActionFunc:
- * @gobject: a #GObject
- * @action_name: the name of the action
- * @key_val: the key symbol
- * @modifiers: bitmask of the modifier flags
- * @user_data: data passed to the function
- *
- * The prototype for the callback function registered with
- * clutter_binding_pool_install_action() and invoked by
- * clutter_binding_pool_activate().
- *
- * Return value: the function should return %TRUE if the key
- *   binding has been handled, and return %FALSE otherwise
- */
-typedef gboolean (* ClutterBindingActionFunc) (GObject             *gobject,
-                                               const gchar         *action_name,
-                                               guint                key_val,
-                                               ClutterModifierType  modifiers,
-                                               gpointer             user_data);
 
 CLUTTER_EXPORT
-GType clutter_binding_pool_get_type (void) G_GNUC_CONST;
+G_DECLARE_FINAL_TYPE (ClutterBindingPool,
+                      clutter_binding_pool,
+                      CLUTTER,
+                      BINDING_POOL,
+                      GObject)
 
 CLUTTER_EXPORT
 ClutterBindingPool *  clutter_binding_pool_new              (const gchar         *name);

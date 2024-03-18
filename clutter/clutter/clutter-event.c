@@ -23,9 +23,10 @@
  *
  */
 
-#include "clutter/clutter-build-config.h"
+#include "config.h"
 
 #include "clutter/clutter-backend-private.h"
+#include "clutter/clutter-context-private.h"
 #include "clutter/clutter-debug.h"
 #include "clutter/clutter-event-private.h"
 #include "clutter/clutter-keysyms.h"
@@ -51,6 +52,7 @@ struct _ClutterKeyEvent
   ClutterInputDevice *device;
   ClutterInputDevice *source_device;
 
+  ClutterModifierSet raw_modifiers;
   ClutterModifierType modifier_state;
   uint32_t keyval;
   uint16_t hardware_keycode;
@@ -696,6 +698,36 @@ clutter_event_get_key_unicode (const ClutterEvent *event)
 }
 
 /**
+ * clutter_event_get_key_state:
+ * @event: a #ClutterEvent of type %CLUTTER_KEY_PRESS
+ *   or %CLUTTER_KEY_RELEASE
+ * @pressed: (out): Return location for pressed modifiers
+ * @latched: (out): Return location for latched modifiers
+ * @locked: (out): Return location for locked modifiers
+ *
+ * Returns the modifier state decomposed into independent
+ * pressed/latched/locked states. The effective state is a
+ * composition of these 3 states, see [method@Clutter.Event.get_state].
+ **/
+void
+clutter_event_get_key_state (const ClutterEvent  *event,
+                             ClutterModifierType *pressed,
+                             ClutterModifierType *latched,
+                             ClutterModifierType *locked)
+{
+  g_return_if_fail (event != NULL);
+  g_return_if_fail (event->type == CLUTTER_KEY_PRESS ||
+                    event->type == CLUTTER_KEY_RELEASE);
+
+  if (pressed)
+    *pressed = event->key.raw_modifiers.pressed;
+  if (latched)
+    *latched = event->key.raw_modifiers.latched;
+  if (locked)
+    *locked = event->key.raw_modifiers.locked;
+}
+
+/**
  * clutter_event_get_event_sequence:
  * @event: a #ClutterEvent of type %CLUTTER_TOUCH_BEGIN,
  *   %CLUTTER_TOUCH_UPDATE, %CLUTTER_TOUCH_END, or
@@ -751,7 +783,7 @@ clutter_event_get_device_type (const ClutterEvent *event)
  *
  * Retrieves the #ClutterInputDevice for the event.
  * If you want the physical device the event originated from, use
- * clutter_event_get_source_device().
+ * [method@Clutter.Event.get_source_device].
  *
  * The #ClutterInputDevice structure is completely opaque and should
  * be cast to the platform-specific implementation.
@@ -798,15 +830,7 @@ clutter_event_get_device_tool (const ClutterEvent *event)
     }
 }
 
-/**
- * clutter_event_new:
- * @type: The type of event.
- *
- * Creates a new #ClutterEvent of the specified type.
- *
- * Return value: (transfer full): A newly allocated #ClutterEvent.
- */
-ClutterEvent *
+static ClutterEvent *
 clutter_event_new (ClutterEventType type)
 {
   ClutterEvent *new_event;
@@ -944,7 +968,7 @@ clutter_event_free (ClutterEvent *event)
 /**
  * clutter_event_get:
  *
- * Pops an event off the event queue. Applications should not need to call 
+ * Pops an event off the event queue. Applications should not need to call
  * this.
  *
  * Return value: A #ClutterEvent or NULL if queue empty
@@ -952,7 +976,7 @@ clutter_event_free (ClutterEvent *event)
 ClutterEvent *
 clutter_event_get (void)
 {
-  ClutterMainContext *context = _clutter_context_get_default ();
+  ClutterContext *context = _clutter_context_get_default ();
   ClutterEvent *event;
 
   event = g_async_queue_try_pop (context->events_queue);
@@ -964,7 +988,7 @@ void
 _clutter_event_push (const ClutterEvent *event,
                      gboolean            do_copy)
 {
-  ClutterMainContext *context = _clutter_context_get_default ();
+  ClutterContext *context = _clutter_context_get_default ();
 
   g_assert (context != NULL);
 
@@ -1006,7 +1030,7 @@ clutter_event_put (const ClutterEvent *event)
 gboolean
 clutter_events_pending (void)
 {
-  ClutterMainContext *context = _clutter_context_get_default ();
+  ClutterContext *context = _clutter_context_get_default ();
 
   g_return_val_if_fail (context != NULL, FALSE);
 
@@ -1048,7 +1072,7 @@ clutter_get_current_event_time (void)
 const ClutterEvent *
 clutter_get_current_event (void)
 {
-  ClutterMainContext *context = _clutter_context_get_default ();
+  ClutterContext *context = _clutter_context_get_default ();
 
   g_return_val_if_fail (context != NULL, NULL);
 
@@ -1061,10 +1085,10 @@ clutter_get_current_event (void)
  *
  * Retrieves the hardware device that originated the event.
  *
- * If you need the virtual device, use clutter_event_get_device().
+ * If you need the virtual device, use [method@Clutter.Event.get_device].
  *
  * If no hardware device originated this event, this function will
- * return the same device as clutter_event_get_device().
+ * return the same device as [method@Clutter.Event.get_device].
  *
  * Return value: (transfer none): a pointer to a #ClutterInputDevice
  *   or %NULL
@@ -1259,7 +1283,7 @@ gboolean
 _clutter_event_process_filters (ClutterEvent *event,
                                 ClutterActor *event_actor)
 {
-  ClutterMainContext *context = _clutter_context_get_default ();
+  ClutterContext *context = _clutter_context_get_default ();
   GList *l, *next;
 
   /* Event filters are handled in order from least recently added to
@@ -1294,7 +1318,7 @@ _clutter_event_process_filters (ClutterEvent *event,
  * emitted for the event and it will take precedence over any grabs.
  *
  * Return value: an identifier for the event filter, to be used
- *   with clutter_event_remove_filter().
+ *   with [func@Clutter.Event.remove_filter].
  */
 guint
 clutter_event_add_filter (ClutterStage          *stage,
@@ -1302,7 +1326,7 @@ clutter_event_add_filter (ClutterStage          *stage,
                           GDestroyNotify         notify,
                           gpointer               user_data)
 {
-  ClutterMainContext *context = _clutter_context_get_default ();
+  ClutterContext *context = _clutter_context_get_default ();
   ClutterEventFilter *event_filter = g_new0 (ClutterEventFilter, 1);
   static guint event_filter_id = 0;
 
@@ -1321,15 +1345,15 @@ clutter_event_add_filter (ClutterStage          *stage,
 
 /**
  * clutter_event_remove_filter:
- * @id: The ID of the event filter, as returned from clutter_event_add_filter()
+ * @id: The ID of the event filter, as returned from [func@Clutter.Event.add_filter]
  *
  * Removes an event filter that was previously added with
- * clutter_event_add_filter().
+ * [func@Clutter.Event.add_filter].
  */
 void
 clutter_event_remove_filter (guint id)
 {
-  ClutterMainContext *context = _clutter_context_get_default ();
+  ClutterContext *context = _clutter_context_get_default ();
   GList *l;
 
   for (l = context->event_filters; l; l = l->next)
@@ -1493,7 +1517,7 @@ clutter_event_get_gesture_motion_delta (const ClutterEvent *event,
  *      position in the Y axis, or %NULL
  *
  * Returns the unaccelerated gesture motion deltas relative to the current
- * pointer position. Unlike clutter_event_get_gesture_motion_delta(),
+ * pointer position. Unlike [method@Clutter.Event.get_gesture_motion_delta],
  * pointer acceleration is ignored.
  **/
 void
@@ -1827,6 +1851,7 @@ clutter_event_key_new (ClutterEventType     type,
                        ClutterEventFlags    flags,
                        int64_t              timestamp_us,
                        ClutterInputDevice  *source_device,
+                       ClutterModifierSet   raw_modifiers,
                        ClutterModifierType  modifiers,
                        uint32_t             keyval,
                        uint32_t             evcode,
@@ -1846,6 +1871,7 @@ clutter_event_key_new (ClutterEventType     type,
 
   event->key.time_us = timestamp_us;
   event->key.flags = flags;
+  event->key.raw_modifiers = raw_modifiers;
   event->key.modifier_state = modifiers;
   event->key.keyval = keyval;
   event->key.hardware_keycode = keycode;
@@ -1865,7 +1891,7 @@ clutter_event_button_new (ClutterEventType        type,
                           ClutterInputDeviceTool *tool,
                           ClutterModifierType     modifiers,
                           graphene_point_t        coords,
-			  int                     button,
+                          int                     button,
                           uint32_t                evcode,
                           double                 *axes)
 {
@@ -2012,6 +2038,7 @@ clutter_event_scroll_discrete_new (ClutterEventFlags       flags,
                                    ClutterInputDeviceTool *tool,
                                    ClutterModifierType     modifiers,
                                    graphene_point_t        coords,
+                                   ClutterScrollSource     scroll_source,
                                    ClutterScrollDirection  direction)
 {
   ClutterEvent *event;
@@ -2026,6 +2053,7 @@ clutter_event_scroll_discrete_new (ClutterEventFlags       flags,
   event->scroll.x = coords.x;
   event->scroll.y = coords.y;
   event->scroll.direction = direction;
+  event->scroll.scroll_source = scroll_source;
   event->scroll.modifier_state = modifiers;
   event->scroll.tool = tool;
 

@@ -83,9 +83,7 @@ typedef ClutterActorTraverseVisitFlags (*ClutterTraverseCallback) (ClutterActor 
  * @user_data: The private data specified when starting the iteration
  *
  * A generic callback for iterating over actor, such as with
- * _clutter_actor_foreach_child. The difference when compared to
- * #ClutterCallback is that it returns a boolean so it is possible to break
- * out of an iteration early.
+ * _clutter_actor_foreach_child.
  *
  * Return value: %TRUE to continue iterating or %FALSE to break iteration
  * early.
@@ -209,10 +207,6 @@ void                            _clutter_actor_apply_relative_transformation_mat
                                                                                          ClutterActor      *ancestor,
                                                                                          graphene_matrix_t *matrix);
 
-void                            _clutter_actor_rerealize                                (ClutterActor    *self,
-                                                                                         ClutterCallback  callback,
-                                                                                         gpointer         data);
-
 void                            _clutter_actor_set_in_clone_paint                       (ClutterActor *self,
                                                                                          gboolean      is_in_clone_paint);
 
@@ -231,8 +225,6 @@ void                            _clutter_actor_set_has_key_focus                
 void                            _clutter_actor_queue_redraw_full                        (ClutterActor             *self,
                                                                                          const ClutterPaintVolume *volume,
                                                                                          ClutterEffect            *effect);
-
-void                            _clutter_actor_finish_queue_redraw                      (ClutterActor *self);
 
 gboolean                        _clutter_actor_set_default_paint_volume                 (ClutterActor       *self,
                                                                                          GType               check_gtype,
@@ -254,9 +246,6 @@ void                            clutter_actor_clear_stage_views_recursive       
                                                                                          gboolean      stop_transitions);
 
 float                           clutter_actor_get_real_resource_scale                   (ClutterActor *actor);
-
-ClutterPaintNode *              clutter_actor_create_texture_paint_node                 (ClutterActor *self,
-                                                                                         CoglTexture  *texture);
 
 void clutter_actor_finish_layout (ClutterActor *self,
                                   int           phase);

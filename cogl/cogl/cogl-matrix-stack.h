@@ -43,61 +43,9 @@
 #include <graphene.h>
 
 /**
- * SECTION:cogl-matrix-stack
- * @short_description: Functions for efficiently tracking many
- *                     related transformations
- *
- * Matrices can be used (for example) to describe the model-view
- * transforms of objects, texture transforms, and projective
- * transforms.
- *
- * The #graphene_matrix_t api provides a good way to manipulate individual
- * matrices representing a single transformation but if you need to
- * track many-many such transformations for many objects that are
- * organized in a scenegraph for example then using a separate
- * #graphene_matrix_t for each object may not be the most efficient way.
- *
- * A #CoglMatrixStack enables applications to track lots of
- * transformations that are related to each other in some kind of
- * hierarchy.  In a scenegraph for example if you want to know how to
- * transform a particular node then you usually have to walk up
- * through the ancestors and accumulate their transforms before
- * finally applying the transform of the node itself. In this model
- * things are grouped together spatially according to their ancestry
- * and all siblings with the same parent share the same initial
- * transformation. The #CoglMatrixStack API is suited to tracking lots
- * of transformations that fit this kind of model.
- *
- * Compared to using the #graphene_matrix_t api directly to track many
- * related transforms, these can be some advantages to using a
- * #CoglMatrixStack:
- * <itemizedlist>
- *   <listitem>Faster equality comparisons of transformations</listitem>
- *   <listitem>Efficient comparisons of the differences between arbitrary
- *   transformations</listitem>
- *   <listitem>Avoid redundant arithmetic related to common transforms
- *   </listitem>
- *   <listitem>Can be more space efficient (not always though)</listitem>
- * </itemizedlist>
- *
- * For reference (to give an idea of when a #CoglMatrixStack can
- * provide a space saving) a #graphene_matrix_t can be expected to take 72
- * bytes whereas a single #CoglMatrixEntry in a #CoglMatrixStack is
- * currently around 32 bytes on a 32bit CPU or 36 bytes on a 64bit
- * CPU. An entry is needed for each individual operation applied to
- * the stack (such as rotate, scale, translate) so if most of your
- * leaf node transformations only need one or two simple operations
- * relative to their parent then a matrix stack will likely take less
- * space than having a #graphene_matrix_t for each node.
- *
- * Even without any space saving though the ability to perform fast
- * comparisons and avoid redundant arithmetic (especially sine and
- * cosine calculations for rotations) can make using a matrix stack
- * worthwhile.
- */
-
-/**
  * CoglMatrixStack:
+ *
+ * Efficiently tracking many related transformations.
  *
  * Tracks your current position within a hierarchy and lets you build
  * up a graph of transformations as you traverse through a hierarchy
@@ -133,13 +81,14 @@
  */
 typedef struct _CoglMatrixStack CoglMatrixStack;
 
-/**
- * cogl_matrix_stack_get_gtype:
- *
- * Returns: a #GType that can be used with the GLib type system.
- */
+#define COGL_TYPE_MATRIX_STACK (cogl_matrix_stack_get_type ())
+
 COGL_EXPORT
-GType cogl_matrix_stack_get_gtype (void);
+G_DECLARE_FINAL_TYPE (CoglMatrixStack,
+                      cogl_matrix_stack,
+                      COGL,
+                      MATRIX_STACK,
+                      GObject)
 
 /**
  * CoglMatrixEntry:
@@ -171,19 +120,19 @@ GType cogl_matrix_stack_get_gtype (void);
  * comparison but often these false negatives are unlikely and
  * don't matter anyway so this enables extremely cheap comparisons.
  *
- * <note>#CoglMatrixEntry<!-- -->s are reference counted using
+ * `CoglMatrixEntry`s are reference counted using
  * cogl_matrix_entry_ref() and cogl_matrix_entry_unref() not with
- * cogl_object_ref() and cogl_object_unref().</note>
+ * g_object_ref() and g_object_unref().
  */
 typedef struct _CoglMatrixEntry CoglMatrixEntry;
 
 /**
- * cogl_matrix_entry_get_gtype:
+ * cogl_matrix_entry_get_type:
  *
  * Returns: a #GType that can be used with the GLib type system.
  */
 COGL_EXPORT
-GType cogl_matrix_entry_get_gtype (void);
+GType cogl_matrix_entry_get_type (void);
 
 
 /**
@@ -369,10 +318,10 @@ cogl_matrix_stack_frustum (CoglMatrixStack *stack,
  * Replaces the current matrix with a perspective matrix based on the
  * provided values.
  *
- * <note>You should be careful not to have too great a @z_far / @z_near
+ * You should be careful not to have too great a @z_far / @z_near
  * ratio since that will reduce the effectiveness of depth testing
  * since there won't be enough precision to identify the depth of
- * objects near to each other.</note>
+ * objects near to each other.
  */
 COGL_EXPORT void
 cogl_matrix_stack_perspective (CoglMatrixStack *stack,
@@ -388,11 +337,11 @@ cogl_matrix_stack_perspective (CoglMatrixStack *stack,
  * @y_1: The y coordinate for the first horizontal clipping plane
  * @x_2: The x coordinate for the second vertical clipping plane
  * @y_2: The y coordinate for the second horizontal clipping plane
- * @near: The <emphasis>distance</emphasis> to the near clipping
- *   plane (will be <emphasis>negative</emphasis> if the plane is
+ * @near: The *distance* to the near clipping
+ *   plane (will be *negative* if the plane is
  *   behind the viewer)
- * @far: The <emphasis>distance</emphasis> to the far clipping
- *   plane (will be <emphasis>negative</emphasis> if the plane is
+ * @far: The *distance* to the far clipping
+ *   plane (will be *negative* if the plane is
  *   behind the viewer)
  *
  * Replaces the current matrix with an orthographic projection matrix.
@@ -429,13 +378,13 @@ cogl_matrix_stack_get_inverse (CoglMatrixStack   *stack,
  * Gets a reference to the current transform represented by a
  * #CoglMatrixEntry pointer.
  *
- * <note>The transform represented by a #CoglMatrixEntry is
- * immutable.</note>
+ * The transform represented by a #CoglMatrixEntry is
+ * immutable.
  *
- * <note>#CoglMatrixEntry<!-- -->s are reference counted using
+ * `CoglMatrixEntry`s are reference counted using
  * cogl_matrix_entry_ref() and cogl_matrix_entry_unref() and you
  * should call cogl_matrix_entry_unref() when you are finished with
- * and entry you get via cogl_matrix_stack_get_entry().</note>
+ * and entry you get via cogl_matrix_stack_get_entry().
  *
  * Return value: (transfer none): A pointer to the #CoglMatrixEntry
  *               representing the current matrix stack transform.
@@ -462,8 +411,8 @@ cogl_matrix_stack_get_entry (CoglMatrixStack *stack);
  * if the function returns %NULL then @matrix will be initialized
  * to match the current transform of @stack.
  *
- * <note>@matrix will be left untouched if a direct pointer is
- * returned.</note>
+ * @matrix will be left untouched if a direct pointer is
+ * returned.
  *
  * Return value: A direct pointer to the current transform or %NULL
  *               and in that case @matrix will be initialized with
@@ -493,8 +442,8 @@ cogl_matrix_stack_get (CoglMatrixStack   *stack,
  * if the function returns %NULL then @matrix will be initialized
  * to match the transform of @entry.
  *
- * <note>@matrix will be left untouched if a direct pointer is
- * returned.</note>
+ * @matrix will be left untouched if a direct pointer is
+ * returned.
  *
  * Return value: A direct pointer to a #graphene_matrix_t transform or %NULL
  *               and in that case @matrix will be initialized with
@@ -517,18 +466,6 @@ cogl_matrix_entry_get (CoglMatrixEntry   *entry,
 COGL_EXPORT void
 cogl_matrix_stack_set (CoglMatrixStack         *stack,
                        const graphene_matrix_t *matrix);
-
-/**
- * cogl_is_matrix_stack:
- * @object: a #CoglObject
- *
- * Determines if the given #CoglObject refers to a #CoglMatrixStack.
- *
- * Return value: %TRUE if @object is a #CoglMatrixStack, otherwise
- *               %FALSE.
- */
-COGL_EXPORT gboolean
-cogl_is_matrix_stack (void *object);
 
 /**
  * cogl_matrix_entry_calculate_translation:
@@ -581,9 +518,9 @@ cogl_matrix_entry_is_identity (CoglMatrixEntry *entry);
  * Compares two arbitrary #CoglMatrixEntry transforms for equality
  * returning %TRUE if they are equal or %FALSE otherwise.
  *
- * <note>In many cases it is unnecessary to use this api and instead
+ * In many cases it is unnecessary to use this api and instead
  * direct pointer comparisons of entries are good enough and much
- * cheaper too.</note>
+ * cheaper too.
  *
  * Return value: %TRUE if @entry0 represents the same transform as
  *               @entry1, otherwise %FALSE.
@@ -609,9 +546,6 @@ cogl_debug_matrix_entry_print (CoglMatrixEntry *entry);
  * Takes a reference on the given @entry to ensure the @entry stays
  * alive and remains valid. When you are finished with the @entry then
  * you should call cogl_matrix_entry_unref().
- *
- * It is an error to pass an @entry pointer to cogl_object_ref() and
- * cogl_object_unref()
  */
 COGL_EXPORT CoglMatrixEntry *
 cogl_matrix_entry_ref (CoglMatrixEntry *entry);

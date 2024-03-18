@@ -47,11 +47,9 @@
  * The `ClutterPaintNodeClass` structure contains only private data.
  */
 
-#include "clutter/clutter-build-config.h"
+#include "config.h"
 
 #include <gobject/gvaluecollector.h>
-#include <json-glib/json-glib.h>
-#include <pango/pango.h>
 
 #include "cogl/cogl.h"
 #include "clutter/clutter-paint-node-private.h"
@@ -60,6 +58,9 @@
 
 
 static inline void      clutter_paint_operation_clear   (ClutterPaintOperation *op);
+
+static void clutter_paint_node_remove_child (ClutterPaintNode *node,
+                                             ClutterPaintNode *child);
 
 static void
 value_paint_node_init (GValue *value)
@@ -394,7 +395,7 @@ clutter_paint_node_add_child (ClutterPaintNode *node,
  * This function will release the reference on @child acquired by
  * using clutter_paint_node_add_child().
  */
-void
+static void
 clutter_paint_node_remove_child (ClutterPaintNode *node,
                                  ClutterPaintNode *child)
 {
@@ -429,168 +430,6 @@ clutter_paint_node_remove_child (ClutterPaintNode *node,
   clutter_paint_node_unref (child);
 }
 
-/**
- * clutter_paint_node_replace_child:
- * @node: a #ClutterPaintNode
- * @old_child: the child replaced by @new_child
- * @new_child: the child that replaces @old_child
- *
- * Atomically replaces @old_child with @new_child in the list of
- * children of @node.
- *
- * This function will release the reference on @old_child acquired
- * by @node, and will acquire a new reference on @new_child.
- */
-void
-clutter_paint_node_replace_child (ClutterPaintNode *node,
-                                  ClutterPaintNode *old_child,
-                                  ClutterPaintNode *new_child)
-{
-  ClutterPaintNode *prev, *next;
-
-  g_return_if_fail (CLUTTER_IS_PAINT_NODE (node));
-  g_return_if_fail (CLUTTER_IS_PAINT_NODE (old_child));
-  g_return_if_fail (old_child->parent == node);
-  g_return_if_fail (CLUTTER_IS_PAINT_NODE (new_child));
-  g_return_if_fail (new_child->parent == NULL);
-
-  prev = old_child->prev_sibling;
-  next = old_child->next_sibling;
-
-  new_child->parent = node;
-  new_child->prev_sibling = prev;
-  new_child->next_sibling = next;
-  clutter_paint_node_ref (new_child);
-
-  if (prev != NULL)
-    prev->next_sibling = new_child;
-
-  if (next != NULL)
-    next->prev_sibling = new_child;
-
-  if (node->first_child == old_child)
-    node->first_child = new_child;
-
-  if (node->last_child == old_child)
-    node->last_child = new_child;
-
-  old_child->prev_sibling = NULL;
-  old_child->next_sibling = NULL;
-  old_child->parent = NULL;
-  clutter_paint_node_unref (old_child);
-}
-
-/**
- * clutter_paint_node_remove_all:
- * @node: a #ClutterPaintNode
- *
- * Removes all children of @node.
- *
- * This function releases the reference acquired by @node on its
- * children.
- */
-void
-clutter_paint_node_remove_all (ClutterPaintNode *node)
-{
-  ClutterPaintNode *iter;
-
-  g_return_if_fail (CLUTTER_IS_PAINT_NODE (node));
-
-  iter = node->first_child;
-  while (iter != NULL)
-    {
-      ClutterPaintNode *next = iter->next_sibling;
-
-      clutter_paint_node_remove_child (node, iter);
-
-      iter = next;
-    }
-}
-
-/**
- * clutter_paint_node_get_first_child:
- * @node: a #ClutterPaintNode
- *
- * Retrieves the first child of the @node.
- *
- * Return value: (transfer none): a pointer to the first child of
- *   the #ClutterPaintNode.
- */
-ClutterPaintNode *
-clutter_paint_node_get_first_child (ClutterPaintNode *node)
-{
-  g_return_val_if_fail (CLUTTER_IS_PAINT_NODE (node), NULL);
-
-  return node->first_child;
-}
-
-/**
- * clutter_paint_node_get_previous_sibling:
- * @node: a #ClutterPaintNode
- *
- * Retrieves the previous sibling of @node.
- *
- * Return value: (transfer none): a pointer to the previous sibling
- *   of the #ClutterPaintNode.
- */
-ClutterPaintNode *
-clutter_paint_node_get_previous_sibling (ClutterPaintNode *node)
-{
-  g_return_val_if_fail (CLUTTER_IS_PAINT_NODE (node), NULL);
-
-  return node->prev_sibling;
-}
-
-/**
- * clutter_paint_node_get_next_sibling:
- * @node: a #ClutterPaintNode
- *
- * Retrieves the next sibling of @node.
- *
- * Return value: (transfer none): a pointer to the next sibling
- *   of a #ClutterPaintNode
- */
-ClutterPaintNode *
-clutter_paint_node_get_next_sibling (ClutterPaintNode *node)
-{
-  g_return_val_if_fail (CLUTTER_IS_PAINT_NODE (node), NULL);
-
-  return node->next_sibling;
-}
-
-/**
- * clutter_paint_node_get_last_child:
- * @node: a #ClutterPaintNode
- *
- * Retrieves the last child of @node.
- *
- * Return value: (transfer none): a pointer to the last child
- *   of a #ClutterPaintNode
- */
-ClutterPaintNode *
-clutter_paint_node_get_last_child (ClutterPaintNode *node)
-{
-  g_return_val_if_fail (CLUTTER_IS_PAINT_NODE (node), NULL);
-
-  return node->last_child;
-}
-
-/**
- * clutter_paint_node_get_parent:
- * @node: a #ClutterPaintNode
- *
- * Retrieves the parent of @node.
- *
- * Return value: (transfer none): a pointer to the parent of
- *   a #ClutterPaintNode
- */
-ClutterPaintNode *
-clutter_paint_node_get_parent (ClutterPaintNode *node)
-{
-  g_return_val_if_fail (CLUTTER_IS_PAINT_NODE (node), NULL);
-
-  return node->parent;
-}
 
 /**
  * clutter_paint_node_get_n_children:
@@ -736,7 +575,7 @@ clutter_paint_operation_clear (ClutterPaintOperation *op)
 
     case PAINT_OP_PRIMITIVE:
       if (op->op.primitive != NULL)
-        cogl_object_unref (op->op.primitive);
+        g_object_unref (op->op.primitive);
       break;
     }
 }
@@ -820,7 +659,7 @@ clutter_paint_op_init_primitive (ClutterPaintOperation *op,
   clutter_paint_operation_clear (op);
 
   op->opcode = PAINT_OP_PRIMITIVE;
-  op->op.primitive = cogl_object_ref (primitive);
+  op->op.primitive = g_object_ref (primitive);
 }
 
 static inline void
@@ -989,7 +828,7 @@ clutter_paint_node_add_texture_rectangles (ClutterPaintNode *node,
  * Adds a region described by a Cogl primitive to the @node.
  *
  * This function acquires a reference on @primitive, so it is safe
- * to call cogl_object_unref() when it returns.
+ * to call g_object_unref() when it returns.
  */
 void
 clutter_paint_node_add_primitive (ClutterPaintNode *node,
@@ -998,7 +837,7 @@ clutter_paint_node_add_primitive (ClutterPaintNode *node,
   ClutterPaintOperation operation = PAINT_OP_INIT;
 
   g_return_if_fail (CLUTTER_IS_PAINT_NODE (node));
-  g_return_if_fail (cogl_is_primitive (primitive));
+  g_return_if_fail (COGL_IS_PRIMITIVE (primitive));
 
   clutter_paint_node_maybe_init_operations (node);
 
@@ -1039,154 +878,6 @@ clutter_paint_node_paint (ClutterPaintNode    *node,
     {
       klass->post_draw (node, paint_context);
     }
-}
-
-#ifdef CLUTTER_ENABLE_DEBUG
-static JsonNode *
-clutter_paint_node_serialize (ClutterPaintNode *node)
-{
-  ClutterPaintNodeClass *klass = CLUTTER_PAINT_NODE_GET_CLASS (node);
-
-  if (klass->serialize != NULL)
-    return klass->serialize (node);
-
-  return json_node_new (JSON_NODE_NULL);
-}
-
-static JsonNode *
-clutter_paint_node_to_json (ClutterPaintNode *node)
-{
-  JsonBuilder *builder;
-  JsonNode *res;
-
-  builder = json_builder_new ();
-
-  json_builder_begin_object (builder);
-
-  json_builder_set_member_name (builder, "type");
-  json_builder_add_string_value (builder, g_type_name (G_TYPE_FROM_INSTANCE (node)));
-
-  json_builder_set_member_name (builder, "name");
-  json_builder_add_string_value (builder, node->name);
-
-  json_builder_set_member_name (builder, "node-data");
-  json_builder_add_value (builder, clutter_paint_node_serialize (node));
-
-  json_builder_set_member_name (builder, "operations");
-  json_builder_begin_array (builder);
-
-  if (node->operations != NULL)
-    {
-      guint i, j;
-
-      for (i = 0; i < node->operations->len; i++)
-        {
-          const ClutterPaintOperation *op;
-
-          op = &g_array_index (node->operations, ClutterPaintOperation, i);
-          json_builder_begin_object (builder);
-
-          switch (op->opcode)
-            {
-            case PAINT_OP_TEX_RECT:
-              json_builder_set_member_name (builder, "texrect");
-              json_builder_begin_array (builder);
-              json_builder_add_double_value (builder, op->op.texrect[0]);
-              json_builder_add_double_value (builder, op->op.texrect[1]);
-              json_builder_add_double_value (builder, op->op.texrect[2]);
-              json_builder_add_double_value (builder, op->op.texrect[3]);
-              json_builder_add_double_value (builder, op->op.texrect[4]);
-              json_builder_add_double_value (builder, op->op.texrect[5]);
-              json_builder_add_double_value (builder, op->op.texrect[6]);
-              json_builder_add_double_value (builder, op->op.texrect[7]);
-              json_builder_end_array (builder);
-              break;
-
-            case PAINT_OP_TEX_RECTS:
-              json_builder_set_member_name (builder, "texrects");
-              json_builder_begin_array (builder);
-
-              for (j = 0; i < op->coords->len; j++)
-                {
-                  float coord = g_array_index (op->coords, float, j);
-                  json_builder_add_double_value (builder, coord);
-                }
-
-              json_builder_end_array (builder);
-              break;
-
-            case PAINT_OP_MULTITEX_RECT:
-              json_builder_set_member_name (builder, "texrect");
-              json_builder_begin_array (builder);
-
-              for (j = 0; i < op->coords->len; j++)
-                {
-                  float coord = g_array_index (op->coords, float, j);
-                  json_builder_add_double_value (builder, coord);
-                }
-
-              json_builder_end_array (builder);
-              break;
-
-            case PAINT_OP_PRIMITIVE:
-              json_builder_set_member_name (builder, "primitive");
-              json_builder_add_int_value (builder, (intptr_t) op->op.primitive);
-              break;
-
-            case PAINT_OP_INVALID:
-              break;
-            }
-
-          json_builder_end_object (builder);
-        }
-    }
-
-  json_builder_end_array (builder);
-
-  json_builder_set_member_name (builder, "children");
-  json_builder_begin_array (builder);
-
-  if (node->first_child != NULL)
-    {
-      ClutterPaintNode *child;
-
-      for (child = node->first_child;
-           child != NULL;
-           child = child->next_sibling)
-        {
-          JsonNode *n = clutter_paint_node_to_json (child);
-
-          json_builder_add_value (builder, n);
-        }
-    }
-
-  json_builder_end_array (builder);
-
-  json_builder_end_object (builder);
-
-  res = json_builder_get_root (builder);
-
-  g_object_unref (builder);
-
-  return res;
-}
-#endif /* CLUTTER_ENABLE_DEBUG */
-
-void
-_clutter_paint_node_dump_tree (ClutterPaintNode *node)
-{
-#ifdef CLUTTER_ENABLE_DEBUG
-  JsonGenerator *gen = json_generator_new ();
-  char *str;
-  gsize len;
-
-  json_generator_set_root (gen, clutter_paint_node_to_json (node));
-  str = json_generator_to_data (gen, &len);
-
-  g_print ("Render tree starting from %p:\n%s\n", node, str);
-
-  g_free (str);
-#endif /* CLUTTER_ENABLE_DEBUG */
 }
 
 /*< private >

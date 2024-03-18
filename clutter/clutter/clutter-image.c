@@ -29,12 +29,9 @@
  *
  * #ClutterImage is a #ClutterContent implementation that displays
  * image data inside a [class@Actor].
- *
- * See [image.c](https://git.gnome.org/browse/clutter/tree/examples/image-content.c?h=clutter-1.18)
- * for an example of how to use #ClutterImage..
  */
 
-#include "clutter/clutter-build-config.h"
+#include "config.h"
 
 #include "clutter/clutter-image.h"
 
@@ -70,7 +67,7 @@ create_texture_from_data (unsigned int      width,
 {
   CoglContext *ctx =
     clutter_backend_get_cogl_context (clutter_get_default_backend ());
-  CoglTexture2D *texture_2d;
+  CoglTexture *texture_2d;
 
   texture_2d = cogl_texture_2d_new_from_data (ctx,
                                               width,
@@ -80,7 +77,7 @@ create_texture_from_data (unsigned int      width,
                                               data,
                                               error);
 
-  return texture_2d ? COGL_TEXTURE (texture_2d) : NULL;
+  return texture_2d;
 }
 
 static void
@@ -111,11 +108,7 @@ clutter_image_finalize (GObject *gobject)
   ClutterImage *image = CLUTTER_IMAGE (gobject);
   ClutterImagePrivate *priv = clutter_image_get_instance_private (image);
 
-  if (priv->texture != NULL)
-    {
-      cogl_object_unref (priv->texture);
-      priv->texture = NULL;
-    }
+  g_clear_object (&priv->texture);
 
   G_OBJECT_CLASS (clutter_image_parent_class)->finalize (gobject);
 }
@@ -252,7 +245,7 @@ clutter_image_set_data (ClutterImage     *image,
   priv = clutter_image_get_instance_private (image);
 
   if (priv->texture != NULL)
-    cogl_object_unref (priv->texture);
+    g_object_unref (priv->texture);
 
   priv->texture = create_texture_from_data (width,
                                             height,
@@ -310,7 +303,7 @@ clutter_image_set_bytes (ClutterImage     *image,
   priv = clutter_image_get_instance_private (image);
 
   if (priv->texture != NULL)
-    cogl_object_unref (priv->texture);
+    g_object_unref (priv->texture);
 
   priv->texture = create_texture_from_data (width,
                                             height,
@@ -343,7 +336,7 @@ clutter_image_set_bytes (ClutterImage     *image,
  * If the @image does not have any image data set when this function is
  * called, a new texture will be created with the size of the width and
  * height of the rectangle, i.e. calling this function on a newly created
- * #ClutterImage will be the equivalent of calling clutter_image_set_data().
+ * #ClutterImage will be the equivalent of calling [method@Clutter.Image.set_data].
  *
  * If the image data was successfully loaded, the @image will be invalidated.
  *
@@ -395,8 +388,7 @@ clutter_image_set_area (ClutterImage        *image,
 
       if (!res)
         {
-          cogl_object_unref (priv->texture);
-          priv->texture = NULL;
+          g_clear_object (&priv->texture);
         }
     }
 
@@ -416,7 +408,7 @@ clutter_image_set_area (ClutterImage        *image,
  * Retrieves a pointer to the Cogl texture used by @image.
  *
  * If you change the contents of the returned Cogl texture you will need
- * to manually invalidate the @image with clutter_content_invalidate()
+ * to manually invalidate the @image with [method@Clutter.Content.invalidate]
  * in order to update the actors using @image as their content.
  *
  * Return value: (transfer none): a pointer to the Cogl texture, or %NULL

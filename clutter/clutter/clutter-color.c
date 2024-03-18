@@ -21,7 +21,7 @@
  * License along with this library. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#include "clutter/clutter-build-config.h"
+#include "config.h"
 
 #include <math.h>
 
@@ -32,168 +32,6 @@
 #include "clutter/clutter-color.h"
 #include "clutter/clutter-private.h"
 #include "clutter/clutter-debug.h"
-
-/* XXX - keep in sync with the ClutterStaticColor enumeration order */
-static const ClutterColor static_colors[] = {
-  /* CGA/EGA color palette */
-  { 0xff, 0xff, 0xff, 0xff },   /* white */
-  { 0x00, 0x00, 0x00, 0xff },   /* black */
-  { 0xff, 0x00, 0x00, 0xff },   /* red */
-  { 0x80, 0x00, 0x00, 0xff },   /* dark red */
-  { 0x00, 0xff, 0x00, 0xff },   /* green */
-  { 0x00, 0x80, 0x00, 0xff },   /* dark green */
-  { 0x00, 0x00, 0xff, 0xff },   /* blue */
-  { 0x00, 0x00, 0x80, 0xff },   /* dark blue */
-  { 0x00, 0xff, 0xff, 0xff },   /* cyan */
-  { 0x00, 0x80, 0x80, 0xff },   /* dark cyan */
-  { 0xff, 0x00, 0xff, 0xff },   /* magenta */
-  { 0x80, 0x00, 0x80, 0xff },   /* dark magenta */
-  { 0xff, 0xff, 0x00, 0xff },   /* yellow */
-  { 0x80, 0x80, 0x00, 0xff },   /* dark yellow */
-  { 0xa0, 0xa0, 0xa4, 0xff },   /* gray */
-  { 0x80, 0x80, 0x80, 0xff },   /* dark gray */
-  { 0xc0, 0xc0, 0xc0, 0xff },   /* light gray */
-
-  /* Tango Icon color palette */
-  { 0xed, 0xd4, 0x00, 0xff },   /* butter */
-  { 0xfc, 0xe9, 0x4f, 0xff },   /* butter light */
-  { 0xc4, 0xa0, 0x00, 0xff },   /* butter dark */
-  { 0xf5, 0x79, 0x00, 0xff },   /* orange */
-  { 0xfc, 0xaf, 0x3e, 0xff },   /* orange light */
-  { 0xce, 0x5c, 0x00, 0xff },   /* orange dark */
-  { 0xc1, 0x7d, 0x11, 0xff },   /* chocolate */
-  { 0xe9, 0xb9, 0x6e, 0xff },   /* chocolate light */
-  { 0x8f, 0x59, 0x02, 0xff },   /* chocolate dark */
-  { 0x73, 0xd2, 0x16, 0xff },   /* chameleon */
-  { 0x8a, 0xe2, 0x34, 0xff },   /* chameleon light */
-  { 0x4e, 0x9a, 0x06, 0xff },   /* chameleon dark */
-  { 0x34, 0x65, 0xa4, 0xff },   /* sky blue */
-  { 0x72, 0x9f, 0xcf, 0xff },   /* sky blue light */
-  { 0x20, 0x4a, 0x87, 0xff },   /* sky blue dark */
-  { 0x75, 0x50, 0x7b, 0xff },   /* plum */
-  { 0xad, 0x7f, 0xa8, 0xff },   /* plum light */
-  { 0x5c, 0x35, 0x66, 0xff },   /* plum dark */
-  { 0xcc, 0x00, 0x00, 0xff },   /* scarlet red */
-  { 0xef, 0x29, 0x29, 0xff },   /* scarlet red light */
-  { 0xa4, 0x00, 0x00, 0xff },   /* scarlet red dark */
-  { 0xee, 0xee, 0xec, 0xff },   /* aluminium 1 */
-  { 0xd3, 0xd7, 0xcf, 0xff },   /* aluminium 2 */
-  { 0xba, 0xbd, 0xb6, 0xff },   /* aluminium 3 */
-  { 0x88, 0x8a, 0x85, 0xff },   /* aluminium 4 */
-  { 0x55, 0x57, 0x53, 0xff },   /* aluminium 5 */
-  { 0x2e, 0x34, 0x36, 0xff },   /* aluminium 6 */
-
-  /* last color */
-  { 0x00, 0x00, 0x00, 0x00 }    /* transparent */
-};
-
-/**
- * clutter_color_get_static:
- * @color: the named global color
- *
- * Retrieves a static color for the given @color name
- *
- * Static colors are created by Clutter and are guaranteed to always be
- * available and valid
- *
- * Return value: a pointer to a static color; the returned pointer
- *   is owned by Clutter and it should never be modified or freed
- */
-const ClutterColor *
-clutter_color_get_static (ClutterStaticColor color)
-{
-  g_return_val_if_fail (color >= CLUTTER_COLOR_WHITE &&
-                        color <= CLUTTER_COLOR_TRANSPARENT, NULL);
-
-  return &static_colors[color];
-}
-
-/**
- * clutter_color_add:
- * @a: a #ClutterColor
- * @b: a #ClutterColor
- * @result: (out caller-allocates): return location for the result
- *
- * Adds @a to @b and saves the resulting color inside @result.
- *
- * The alpha channel of @result is set as as the maximum value
- * between the alpha channels of @a and @b.
- */
-void
-clutter_color_add (const ClutterColor *a,
-		   const ClutterColor *b,
-		   ClutterColor       *result)
-{
-  g_return_if_fail (a != NULL);
-  g_return_if_fail (b != NULL);
-  g_return_if_fail (result != NULL);
-
-  result->red   = CLAMP (a->red   + b->red,   0, 255);
-  result->green = CLAMP (a->green + b->green, 0, 255);
-  result->blue  = CLAMP (a->blue  + b->blue,  0, 255);
-
-  result->alpha = MAX (a->alpha, b->alpha);
-}
-
-/**
- * clutter_color_subtract:
- * @a: a #ClutterColor
- * @b: a #ClutterColor
- * @result: (out caller-allocates): return location for the result
- *
- * Subtracts @b from @a and saves the resulting color inside @result.
- *
- * This function assumes that the components of @a are greater than the
- * components of @b; the result is, otherwise, undefined.
- *
- * The alpha channel of @result is set as the minimum value
- * between the alpha channels of @a and @b.
- */
-void
-clutter_color_subtract (const ClutterColor *a,
-			const ClutterColor *b,
-			ClutterColor       *result)
-{
-  g_return_if_fail (a != NULL);
-  g_return_if_fail (b != NULL);
-  g_return_if_fail (result != NULL);
-
-  result->red   = CLAMP (a->red   - b->red,   0, 255);
-  result->green = CLAMP (a->green - b->green, 0, 255);
-  result->blue  = CLAMP (a->blue  - b->blue,  0, 255);
-
-  result->alpha = MIN (a->alpha, b->alpha);
-}
-
-/**
- * clutter_color_lighten:
- * @color: a #ClutterColor
- * @result: (out caller-allocates): return location for the lighter color
- *
- * Lightens @color by a fixed amount, and saves the changed color
- * in @result.
- */
-void
-clutter_color_lighten (const ClutterColor *color,
-		       ClutterColor       *result)
-{
-  clutter_color_shade (color, 1.3, result);
-}
-
-/**
- * clutter_color_darken:
- * @color: a #ClutterColor
- * @result: (out caller-allocates): return location for the darker color
- *
- * Darkens @color by a fixed amount, and saves the changed color
- * in @result.
- */
-void
-clutter_color_darken (const ClutterColor *color,
-		      ClutterColor       *result)
-{
-  clutter_color_shade (color, 0.7, result);
-}
 
 /**
  * clutter_color_to_hls:
@@ -346,34 +184,6 @@ clutter_color_from_hls (ClutterColor *color,
   color->red   = floorf (clr[0] * 255.0 + 0.5);
   color->green = floorf (clr[1] * 255.0 + 0.5);
   color->blue  = floorf (clr[2] * 255.0 + 0.5);
-}
-
-/**
- * clutter_color_shade:
- * @color: a #ClutterColor
- * @factor: the shade factor to apply
- * @result: (out caller-allocates): return location for the shaded color
- *
- * Shades @color by @factor and saves the modified color into @result.
- */
-void
-clutter_color_shade (const ClutterColor *color,
-                     gdouble             factor,
-                     ClutterColor       *result)
-{
-  float h, l, s;
-
-  g_return_if_fail (color != NULL);
-  g_return_if_fail (result != NULL);
-  
-  clutter_color_to_hls (color, &h, &l, &s);
-
-  l = CLAMP (l * factor, 0.0, 1.0);
-  s = CLAMP (s * factor, 0.0, 1.0);
-  
-  clutter_color_from_hls (result, h, l, s);
-
-  result->alpha = color->alpha;
 }
 
 /**
@@ -761,8 +571,7 @@ clutter_color_from_string (ClutterColor *color,
  * @color: a #ClutterColor
  *
  * Returns a textual specification of @color in the hexadecimal form
- * <literal>&num;rrggbbaa</literal>, where <literal>r</literal>,
- * <literal>g</literal>, <literal>b</literal> and <literal>a</literal> are
+ * `&num;rrggbbaa`, where `r`, `g`, `b` and `a` are
  * hexadecimal digits representing the red, green, blue and alpha components
  * respectively.
  *
@@ -877,7 +686,7 @@ clutter_color_progress (const GValue *a,
  * @color: a #ClutterColor
  *
  * Makes a copy of the color structure.  The result must be
- * freed using clutter_color_free().
+ * freed using [method@Clutter.Color.free].
  *
  * Return value: (transfer full): an allocated copy of @color.
  */
@@ -894,7 +703,7 @@ clutter_color_copy (const ClutterColor *color)
  * clutter_color_free:
  * @color: a #ClutterColor
  *
- * Frees a color structure created with clutter_color_copy().
+ * Frees a color structure created with [method@Clutter.Color.copy].
  */
 void
 clutter_color_free (ClutterColor *color)
@@ -919,7 +728,7 @@ clutter_color_free (ClutterColor *color)
  * ```
  *
  * Return value: (transfer full): the newly allocated color.
- *   Use clutter_color_free() when done
+ *   Use [method@Clutter.Color.free] when done
  */
 ClutterColor *
 clutter_color_new (guint8 red,
@@ -940,7 +749,7 @@ clutter_color_new (guint8 red,
  * Allocates a new, transparent black #ClutterColor.
  *
  * Return value: (transfer full): the newly allocated #ClutterColor; use
- *   clutter_color_free() to free its resources
+ *   [method@Clutter.Color.free] to free its resources
  */
 ClutterColor *
 clutter_color_alloc (void)

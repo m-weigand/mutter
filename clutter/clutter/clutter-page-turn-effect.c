@@ -27,13 +27,13 @@
 
 /**
  * ClutterPageTurnEffect:
- * 
+ *
  * A page turning effect
  *
  * A simple page turning effect
  */
 
-#include "clutter/clutter-build-config.h"
+#include "config.h"
 
 #include <math.h>
 
@@ -41,10 +41,6 @@
 
 #include "clutter/clutter-debug.h"
 #include "clutter/clutter-private.h"
-
-#define CLUTTER_PAGE_TURN_EFFECT_CLASS(k)       (G_TYPE_CHECK_CLASS_CAST ((k), CLUTTER_TYPE_PAGE_TURN_EFFECT, ClutterPageTurnEffectClass))
-#define CLUTTER_IS_PAGE_TURN_EFFECT_CLASS(k)    (G_TYPE_CHECK_CLASS_TYPE ((k), CLUTTER_TYPE_PAGE_TURN_EFFECT))
-#define CLUTTER_PAGE_TURN_EFFECT_GET_CLASS(o)   (G_TYPE_INSTANCE_GET_CLASS ((o), CLUTTER_TYPE_PAGE_TURN_EFFECT, ClutterPageTurnEffectClass))
 
 struct _ClutterPageTurnEffect
 {
@@ -54,11 +50,6 @@ struct _ClutterPageTurnEffect
   gdouble angle;
 
   gfloat radius;
-};
-
-struct _ClutterPageTurnEffectClass
-{
-  ClutterDeformEffectClass parent_class;
 };
 
 enum
@@ -86,7 +77,7 @@ clutter_page_turn_effect_deform_vertex (ClutterDeformEffect *effect,
 {
   ClutterPageTurnEffect *self = CLUTTER_PAGE_TURN_EFFECT (effect);
   gfloat cx, cy, rx, ry, radians, turn_angle;
-  guint shade;
+  float shade;
 
   if (self->period == 0.0)
     return;
@@ -112,12 +103,12 @@ clutter_page_turn_effect_deform_vertex (ClutterDeformEffect *effect,
        * ray (i.e. the page crease)
        */
       turn_angle = (rx / self->radius * G_PI_2) - G_PI_2;
-      shade = (sin (turn_angle) * 96.0f) + 159.0f;
+      shade = ((sin (turn_angle) * 96.0f) + 159.0f) / 255.0;
 
       /* Add a gradient that makes it look like lighting and hides the switch
        * between textures.
        */
-      cogl_color_init_from_4ub (&vertex->color, shade, shade, shade, 0xff);
+      cogl_color_init_from_4f (&vertex->color, shade, shade, shade, 1.0);
     }
 
   if (rx > 0)
@@ -218,7 +209,8 @@ clutter_page_turn_effect_class_init (ClutterPageTurnEffectClass *klass)
   pspec = g_param_spec_double ("period", NULL, NULL,
                                0.0, 1.0,
                                0.0,
-                               CLUTTER_PARAM_READWRITE);
+                               G_PARAM_READWRITE |
+                               G_PARAM_STATIC_STRINGS);
   obj_props[PROP_PERIOD] = pspec;
   g_object_class_install_property (gobject_class, PROP_PERIOD, pspec);
 
@@ -230,7 +222,8 @@ clutter_page_turn_effect_class_init (ClutterPageTurnEffectClass *klass)
   pspec = g_param_spec_double ("angle", NULL, NULL,
                                0.0, 360.0,
                                0.0,
-                               CLUTTER_PARAM_READWRITE);
+                               G_PARAM_READWRITE |
+                               G_PARAM_STATIC_STRINGS);
   obj_props[PROP_ANGLE] = pspec;
   g_object_class_install_property (gobject_class, PROP_ANGLE, pspec);
 
@@ -242,7 +235,8 @@ clutter_page_turn_effect_class_init (ClutterPageTurnEffectClass *klass)
   pspec = g_param_spec_float ("radius", NULL, NULL,
                               -G_MAXFLOAT, G_MAXFLOAT,
                               24.0,
-                              CLUTTER_PARAM_READWRITE);
+                              G_PARAM_READWRITE |
+                              G_PARAM_STATIC_STRINGS);
   obj_props[PROP_RADIUS] = pspec;
   g_object_class_install_property (gobject_class, PROP_RADIUS, pspec);
 

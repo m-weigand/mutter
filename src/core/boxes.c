@@ -703,7 +703,7 @@ meta_rectangle_is_adjacent_to_any_in_region (const GList  *spanning_rects,
       if (rect == other || mtk_rectangle_equal (rect, other))
         continue;
 
-      if (meta_rectangle_is_adjacent_to (rect, other))
+      if (mtk_rectangle_is_adjacent_to (rect, other))
         return TRUE;
     }
 
@@ -1826,42 +1826,6 @@ meta_rectangle_find_nonintersected_monitor_edges (
   return ret;
 }
 
-gboolean
-meta_rectangle_is_adjacent_to (MtkRectangle *rect,
-                               MtkRectangle *other)
-{
-  int rect_x1 = rect->x;
-  int rect_y1 = rect->y;
-  int rect_x2 = rect->x + rect->width;
-  int rect_y2 = rect->y + rect->height;
-  int other_x1 = other->x;
-  int other_y1 = other->y;
-  int other_x2 = other->x + other->width;
-  int other_y2 = other->y + other->height;
-
-  if ((rect_x1 == other_x2 || rect_x2 == other_x1) &&
-      !(rect_y2 <= other_y1 || rect_y1 >= other_y2))
-    return TRUE;
-  else if ((rect_y1 == other_y2 || rect_y2 == other_y1) &&
-           !(rect_x2 <= other_x1 || rect_x1 >= other_x2))
-    return TRUE;
-  else
-    return FALSE;
-}
-
-void
-meta_rectangle_scale_double (const MtkRectangle  *rect,
-                             double               scale,
-                             MtkRoundingStrategy  rounding_strategy,
-                             MtkRectangle        *dest)
-{
-  graphene_rect_t tmp = GRAPHENE_RECT_INIT (rect->x, rect->y,
-                                            rect->width, rect->height);
-
-  graphene_rect_scale (&tmp, scale, scale, &tmp);
-  mtk_rectangle_from_graphene_rect (&tmp, rounding_strategy, dest);
-}
-
 /**
  * meta_rectangle_transform:
  * @rect: the #MtkRectangle to be transformed
@@ -1946,21 +1910,3 @@ meta_rectangle_transform (const MtkRectangle   *rect,
     }
 }
 
-void
-meta_rectangle_crop_and_scale (const MtkRectangle *rect,
-                               graphene_rect_t    *src_rect,
-                               int                 dst_width,
-                               int                 dst_height,
-                               MtkRectangle       *dest)
-{
-  graphene_rect_t tmp = GRAPHENE_RECT_INIT (rect->x, rect->y,
-                                            rect->width, rect->height);
-
-  graphene_rect_scale (&tmp,
-                       src_rect->size.width / dst_width,
-                       src_rect->size.height / dst_height,
-                       &tmp);
-  graphene_rect_offset (&tmp, src_rect->origin.x, src_rect->origin.y);
-
-  mtk_rectangle_from_graphene_rect (&tmp, MTK_ROUNDING_STRATEGY_GROW, dest);
-}

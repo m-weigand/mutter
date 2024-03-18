@@ -28,7 +28,7 @@
  *
  */
 
-#include "cogl-config.h"
+#include "config.h"
 
 #include <gio/gio.h>
 
@@ -38,11 +38,9 @@
 #include "cogl/cogl-framebuffer-private.h"
 #include "cogl/cogl-onscreen-template-private.h"
 #include "cogl/cogl-context-private.h"
-#include "cogl/cogl-object-private.h"
 #include "cogl/cogl1-context.h"
 #include "cogl/cogl-closure-list-private.h"
 #include "cogl/cogl-poll-private.h"
-#include "cogl/cogl-gtype-private.h"
 
 typedef struct _CoglOnscreenPrivate
 {
@@ -57,6 +55,9 @@ typedef struct _CoglOnscreenPrivate
   GQueue pending_frame_infos;
 } CoglOnscreenPrivate;
 
+static void
+_cogl_onscreen_queue_full_dirty (CoglOnscreen *onscreen);
+
 G_DEFINE_TYPE_WITH_PRIVATE (CoglOnscreen, cogl_onscreen, COGL_TYPE_FRAMEBUFFER)
 
 static gpointer
@@ -70,13 +71,15 @@ cogl_dummy_free (gpointer data)
 {
 }
 
-COGL_GTYPE_DEFINE_BOXED (FrameClosure, frame_closure,
-                         cogl_dummy_copy,
-                         cogl_dummy_free);
-COGL_GTYPE_DEFINE_BOXED (OnscreenDirtyClosure,
-                         onscreen_dirty_closure,
-                         cogl_dummy_copy,
-                         cogl_dummy_free);
+G_DEFINE_BOXED_TYPE (CoglFrameClosure,
+                     cogl_frame_closure,
+                     cogl_dummy_copy,
+                     cogl_dummy_free)
+
+G_DEFINE_BOXED_TYPE (CoglOnscreenDirtyClosure,
+                     cogl_onscreen_dirty_closure,
+                     cogl_dummy_copy,
+                     cogl_dummy_free)
 
 G_DEFINE_QUARK (cogl-scanout-error-quark, cogl_scanout_error)
 
@@ -141,7 +144,7 @@ cogl_onscreen_dispose (GObject *object)
   _cogl_closure_list_disconnect_all (&priv->dirty_closures);
 
   while ((frame_info = g_queue_pop_tail (&priv->pending_frame_infos)))
-    cogl_object_unref (frame_info);
+    g_object_unref (frame_info);
   g_queue_clear (&priv->pending_frame_infos);
 
   G_OBJECT_CLASS (cogl_onscreen_parent_class)->dispose (object);
@@ -202,7 +205,7 @@ _cogl_dispatch_onscreen_cb (CoglContext *context)
       notify_event (onscreen, event->type, info);
 
       g_object_unref (onscreen);
-      cogl_object_unref (info);
+      g_object_unref (info);
 
       g_free (event);
     }
@@ -275,7 +278,7 @@ _cogl_onscreen_queue_full_dirty (CoglOnscreen *onscreen)
   _cogl_onscreen_queue_dirty (onscreen, &info);
 }
 
-void
+static void
 _cogl_onscreen_queue_event (CoglOnscreen *onscreen,
                             CoglFrameEvent type,
                             CoglFrameInfo *info)
@@ -286,7 +289,7 @@ _cogl_onscreen_queue_event (CoglOnscreen *onscreen,
   CoglOnscreenEvent *event = g_new0 (CoglOnscreenEvent, 1);
 
   event->onscreen = g_object_ref (onscreen);
-  event->info = cogl_object_ref (info);
+  event->info = g_object_ref (info);
   event->type = type;
 
   _cogl_list_insert (ctx->onscreen_events_queue.prev, &event->link);
@@ -355,7 +358,7 @@ cogl_onscreen_swap_buffers_with_damage (CoglOnscreen *onscreen,
       _cogl_onscreen_queue_event (onscreen, COGL_FRAME_EVENT_SYNC, info);
       _cogl_onscreen_queue_event (onscreen, COGL_FRAME_EVENT_COMPLETE, info);
 
-      cogl_object_unref (info);
+      g_object_unref (info);
     }
 
   priv->frame_counter++;
@@ -415,7 +418,7 @@ cogl_onscreen_swap_region (CoglOnscreen *onscreen,
       _cogl_onscreen_queue_event (onscreen, COGL_FRAME_EVENT_SYNC, info);
       _cogl_onscreen_queue_event (onscreen, COGL_FRAME_EVENT_COMPLETE, info);
 
-      cogl_object_unref (info);
+      g_object_unref (info);
     }
 
   priv->frame_counter++;
@@ -512,7 +515,7 @@ CoglFrameClosure *
 cogl_onscreen_add_frame_callback (CoglOnscreen *onscreen,
                                   CoglFrameCallback callback,
                                   void *user_data,
-                                  CoglUserDataDestroyCallback destroy)
+                                  GDestroyNotify destroy)
 {
   CoglOnscreenPrivate *priv = cogl_onscreen_get_instance_private (onscreen);
 
@@ -562,7 +565,7 @@ CoglOnscreenDirtyClosure *
 cogl_onscreen_add_dirty_callback (CoglOnscreen *onscreen,
                                   CoglOnscreenDirtyCallback callback,
                                   void *user_data,
-                                  CoglUserDataDestroyCallback destroy)
+                                  GDestroyNotify destroy)
 {
   CoglOnscreenPrivate *priv = cogl_onscreen_get_instance_private (onscreen);
 

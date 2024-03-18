@@ -43,20 +43,8 @@
 
 #include <graphene.h>
 
-/* We currently keep gtype integration delimited in case we eventually
- * want to split it out into a separate utility library when Cogl
- * becomes a standalone project. (like cairo-gobject.so)
- */
-#define _COGL_SUPPORTS_GTYPE_INTEGRATION
-
-/*
- * API common to the 1.x and 2.0 api...
- */
-
-#include "cogl/cogl-defines.h"
 #include "cogl/cogl-macros.h"
 
-#include "cogl/cogl-object.h"
 #include "cogl/cogl1-context.h"
 #include "cogl/cogl-bitmap.h"
 #include "cogl/cogl-color.h"
@@ -67,21 +55,8 @@
 #include "cogl/cogl-texture.h"
 #include "cogl/cogl-types.h"
 
-/*
- * 1.x only api...
- */
-#if 0
-#ifndef COGL_ENABLE_EXPERIMENTAL_2_0_API
-#warning
-#endif
-#endif
 
-/* It would be good to move these casts up into 1.x only api if we can
- * update Clutter, Mutter and GnomeShell to avoid redundant casts when
- * they enable the experimental api... */
-#include <cogl/deprecated/cogl-type-casts.h>
-
-#include <cogl/deprecated/cogl-shader.h>
+#include "cogl/deprecated/cogl-shader.h"
 
 #ifdef COGL_ENABLE_MUTTER_API
 #include "cogl/cogl-mutter.h"
@@ -100,6 +75,7 @@
 #include "cogl/cogl-atlas-texture.h"
 #include "cogl/cogl-meta-texture.h"
 #include "cogl/cogl-primitive-texture.h"
+#include "cogl/cogl-enum-types.h"
 #include "cogl/cogl-index-buffer.h"
 #include "cogl/cogl-attribute-buffer.h"
 #include "cogl/cogl-indices.h"
@@ -121,14 +97,7 @@
 #include "cogl/cogl-graphene.h"
 /* XXX: This will definitely go away once all the Clutter winsys
  * code has been migrated down into Cogl! */
-#include <cogl/deprecated/cogl-clutter.h>
-
-/**
- * SECTION:cogl
- * @short_description: General purpose API
- *
- * General utility functions for COGL.
- */
+#include "cogl/deprecated/cogl-clutter.h"
 
 /* The gobject introspection scanner seems to parse public headers in
  * isolation which means we need to be extra careful about how we

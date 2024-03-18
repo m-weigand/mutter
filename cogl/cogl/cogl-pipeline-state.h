@@ -37,6 +37,7 @@
 #include "cogl/cogl-pipeline.h"
 #include "cogl/cogl-color.h"
 #include "cogl/cogl-depth-state.h"
+#include "cogl/deprecated/cogl-program.h"
 
 G_BEGIN_DECLS
 
@@ -57,44 +58,6 @@ G_BEGIN_DECLS
 COGL_EXPORT void
 cogl_pipeline_set_color (CoglPipeline    *pipeline,
                          const CoglColor *color);
-
-/**
- * cogl_pipeline_set_color4ub:
- * @pipeline: A #CoglPipeline object
- * @red: The red component
- * @green: The green component
- * @blue: The blue component
- * @alpha: The alpha component
- *
- * Sets the basic color of the pipeline, used when no lighting is enabled.
- *
- * The default value is (0xff, 0xff, 0xff, 0xff)
- */
-COGL_EXPORT void
-cogl_pipeline_set_color4ub (CoglPipeline *pipeline,
-			    uint8_t red,
-                            uint8_t green,
-                            uint8_t blue,
-                            uint8_t alpha);
-
-/**
- * cogl_pipeline_set_color4f:
- * @pipeline: A #CoglPipeline object
- * @red: The red component
- * @green: The green component
- * @blue: The blue component
- * @alpha: The alpha component
- *
- * Sets the basic color of the pipeline, used when no lighting is enabled.
- *
- * The default value is (1.0, 1.0, 1.0, 1.0)
- */
-COGL_EXPORT void
-cogl_pipeline_set_color4f (CoglPipeline *pipeline,
-                           float         red,
-                           float         green,
-                           float         blue,
-                           float         alpha);
 
 /**
  * cogl_pipeline_get_color:
@@ -183,7 +146,7 @@ cogl_pipeline_get_alpha_test_reference (CoglPipeline *pipeline);
 /**
  * cogl_pipeline_set_blend:
  * @pipeline: A #CoglPipeline object
- * @blend_string: A <link linkend="cogl-Blend-Strings">Cogl blend string</link>
+ * @blend_string: A Cogl blend string
  *   describing the desired blend function.
  * @error: return location for a #GError that may report lack of driver
  *   support if you give separate blend string statements for the alpha
@@ -192,64 +155,50 @@ cogl_pipeline_get_alpha_test_reference (CoglPipeline *pipeline);
  *   warning will be printed out using GLib's logging facilities if an
  *   error is encountered.
  *
- * If not already familiar; please refer <link linkend="cogl-Blend-Strings">here</link>
- * for an overview of what blend strings are, and their syntax.
- *
  * Blending occurs after the alpha test function, and combines fragments with
  * the framebuffer.
 
  * Currently the only blend function Cogl exposes is ADD(). So any valid
  * blend statements will be of the form:
  *
- * |[
+ * ```
  *   &lt;channel-mask&gt;=ADD(SRC_COLOR*(&lt;factor&gt;), DST_COLOR*(&lt;factor&gt;))
- * ]|
+ * ```
  *
  * This is the list of source-names usable as blend factors:
- * <itemizedlist>
- *   <listitem><para>SRC_COLOR: The color of the incoming fragment</para></listitem>
- *   <listitem><para>DST_COLOR: The color of the framebuffer</para></listitem>
- *   <listitem><para>CONSTANT: The constant set via cogl_pipeline_set_blend_constant()</para></listitem>
- * </itemizedlist>
- *
- * The source names can be used according to the
- * <link linkend="cogl-Blend-String-syntax">color-source and factor syntax</link>,
- * so for example "(1-SRC_COLOR[A])" would be a valid factor, as would
- * "(CONSTANT[RGB])"
+ * 
+ * - `SRC_COLOR`: The color of the incoming fragment
+ * - `DST_COLOR`: The color of the framebuffer
+ * - `CONSTANT`: The constant set via cogl_pipeline_set_blend_constant()
  *
  * These can also be used as factors:
- * <itemizedlist>
- *   <listitem>0: (0, 0, 0, 0)</listitem>
- *   <listitem>1: (1, 1, 1, 1)</listitem>
- *   <listitem>SRC_ALPHA_SATURATE_FACTOR: (f,f,f,1) where f = MIN(SRC_COLOR[A],1-DST_COLOR[A])</listitem>
- * </itemizedlist>
+ * 
+ * - `0`: (0, 0, 0, 0)
+ * - `1`: (1, 1, 1, 1)
+ * - `SRC_ALPHA_SATURATE_FACTOR`: (f,f,f,1) where `f = MIN(SRC_COLOR[A],1-DST_COLOR[A])`
  *
- * <note>Remember; all color components are normalized to the range [0, 1]
- * before computing the result of blending.</note>
+ * Remember; all color components are normalized to the range [0, 1]
+ * before computing the result of blending.
  *
- * <example id="cogl-Blend-Strings-blend-unpremul">
- *   <title>Blend Strings/1</title>
- *   <para>Blend a non-premultiplied source over a destination with
- *   premultiplied alpha:</para>
- *   <programlisting>
+ * - Blend Strings/1:
+ * Blend a non-premultiplied source over a destination with
+ * premultiplied alpha:
+ *   ```
  * "RGB = ADD(SRC_COLOR*(SRC_COLOR[A]), DST_COLOR*(1-SRC_COLOR[A]))"
  * "A   = ADD(SRC_COLOR, DST_COLOR*(1-SRC_COLOR[A]))"
- *   </programlisting>
- * </example>
+ *   ```
  *
- * <example id="cogl-Blend-Strings-blend-premul">
- *   <title>Blend Strings/2</title>
- *   <para>Blend a premultiplied source over a destination with
- *   premultiplied alpha</para>
- *   <programlisting>
+ * Blend Strings/2:
+ *   Blend a premultiplied source over a destination with
+ *   premultiplied alpha
+ *   ```
  * "RGBA = ADD(SRC_COLOR, DST_COLOR*(1-SRC_COLOR[A]))"
- *   </programlisting>
- * </example>
+ *   ```
  *
  * The default blend string is:
- * |[
+ * ```
  *    RGBA = ADD (SRC_COLOR, DST_COLOR*(1-SRC_COLOR[A]))
- * ]|
+ * ```
  *
  * That gives normal alpha-blending when the calculated color for the pipeline
  * is in premultiplied form.
@@ -352,22 +301,22 @@ cogl_pipeline_get_per_vertex_point_size (CoglPipeline *pipeline);
  *
  * Return value: (transfer none): The current user program or %NULL.
  */
-COGL_EXPORT CoglHandle
+COGL_EXPORT CoglProgram*
 cogl_pipeline_get_user_program (CoglPipeline *pipeline);
 
 /**
  * cogl_pipeline_set_user_program:
  * @pipeline: a #CoglPipeline object.
- * @program: A #CoglHandle to a linked CoglProgram
+ * @program: A linked CoglProgram
  *
  * Associates a linked CoglProgram with the given pipeline so that the
  * program can take full control of vertex and/or fragment processing.
  *
  * This is an example of how it can be used to associate an ARBfp
  * program with a #CoglPipeline:
- * |[
- * CoglHandle shader;
- * CoglHandle program;
+ * ```c
+ * CoglShader *shader;
+ * CoglProgram *program;
  * CoglPipeline *pipeline;
  *
  * shader = cogl_create_shader (COGL_SHADER_TYPE_FRAGMENT);
@@ -385,7 +334,7 @@ cogl_pipeline_get_user_program (CoglPipeline *pipeline);
  *
  * cogl_set_source_color4ub (0xff, 0x00, 0x00, 0xff);
  * cogl_rectangle (0, 0, 100, 100);
- * ]|
+ * ```
  *
  * It is possibly worth keeping in mind that this API is not part of
  * the long term design for how we want to expose shaders to Cogl
@@ -396,10 +345,10 @@ cogl_pipeline_get_user_program (CoglPipeline *pipeline);
  */
 COGL_EXPORT void
 cogl_pipeline_set_user_program (CoglPipeline *pipeline,
-                                CoglHandle program);
+                                CoglProgram  *program);
 
 /**
- * cogl_pipeline_set_depth_state: (skip)
+ * cogl_pipeline_set_depth_state:
  * @pipeline: A #CoglPipeline object
  * @state: A #CoglDepthState struct
  * @error: A #GError to report failures to setup the given @state.
@@ -412,7 +361,7 @@ cogl_pipeline_set_user_program (CoglPipeline *pipeline,
  * Note: Since some platforms do not support the depth range feature
  * it is possible for this function to fail and report an @error.
  *
- * Returns: TRUE if the GPU supports all the given @state else %FALSE
+ * Returns: %TRUE if the GPU supports all the given @state else %FALSE
  *          and returns an @error.
  */
 COGL_EXPORT gboolean
@@ -421,7 +370,7 @@ cogl_pipeline_set_depth_state (CoglPipeline *pipeline,
                                GError **error);
 
 /**
- * cogl_pipeline_get_depth_state: (skip)
+ * cogl_pipeline_get_depth_state:
  * @pipeline: A #CoglPipeline object
  * @state_out: (out): A destination #CoglDepthState struct
  *

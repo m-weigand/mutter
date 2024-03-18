@@ -236,7 +236,7 @@ test_cogl_point_sprites_main (int argc, char *argv[])
 
   tex = generate_round_texture (ctx);
   cogl_pipeline_set_layer_texture (data.pipeline, 0, tex);
-  cogl_object_unref (tex);
+  g_object_unref (tex);
 
   if (!cogl_pipeline_set_layer_point_sprite_coords_enabled (data.pipeline,
                                                             0, TRUE,
@@ -261,7 +261,8 @@ test_cogl_point_sprites_main (int argc, char *argv[])
     }
 
   stage = clutter_test_get_stage ();
-  clutter_actor_set_background_color (CLUTTER_ACTOR (stage), CLUTTER_COLOR_Black);
+  clutter_actor_set_background_color (CLUTTER_ACTOR (stage),
+                                      &CLUTTER_COLOR_INIT (0, 0, 0, 255));
   clutter_stage_set_title (CLUTTER_STAGE (stage), "Cogl Point Sprites");
   g_signal_connect (stage, "destroy", G_CALLBACK (clutter_test_quit), NULL);
   g_signal_connect (CLUTTER_STAGE (stage), "after-paint", G_CALLBACK (on_after_paint), &data);
@@ -272,7 +273,7 @@ test_cogl_point_sprites_main (int argc, char *argv[])
 
   clutter_test_main ();
 
-  cogl_object_unref (data.pipeline);
+  g_object_unref (data.pipeline);
   g_timer_destroy (data.last_spark_time);
 
   for (i = 0; i < N_FIREWORKS; i++)

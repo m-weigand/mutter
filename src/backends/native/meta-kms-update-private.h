@@ -66,6 +66,7 @@ typedef struct _MetaKmsPlaneAssignment
   MetaKmsPlaneRotation rotation;
 
   struct {
+    gboolean has_update;
     gboolean is_valid;
     int x;
     int y;
@@ -109,7 +110,22 @@ typedef struct _MetaKmsConnectorUpdate
     gboolean has_update;
     MetaOutputHdrMetadata value;
   } hdr;
+
+  struct {
+    gboolean has_update;
+    MetaOutputRGBRange value;
+  } broadcast_rgb;
 } MetaKmsConnectorUpdate;
+
+typedef struct _MetaKmsCrtcUpdate
+{
+  MetaKmsCrtc *crtc;
+
+  struct {
+    gboolean has_update;
+    gboolean is_enabled;
+  } vrr;
+} MetaKmsCrtcUpdate;
 
 typedef struct _MetaKmsPageFlipListener
 {
@@ -117,7 +133,6 @@ typedef struct _MetaKmsPageFlipListener
 
   MetaKmsCrtc *crtc;
   const MetaKmsPageFlipListenerVtable *vtable;
-  MetaKmsPageFlipListenerFlag flags;
   GMainContext *main_context;
   gpointer user_data;
   GDestroyNotify destroy_notify;
@@ -176,6 +191,9 @@ GList * meta_kms_update_get_page_flip_listeners (MetaKmsUpdate *update);
 
 META_EXPORT_TEST
 GList * meta_kms_update_get_connector_updates (MetaKmsUpdate *update);
+
+META_EXPORT_TEST
+GList * meta_kms_update_get_crtc_updates (MetaKmsUpdate *update);
 
 META_EXPORT_TEST
 GList * meta_kms_update_get_crtc_color_updates (MetaKmsUpdate *update);

@@ -28,7 +28,7 @@
  *
  */
 
-#include "cogl-config.h"
+#include "config.h"
 
 #include "cogl/cogl-util.h"
 #include "cogl/cogl-debug.h"
@@ -37,7 +37,6 @@
 #include "cogl/cogl-buffer-private.h"
 #include "cogl/cogl-pixel-buffer.h"
 #include "cogl/cogl-context-private.h"
-#include "cogl/cogl-gtype-private.h"
 #include "cogl/driver/gl/cogl-buffer-gl-private.h"
 #include "cogl/driver/gl/cogl-bitmap-gl-private.h"
 

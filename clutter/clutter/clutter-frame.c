@@ -15,6 +15,8 @@
  * License along with this library. If not, see <http://www.gnu.org/licenses/>.
  */
 
+#include "config.h"
+
 #include "clutter/clutter-frame-private.h"
 
 G_DEFINE_BOXED_TYPE (ClutterFrame, clutter_frame,
@@ -76,12 +78,12 @@ clutter_frame_get_target_presentation_time (ClutterFrame *frame,
 }
 
 gboolean
-clutter_frame_get_min_render_time_allowed (ClutterFrame *frame,
-                                           int64_t      *min_render_time_allowed_us)
+clutter_frame_get_frame_deadline (ClutterFrame *frame,
+                                  int64_t      *frame_deadline_us)
 {
-  if (frame->has_target_presentation_time)
+  if (frame->has_frame_deadline)
     {
-      *min_render_time_allowed_us = frame->min_render_time_allowed_us;
+      *frame_deadline_us = frame->frame_deadline_us;
       return TRUE;
     }
   else

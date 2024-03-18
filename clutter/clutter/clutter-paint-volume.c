@@ -24,7 +24,7 @@
  *      Emmanuele Bassi <ebassi@linux.intel.com>
  */
 
-#include "clutter/clutter-build-config.h"
+#include "config.h"
 
 #include <string.h>
 
@@ -37,40 +37,11 @@
 #include "clutter/clutter-stage-private.h"
 #include "clutter/clutter-actor-box-private.h"
 
+static void _clutter_paint_volume_axis_align (ClutterPaintVolume *pv);
+
 G_DEFINE_BOXED_TYPE (ClutterPaintVolume, clutter_paint_volume,
                      clutter_paint_volume_copy,
                      clutter_paint_volume_free);
-
-/*<private>
- * _clutter_paint_volume_new:
- * @actor: a #ClutterActor
- *
- * Creates a new #ClutterPaintVolume for the given @actor.
- *
- * Return value: the newly allocated #ClutterPaintVolume. Use
- *   clutter_paint_volume_free() to free the resources it uses
- */
-ClutterPaintVolume *
-_clutter_paint_volume_new (ClutterActor *actor)
-{
-  ClutterPaintVolume *pv;
-
-  g_return_val_if_fail (actor != NULL, NULL);
-
-  pv = g_new0 (ClutterPaintVolume, 1);
-
-  pv->actor = actor;
-
-  memset (pv->vertices, 0, 8 * sizeof (graphene_point3d_t));
-
-  pv->is_static = FALSE;
-  pv->is_empty = TRUE;
-  pv->is_axis_aligned = TRUE;
-  pv->is_complete = TRUE;
-  pv->is_2d = TRUE;
-
-  return pv;
-}
 
 /* Since paint volumes are used so heavily in a typical paint
  * traversal of a Clutter scene graph and since paint volumes often
@@ -736,7 +707,7 @@ _clutter_paint_volume_get_bounding_box (ClutterPaintVolume *pv,
   box->y2 = y_max;
 }
 
-void
+static void
 _clutter_paint_volume_project (ClutterPaintVolume *pv,
                                const graphene_matrix_t *modelview,
                                const graphene_matrix_t *projection,
@@ -821,7 +792,7 @@ _clutter_paint_volume_transform (ClutterPaintVolume *pv,
 /* Given a paint volume that has been transformed by an arbitrary
  * modelview and is no longer axis aligned, this derives a replacement
  * that is axis aligned. */
-void
+static void
 _clutter_paint_volume_axis_align (ClutterPaintVolume *pv)
 {
   int count;

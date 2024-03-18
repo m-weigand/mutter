@@ -87,7 +87,6 @@
 
 #include "compositor/meta-window-actor-x11.h"
 
-#include "meta/meta-x11-errors.h"
 #include "x11/meta-x11-display-private.h"
 #endif
 
@@ -115,7 +114,6 @@ typedef struct _MetaCompositorPrivate
   gulong after_paint_handler_id;
   gulong window_visibility_updated_id;
   gulong monitors_changed_internal_id;
-  gulong grabbed_notify_handler_id;
 
   int64_t server_time_query_time;
   int64_t server_time_offset;
@@ -293,23 +291,6 @@ meta_compositor_get_feedback_group (MetaCompositor *compositor)
 }
 
 /**
- * meta_get_feedback_group_for_display:
- * @display: a #MetaDisplay
- *
- * Returns: (transfer none): The feedback group corresponding to @display
- */
-ClutterActor *
-meta_get_feedback_group_for_display (MetaDisplay *display)
-{
-  MetaCompositor *compositor;
-
-  g_return_val_if_fail (display, NULL);
-
-  compositor = get_compositor_for_display (display);
-  return meta_compositor_get_feedback_group (compositor);
-}
-
-/**
  * meta_get_window_actors:
  * @display: a #MetaDisplay
  *
@@ -328,65 +309,6 @@ meta_get_window_actors (MetaDisplay *display)
   priv = meta_compositor_get_instance_private (compositor);
 
   return priv->windows;
-}
-
-void
-meta_focus_stage_window (MetaDisplay *display,
-                         guint32      timestamp)
-{
-#ifdef HAVE_X11_CLIENT
-  ClutterStage *stage;
-  Window window;
-
-  stage = CLUTTER_STAGE (meta_get_stage_for_display (display));
-  if (!stage)
-    return;
-
-  window = meta_x11_get_stage_window (stage);
-
-  if (window == None)
-    return;
-
-  meta_x11_display_set_input_focus_xwindow (display->x11_display,
-                                            window,
-                                            timestamp);
-#endif
-}
-
-gboolean
-meta_stage_is_focused (MetaDisplay *display)
-{
-  if (meta_is_wayland_compositor ())
-    return TRUE;
-
-#ifdef HAVE_X11_CLIENT
-  ClutterStage *stage = CLUTTER_STAGE (meta_get_stage_for_display (display));
-  Window window;
-
-  if (!stage)
-    return FALSE;
-
-  window = meta_x11_get_stage_window (stage);
-
-  if (window == None)
-    return FALSE;
-
-  return (display->x11_display->focus_xwindow == window);
-#else
-  return FALSE;
-#endif
-}
-
-void
-meta_compositor_grab_begin (MetaCompositor *compositor)
-{
-  META_COMPOSITOR_GET_CLASS (compositor)->grab_begin (compositor);
-}
-
-void
-meta_compositor_grab_end (MetaCompositor *compositor)
-{
-  META_COMPOSITOR_GET_CLASS (compositor)->grab_end (compositor);
 }
 
 static MetaCompositorView *
@@ -940,7 +862,7 @@ maybe_update_top_window_actor_for_views (MetaCompositor *compositor)
   priv->needs_update_top_window_actors = FALSE;
 
   COGL_TRACE_BEGIN_SCOPED (UpdateTopWindowActorForViews,
-                           "Compositor (update top window actors)");
+                           "Meta::Compositor::update_top_window_actor_for_views()");
 
   stage = CLUTTER_STAGE (meta_backend_get_stage (priv->backend));
 
@@ -1024,7 +946,7 @@ meta_compositor_real_before_paint (MetaCompositor     *compositor,
   ClutterActor *stage = meta_backend_get_stage (priv->backend);
   ClutterStageView *stage_view;
   MtkRectangle stage_rect;
-  cairo_region_t *unobscured_region;
+  MtkRegion *unobscured_region;
   GList *l;
 
   stage_rect = (MtkRectangle) {
@@ -1033,17 +955,17 @@ meta_compositor_real_before_paint (MetaCompositor     *compositor,
     clutter_actor_get_height (stage),
   };
 
-  unobscured_region = cairo_region_create_rectangle (&stage_rect);
+  unobscured_region = mtk_region_create_rectangle (&stage_rect);
   meta_cullable_cull_unobscured (META_CULLABLE (priv->window_group), unobscured_region);
-  cairo_region_destroy (unobscured_region);
+  mtk_region_unref (unobscured_region);
 
-  unobscured_region = cairo_region_create_rectangle (&stage_rect);
+  unobscured_region = mtk_region_create_rectangle (&stage_rect);
   meta_cullable_cull_unobscured (META_CULLABLE (priv->top_window_group), unobscured_region);
-  cairo_region_destroy (unobscured_region);
+  mtk_region_unref (unobscured_region);
 
-  unobscured_region = cairo_region_create_rectangle (&stage_rect);
+  unobscured_region = mtk_region_create_rectangle (&stage_rect);
   meta_cullable_cull_unobscured (META_CULLABLE (priv->feedback_group), unobscured_region);
-  cairo_region_destroy (unobscured_region);
+  mtk_region_unref (unobscured_region);
 
   stage_view = meta_compositor_view_get_stage_view (compositor_view);
 
@@ -1059,7 +981,7 @@ meta_compositor_before_paint (MetaCompositor     *compositor,
     meta_compositor_get_instance_private (compositor);
 
   COGL_TRACE_BEGIN_SCOPED (MetaCompositorPrePaint,
-                           "Compositor (before-paint)");
+                           "Meta::Compositor::before_paint()");
 
   maybe_update_top_window_actor_for_views (compositor);
 
@@ -1124,7 +1046,7 @@ meta_compositor_after_paint (MetaCompositor     *compositor,
     meta_compositor_get_instance_private (compositor);
 
   COGL_TRACE_BEGIN_SCOPED (MetaCompositorPostPaint,
-                           "Compositor (after-paint)");
+                           "Meta::Compositor::after_paint()");
   META_COMPOSITOR_GET_CLASS (compositor)->after_paint (compositor, compositor_view);
 
   priv->frame_in_progress = FALSE;
@@ -1178,17 +1100,6 @@ on_monitors_changed_internal (MetaMonitorManager *monitor_manager,
                               MetaCompositor     *compositor)
 {
   meta_compositor_ensure_compositor_views (compositor);
-}
-
-static void
-on_is_grabbed_changed_cb (ClutterStage   *stage,
-                          GParamSpec     *pspec,
-                          MetaCompositor *compositor)
-{
-  if (clutter_stage_get_grab_actor (stage) != NULL)
-    meta_compositor_grab_begin (compositor);
-  else
-    meta_compositor_grab_end (compositor);
 }
 
 static void
@@ -1267,11 +1178,6 @@ meta_compositor_constructed (GObject *object)
                             "after-paint",
                             G_CALLBACK (on_after_paint),
                             compositor);
-  priv->grabbed_notify_handler_id =
-    g_signal_connect (stage,
-                      "notify::is-grabbed",
-                      G_CALLBACK (on_is_grabbed_changed_cb),
-                      compositor);
 
   priv->window_visibility_updated_id =
     g_signal_connect (priv->display,
@@ -1305,7 +1211,6 @@ meta_compositor_dispose (GObject *object)
   g_clear_signal_handler (&priv->stage_presented_id, stage);
   g_clear_signal_handler (&priv->before_paint_handler_id, stage);
   g_clear_signal_handler (&priv->after_paint_handler_id, stage);
-  g_clear_signal_handler (&priv->grabbed_notify_handler_id, stage);
   g_clear_signal_handler (&priv->window_visibility_updated_id, priv->display);
 
   g_clear_pointer (&priv->windows, g_list_free);
@@ -1427,7 +1332,7 @@ meta_compositor_flash_display (MetaCompositor *compositor,
   clutter_actor_get_size (stage, &width, &height);
 
   flash = clutter_actor_new ();
-  clutter_actor_set_background_color (flash, CLUTTER_COLOR_Black);
+  clutter_actor_set_background_color (flash, &CLUTTER_COLOR_INIT (0, 0, 0, 255));
   clutter_actor_set_size (flash, width, height);
   clutter_actor_set_opacity (flash, 0);
   clutter_actor_add_child (stage, flash);
@@ -1466,7 +1371,7 @@ meta_compositor_flash_window (MetaCompositor *compositor,
   ClutterTransition *transition;
 
   flash = clutter_actor_new ();
-  clutter_actor_set_background_color (flash, CLUTTER_COLOR_Black);
+  clutter_actor_set_background_color (flash, &CLUTTER_COLOR_INIT (0, 0, 0, 255));
   clutter_actor_set_size (flash, window->rect.width, window->rect.height);
   clutter_actor_set_position (flash,
                               window->custom_frame_extents.left,
@@ -1666,7 +1571,8 @@ meta_compositor_drag_window (MetaCompositor       *compositor,
                              MetaGrabOp            grab_op,
                              ClutterInputDevice   *device,
                              ClutterEventSequence *sequence,
-                             uint32_t              timestamp)
+                             uint32_t              timestamp,
+                             graphene_point_t     *pos_hint)
 {
   MetaCompositorPrivate *priv =
     meta_compositor_get_instance_private (compositor);
@@ -1677,12 +1583,19 @@ meta_compositor_drag_window (MetaCompositor       *compositor,
 
   window_drag = meta_window_drag_new (window, grab_op);
 
-  if (!meta_window_drag_begin (window_drag, device, sequence, timestamp))
-    return FALSE;
+  if (pos_hint)
+    meta_window_drag_set_position_hint (window_drag, pos_hint);
 
-  g_signal_connect (window_drag, "ended",
-                    G_CALLBACK (on_window_drag_ended), compositor);
   priv->current_drag = g_steal_pointer (&window_drag);
+
+  if (!meta_window_drag_begin (priv->current_drag, device, sequence, timestamp))
+    {
+      g_clear_object (&priv->current_drag);
+      return FALSE;
+    }
+
+  g_signal_connect (priv->current_drag, "ended",
+                    G_CALLBACK (on_window_drag_ended), compositor);
   return TRUE;
 }
 

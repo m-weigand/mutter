@@ -45,9 +45,7 @@
 #include "core/boxes-private.h"
 #include "core/meta-workspace-manager-private.h"
 #include "core/workspace-private.h"
-#include "meta/meta-x11-errors.h"
 #include "meta/prefs.h"
-#include "x11/meta-x11-display-private.h"
 
 void meta_workspace_queue_calc_showing   (MetaWorkspace *workspace);
 static void focus_ancestor_or_mru_window (MetaWorkspace *workspace,
@@ -365,7 +363,7 @@ meta_workspace_add_window (MetaWorkspace *workspace,
   g_return_if_fail (g_list_find (workspace->mru_list, window) == NULL);
 
   COGL_TRACE_BEGIN_SCOPED (MetaWorkspaceAddWindow,
-                           "Workspace (add window)");
+                           "Meta::Workspace::add_window()");
 
   workspace_manager = workspace->display->workspace_manager;
 
@@ -395,7 +393,7 @@ meta_workspace_remove_window (MetaWorkspace *workspace,
   MetaWorkspaceManager *workspace_manager = workspace->display->workspace_manager;
 
   COGL_TRACE_BEGIN_SCOPED (MetaWorkspaceRemoveWindow,
-                           "Workspace (remove window)");
+                           "Meta::Workspace::remove_window()");
 
   workspace->windows = g_list_remove (workspace->windows, window);
 
@@ -705,7 +703,10 @@ meta_workspace_index (MetaWorkspace *workspace)
 {
   int ret;
 
+  g_return_val_if_fail (META_IS_WORKSPACE (workspace), -1);
+
   ret = g_list_index (workspace->manager->workspaces, workspace);
+
   g_return_val_if_fail (ret >= 0, -1);
 
   return ret;
@@ -1304,10 +1305,20 @@ meta_workspace_get_neighbor (MetaWorkspace      *workspace,
   return meta_workspace_manager_get_workspace_by_index (workspace->manager, i);
 }
 
-const char*
-meta_workspace_get_name (MetaWorkspace *workspace)
+static MetaWindow *
+workspace_find_focused_window (MetaWorkspace *workspace)
 {
-  return meta_prefs_get_workspace_name (meta_workspace_index (workspace));
+  GList *l;
+
+  for (l = workspace->windows; l != NULL; l = l->next)
+    {
+      MetaWindow *win = l->data;
+
+      if (meta_window_has_focus (win))
+        return win;
+    }
+
+  return NULL;
 }
 
 void
@@ -1315,62 +1326,73 @@ meta_workspace_focus_default_window (MetaWorkspace *workspace,
                                      MetaWindow    *not_this_one,
                                      guint32        timestamp)
 {
+  MetaWindow *window = NULL;
+  MetaWindow *current_focus_window = NULL;
+
   if (timestamp == META_CURRENT_TIME)
     meta_warning ("META_CURRENT_TIME used to choose focus window; "
                   "focus window may not be correct.");
+
+  current_focus_window = workspace_find_focused_window (workspace);
+
+  if (current_focus_window)
+    {
+      focus_ancestor_or_mru_window (workspace, not_this_one, timestamp);
+      return;
+    }
 
   if (meta_prefs_get_focus_mode () == G_DESKTOP_FOCUS_MODE_CLICK ||
       !workspace->display->mouse_mode)
     {
       focus_ancestor_or_mru_window (workspace, not_this_one, timestamp);
+      return;
     }
-  else
+
+  window = get_pointer_window (workspace, not_this_one);
+
+  if (!window ||
+      window->type == META_WINDOW_DOCK ||
+      window->type == META_WINDOW_DESKTOP)
     {
-      MetaWindow * window;
-
-      window = get_pointer_window (workspace, not_this_one);
-      if (window &&
-          window->type != META_WINDOW_DOCK &&
-          window->type != META_WINDOW_DESKTOP)
-        {
-          if (timestamp == META_CURRENT_TIME)
-            {
-
-              /* We would like for this to never happen.  However, if
-               * it does happen then we kludge since using META_CURRENT_TIME
-               * can mean ugly race conditions--and we can avoid these
-               * by allowing EnterNotify events (which come with
-               * timestamps) to handle focus.
-               */
-
-              meta_topic (META_DEBUG_FOCUS,
-                          "Not focusing mouse window %s because EnterNotify events should handle that",
-                          window->desc);
-            }
-          else
-            {
-              meta_topic (META_DEBUG_FOCUS,
-                          "Focusing mouse window %s", window->desc);
-              meta_window_focus (window, timestamp);
-            }
-
-          if (workspace->display->autoraise_window != window &&
-              meta_prefs_get_auto_raise ())
-            {
-              meta_display_queue_autoraise_callback (workspace->display, window);
-            }
-        }
-      else if (meta_prefs_get_focus_mode () == G_DESKTOP_FOCUS_MODE_SLOPPY)
-        {
-          focus_ancestor_or_mru_window (workspace, not_this_one, timestamp);
-        }
-      else if (meta_prefs_get_focus_mode () == G_DESKTOP_FOCUS_MODE_MOUSE)
+      if (meta_prefs_get_focus_mode () == G_DESKTOP_FOCUS_MODE_MOUSE)
         {
           meta_topic (META_DEBUG_FOCUS,
                       "Setting focus to no_focus_window, since no valid "
                       "window to focus found.");
           meta_display_unset_input_focus (workspace->display, timestamp);
         }
+      else /* G_DESKTOP_FOCUS_MODE_SLOPPY */
+        {
+          focus_ancestor_or_mru_window (workspace, not_this_one, timestamp);
+        }
+
+      return;
+    }
+
+  if (timestamp == META_CURRENT_TIME)
+    {
+      /* We would like for this to never happen.  However, if
+       * it does happen then we kludge since using META_CURRENT_TIME
+       * can mean ugly race conditions--and we can avoid these
+       * by allowing EnterNotify events (which come with
+       * timestamps) to handle focus.
+       */
+
+      meta_topic (META_DEBUG_FOCUS,
+                  "Not focusing mouse window %s because EnterNotify events should handle that",
+                  window->desc);
+    }
+  else
+    {
+      meta_topic (META_DEBUG_FOCUS,
+                  "Focusing mouse window %s", window->desc);
+      meta_window_focus (window, timestamp);
+    }
+
+  if (workspace->display->autoraise_window != window &&
+      meta_prefs_get_auto_raise ())
+    {
+      meta_display_queue_autoraise_callback (workspace->display, window);
     }
 }
 

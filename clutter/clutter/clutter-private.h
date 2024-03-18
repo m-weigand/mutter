@@ -27,10 +27,12 @@
 
 #include <string.h>
 #include <glib.h>
+#include <pango/pango.h>
 
 #include "cogl-pango/cogl-pango.h"
 
 #include "clutter/clutter-backend.h"
+#include "clutter/clutter-context.h"
 #include "clutter/clutter-effect.h"
 #include "clutter/clutter-event.h"
 #include "clutter/clutter-layout-manager.h"
@@ -40,7 +42,7 @@
 
 G_BEGIN_DECLS
 
-typedef struct _ClutterMainContext      ClutterMainContext;
+typedef struct _ClutterContext      ClutterContext;
 
 #define CLUTTER_REGISTER_VALUE_TRANSFORM_TO(TYPE_TO,func)             { \
   g_value_register_transform_func (g_define_type_id, TYPE_TO, func);    \
@@ -63,23 +65,12 @@ typedef struct _ClutterMainContext      ClutterMainContext;
 #define CLUTTER_ACTOR_IN_PAINT(a)               ((CLUTTER_PRIVATE_FLAGS (a) & CLUTTER_IN_PAINT) != FALSE)
 #define CLUTTER_ACTOR_IN_PICK(a)                ((CLUTTER_PRIVATE_FLAGS (a) & CLUTTER_IN_PICK) != FALSE)
 #define CLUTTER_ACTOR_IN_RELAYOUT(a)            ((CLUTTER_PRIVATE_FLAGS (a) & CLUTTER_IN_RELAYOUT) != FALSE)
-#define CLUTTER_ACTOR_IN_PREF_WIDTH(a)          ((CLUTTER_PRIVATE_FLAGS (a) & CLUTTER_IN_PREF_WIDTH) != FALSE)
-#define CLUTTER_ACTOR_IN_PREF_HEIGHT(a)         ((CLUTTER_PRIVATE_FLAGS (a) & CLUTTER_IN_PREF_HEIGHT) != FALSE)
-#define CLUTTER_ACTOR_IN_PREF_SIZE(a)           ((CLUTTER_PRIVATE_FLAGS (a) & (CLUTTER_IN_PREF_HEIGHT|CLUTTER_IN_PREF_WIDTH)) != FALSE)
 #define CLUTTER_ACTOR_IN_MAP_UNMAP(a)           ((CLUTTER_PRIVATE_FLAGS (a) & CLUTTER_IN_MAP_UNMAP) != FALSE)
-
-#define CLUTTER_PARAM_READABLE  (G_PARAM_READABLE | G_PARAM_STATIC_STRINGS)
-#define CLUTTER_PARAM_WRITABLE  (G_PARAM_WRITABLE | G_PARAM_STATIC_STRINGS)
-#define CLUTTER_PARAM_READWRITE (G_PARAM_READABLE | G_PARAM_WRITABLE | G_PARAM_STATIC_STRINGS)
 
 #define CLUTTER_PARAM_ANIMATABLE        (1 << G_PARAM_USER_SHIFT)
 
 /* automagic interning of a static string */
 #define I_(str)  (g_intern_static_string ((str)))
-
-/* keep this for source compatibility with clutter */
-#define P_(String) (String)
-#define N_(String) (String)
 
 /* This is a replacement for the nearbyint function which always rounds to the
  * nearest integer. nearbyint is apparently a C99 function so it might not
@@ -107,69 +98,14 @@ typedef enum
   CLUTTER_IN_MAP_UNMAP   = 1 << 8,
 } ClutterPrivateFlags;
 
-/*
- * ClutterMainContext:
- *
- * The shared state of Clutter
- */
-struct _ClutterMainContext
-{
-  /* the main windowing system backend */
-  ClutterBackend *backend;
+ClutterContext *        _clutter_context_get_default                    (void);
 
-  /* the object holding all the stage instances */
-  ClutterStageManager *stage_manager;
-
-  /* the main event queue */
-  GAsyncQueue *events_queue;
-
-  /* the event filters added via clutter_event_add_filter. these are
-   * ordered from least recently added to most recently added */
-  GList *event_filters;
-
-  CoglPangoFontMap *font_map;   /* Global font map */
-
-  /* stack of #ClutterEvent */
-  GSList *current_event;
-
-  /* list of repaint functions installed through
-   * clutter_threads_add_repaint_func()
-   */
-  GList *repaint_funcs;
-  guint last_repaint_id;
-
-  /* main settings singleton */
-  ClutterSettings *settings;
-
-  /* boolean flags */
-  guint is_initialized          : 1;
-  guint show_fps                : 1;
-};
-
-/* shared between clutter-main.c and clutter-frame-source.c */
-typedef struct
-{
-  GSourceFunc func;
-  gpointer data;
-  GDestroyNotify notify;
-} ClutterThreadsDispatch;
-
-gboolean _clutter_threads_dispatch      (gpointer data);
-void     _clutter_threads_dispatch_free (gpointer data);
-
-ClutterMainContext *    _clutter_context_get_default                    (void);
-void                    _clutter_context_lock                           (void);
-void                    _clutter_context_unlock                         (void);
 CLUTTER_EXPORT
 gboolean                _clutter_context_is_initialized                 (void);
 gboolean                _clutter_context_get_show_fps                   (void);
 
 /* Diagnostic mode */
 gboolean        _clutter_diagnostic_enabled     (void);
-void            _clutter_diagnostic_message     (const char *fmt, ...) G_GNUC_PRINTF (1, 2);
-
-CLUTTER_EXPORT
-void            _clutter_set_sync_to_vblank     (gboolean      sync_to_vblank);
 
 /* use this function as the accumulator if you have a signal with
  * a G_TYPE_BOOLEAN return value; this will stop the emission as
@@ -191,8 +127,6 @@ gboolean _clutter_boolean_continue_accumulator (GSignalInvocationHint *ihint,
 
 void _clutter_run_repaint_functions (ClutterRepaintFlags flags);
 
-GType _clutter_layout_manager_get_child_meta_type (ClutterLayoutManager *manager);
-
 void  _clutter_util_fully_transform_vertices (const graphene_matrix_t  *modelview,
                                               const graphene_matrix_t  *projection,
                                               const float              *viewport,
@@ -201,10 +135,13 @@ void  _clutter_util_fully_transform_vertices (const graphene_matrix_t  *modelvie
                                               int                       n_vertices);
 
 CLUTTER_EXPORT
-PangoDirection _clutter_pango_unichar_direction (gunichar ch);
+ClutterTextDirection clutter_unichar_direction (gunichar ch);
 
-PangoDirection _clutter_pango_find_base_dir     (const gchar *text,
-                                                 gint         length);
+ClutterTextDirection _clutter_find_base_dir (const gchar *text,
+                                             gint         length);
+
+PangoDirection
+clutter_text_direction_to_pango_direction (ClutterTextDirection dir);
 
 typedef enum _ClutterCullResult
 {

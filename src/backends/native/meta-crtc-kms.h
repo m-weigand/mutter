@@ -37,31 +37,15 @@ G_DECLARE_FINAL_TYPE (MetaCrtcKms, meta_crtc_kms,
                       META, CRTC_KMS,
                       MetaCrtcNative)
 
-void meta_crtc_kms_apply_transform (MetaCrtcKms            *crtc_kms,
-                                    MetaKmsPlaneAssignment *kms_plane_assignment);
+MetaKmsPlane * meta_crtc_kms_get_assigned_primary_plane (MetaCrtcKms *crtc_kms);
 
-MetaKmsPlaneAssignment * meta_crtc_kms_assign_primary_plane (MetaCrtcKms   *crtc_kms,
-                                                             MetaDrmBuffer *buffer,
-                                                             MetaKmsUpdate *kms_update);
+MetaKmsPlane * meta_crtc_kms_get_assigned_cursor_plane (MetaCrtcKms *crtc_kms);
 
 void meta_crtc_kms_set_mode (MetaCrtcKms   *crtc_kms,
                              MetaKmsUpdate *kms_update);
 
-void meta_crtc_kms_set_is_underscanning (MetaCrtcKms *crtc_kms,
-                                         gboolean     is_underscanning);
-
 META_EXPORT_TEST
 MetaKmsCrtc * meta_crtc_kms_get_kms_crtc (MetaCrtcKms *crtc_kms);
-
-GArray * meta_crtc_kms_get_modifiers (MetaCrtcKms *crtc_kms,
-                                      uint32_t     format);
-
-GArray *
-meta_crtc_kms_copy_drm_format_list (MetaCrtcKms *crtc_kms);
-
-gboolean
-meta_crtc_kms_supports_format (MetaCrtcKms *crtc_kms,
-                               uint32_t     drm_format);
 
 const MetaGammaLut * meta_crtc_kms_peek_gamma_lut (MetaCrtcKms *crtc_kms);
 

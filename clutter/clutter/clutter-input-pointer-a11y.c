@@ -21,9 +21,10 @@
  * mousetweaks Copyright (C) 2007-2010 Gerd Kohlberger <gerdko gmail com>
  */
 
-#include "clutter/clutter-build-config.h"
+#include "config.h"
 
 #include "clutter/clutter-backend-private.h"
+#include "clutter/clutter-context-private.h"
 #include "clutter/clutter-enum-types.h"
 #include "clutter/clutter-input-device.h"
 #include "clutter/clutter-input-device-private.h"
@@ -732,7 +733,7 @@ clutter_input_pointer_a11y_update (ClutterInputDevice *device,
                                    const ClutterEvent *event)
 {
 
-  ClutterMainContext *clutter_context;
+  ClutterContext *clutter_context;
   ClutterBackend *backend;
   ClutterEventType event_type;
 

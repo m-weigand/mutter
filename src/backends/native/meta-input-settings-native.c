@@ -28,7 +28,15 @@
 #include "backends/native/meta-input-thread.h"
 #include "backends/native/meta-input-settings-native.h"
 
-G_DEFINE_TYPE (MetaInputSettingsNative, meta_input_settings_native, META_TYPE_INPUT_SETTINGS)
+struct _MetaInputSettingsNative
+{
+  MetaInputSettings parent_instance;
+  MetaSeatImpl *seat_impl;
+};
+
+G_DEFINE_FINAL_TYPE (MetaInputSettingsNative,
+                     meta_input_settings_native,
+                     META_TYPE_INPUT_SETTINGS)
 
 enum
 {
@@ -845,7 +853,8 @@ meta_input_settings_native_class_init (MetaInputSettingsNativeClass *klass)
   props[PROP_SEAT_IMPL] =
     g_param_spec_object ("seat-impl", NULL, NULL,
                          META_TYPE_SEAT_IMPL,
-                         CLUTTER_PARAM_READWRITE |
+                         G_PARAM_READWRITE |
+                         G_PARAM_STATIC_STRINGS |
                          G_PARAM_CONSTRUCT_ONLY);
 
   g_object_class_install_properties (object_class, N_PROPS, props);

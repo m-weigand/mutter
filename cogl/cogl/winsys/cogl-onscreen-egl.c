@@ -23,7 +23,7 @@
  * SOFTWARE.
  */
 
-#include "cogl-config.h"
+#include "config.h"
 
 #include "cogl/winsys/cogl-onscreen-egl.h"
 
@@ -297,7 +297,7 @@ cogl_onscreen_egl_swap_buffers_with_damage (CoglOnscreen  *onscreen,
   CoglRendererEGL *egl_renderer = renderer->winsys;
 
   COGL_TRACE_BEGIN_SCOPED (CoglOnscreenEGLSwapBuffersWithDamage,
-                           "Onscreen (eglSwapBuffers)");
+                           "Cogl::Onscreen::egl_swap_buffers_with_damage()");
 
   /* The specification for EGL (at least in 1.4) says that the surface
      needs to be bound to the current context for the swap to work
@@ -318,6 +318,8 @@ cogl_onscreen_egl_swap_buffers_with_damage (CoglOnscreen  *onscreen,
       /* Set up a timestamp query for when all rendering will be finished. */
       info->timestamp_query =
         cogl_framebuffer_create_timestamp_query (COGL_FRAMEBUFFER (onscreen));
+
+      info->has_valid_gpu_rendering_duration = TRUE;
     }
 
   if (n_rectangles && priv->pf_eglSwapBuffersWithDamage)

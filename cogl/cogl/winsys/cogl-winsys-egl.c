@@ -30,7 +30,7 @@
  *   Robert Bragg <robert@linux.intel.com>
  */
 
-#include "cogl-config.h"
+#include "config.h"
 
 #include "cogl/cogl-i18n-private.h"
 #include "cogl/cogl-util.h"
@@ -111,20 +111,9 @@ static const CoglFeatureData winsys_feature_data[] =
 
 static GCallback
 _cogl_winsys_renderer_get_proc_address (CoglRenderer *renderer,
-                                        const char *name,
-                                        gboolean in_core)
+                                        const char   *name)
 {
-  void *ptr = NULL;
-
-  if (!in_core)
-    ptr = eglGetProcAddress (name);
-
-  /* eglGetProcAddress doesn't support fetching core API so we need to
-     get that separately with GModule */
-  if (ptr == NULL)
-    g_module_symbol (renderer->libgl_module, name, &ptr);
-
-  return ptr;
+  return eglGetProcAddress (name);
 }
 
 static void
@@ -316,45 +305,6 @@ cleanup_context (CoglDisplay *display)
     egl_renderer->platform_vtable->cleanup_context (display);
 }
 
-static void
-print_attribs (EGLDisplay egl_display,
-               EGLConfig  egl_config)
-{
-  const EGLint names[] =
-    {
-      EGL_BUFFER_SIZE,
-      EGL_RED_SIZE,
-      EGL_GREEN_SIZE,
-      EGL_BLUE_SIZE,
-      EGL_ALPHA_SIZE,
-    };
-  struct
-    {
-      EGLint buffer_size;
-      EGLint red_size;
-      EGLint green_size;
-      EGLint blue_size;
-      EGLint alpha_size;
-    } values;
-  int i;
-
-  for (i = 0; i < G_N_ELEMENTS (names); i++)
-    {
-      if (!eglGetConfigAttrib (egl_display,
-                               egl_config,
-                               names[i],
-                               (EGLint *) &values + i))
-        ((EGLint *) &values)[i] = -1;
-    }
-
-  COGL_NOTE (WINSYS, "EGL color depth is %d-bit (R:G:B:A = %d:%d:%d:%d)",
-             (int) values.buffer_size,
-             (int) values.red_size,
-             (int) values.green_size,
-             (int) values.blue_size,
-             (int) values.alpha_size);
-}
-
 static gboolean
 try_create_context (CoglDisplay *display,
                     GError **error)
@@ -428,10 +378,21 @@ try_create_context (CoglDisplay *display,
 
   attribs[i++] = EGL_NONE;
 
-  egl_display->egl_context = eglCreateContext (edpy,
-                                               config,
-                                               EGL_NO_CONTEXT,
-                                               attribs);
+  if (egl_renderer->private_features &
+      COGL_EGL_WINSYS_FEATURE_NO_CONFIG_CONTEXT)
+    {
+      egl_display->egl_context = eglCreateContext (edpy,
+                                                   EGL_NO_CONFIG_KHR,
+                                                   EGL_NO_CONTEXT,
+                                                   attribs);
+    }
+  else
+    {
+      egl_display->egl_context = eglCreateContext (edpy,
+                                                   config,
+                                                   EGL_NO_CONTEXT,
+                                                   attribs);
+    }
 
   if (egl_display->egl_context == EGL_NO_CONTEXT)
     {
@@ -458,8 +419,6 @@ try_create_context (CoglDisplay *display,
   if (egl_renderer->platform_vtable->context_created &&
       !egl_renderer->platform_vtable->context_created (display, error))
     return FALSE;
-
-  print_attribs (egl_renderer->edpy, config);
 
   return TRUE;
 

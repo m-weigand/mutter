@@ -1,6 +1,5 @@
 clutter_tests_conform_c_args = [
   '-DG_LOG_DOMAIN="Clutter-Conform"',
-  '-DCOGL_DISABLE_DEPRECATION_WARNINGS',
   '-DGETTEXT_PACKAGE="@0@"'.format(meson.project_name()),
 ]
 clutter_tests_conform_c_args += clutter_debug_c_args
@@ -38,13 +37,13 @@ clutter_conform_tests_general_tests = [
   'frame-clock',
   'frame-clock-timeline',
   'grab',
+  'gesture',
+  'gesture-relationship',
   'interval',
-  'script-parser',
   'timeline',
   'timeline-interpolate',
   'timeline-progress',
   'timeline-rewind',
-  'units',
 ]
 
 clutter_conform_tests = []

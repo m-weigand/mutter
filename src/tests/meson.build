@@ -98,9 +98,7 @@ if have_introspection
       mutter_deps,
     ],
     extra_args: mutter_c_args + introspection_args,
-    install_dir_gir: pkglibdir,
-    install_dir_typelib: pkglibdir,
-    install: true
+    kwargs: introspection_common,
   )
 endif
 
@@ -161,7 +159,6 @@ test_client = executable('mutter-test-client',
     x11_dep,
     xext_dep,
     graphene_dep,
-    json_glib_dep,
     gsettings_desktop_schemas_dep,
   ],
   install: have_installed_tests,
@@ -188,7 +185,11 @@ meta_dbus_runner = find_program('meta-dbus-runner.py')
 
 tests_datadir = pkgdatadir / 'tests'
 
-install_data('mutter_dbusrunner.py',
+install_data(
+  [
+    'mutter_dbusrunner.py',
+    'logind_helpers.py',
+  ],
   install_dir: tests_datadir,
 )
 install_subdir('dbusmock-templates',
@@ -319,7 +320,7 @@ if have_native_tests
       'input-capture-test-client.c',
       '../backends/meta-fd-source.c',
       '../backends/meta-fd-source.h',
-      dbus_input_capture_built_sources,
+      built_dbus_sources['meta-dbus-input-capture'],
     ],
     include_directories: tests_includes,
     c_args: [
@@ -350,6 +351,7 @@ if have_native_tests
         'native-screen-cast.h',
         'native-virtual-monitor.c',
         'native-virtual-monitor.h',
+        'native-bezier-tests.c',
       ],
       'depends': [
         screen_cast_client,
@@ -521,7 +523,7 @@ if have_native_tests
   privileged_test_cases += kms_test_cases
 
   # Wayland tests
-  test_cases += [
+  wayland_test_cases = [
     {
       'name': 'wayland-client-tests',
       'suite': 'wayland',
@@ -564,10 +566,16 @@ if have_native_tests
       'depends': [
         test_client,
         test_client_executables.get('buffer-transform'),
+        test_client_executables.get('dma-buf-scanout'),
+        test_client_executables.get('fractional-scale'),
+        test_client_executables.get('fullscreen'),
         test_client_executables.get('idle-inhibit'),
         test_client_executables.get('invalid-subsurfaces'),
         test_client_executables.get('invalid-xdg-shell-actions'),
+        test_client_executables.get('kms-cursor-hotplug-helper'),
+        test_client_executables.get('service-client'),
         test_client_executables.get('single-pixel-buffer'),
+        test_client_executables.get('subsurface-corner-cases'),
         test_client_executables.get('subsurface-parent-unmapped'),
         test_client_executables.get('subsurface-remap-toplevel'),
         test_client_executables.get('subsurface-reparenting'),
@@ -575,9 +583,14 @@ if have_native_tests
         test_client_executables.get('xdg-apply-limits'),
         test_client_executables.get('xdg-foreign'),
         test_client_executables.get('xdg-toplevel-bounds'),
+        test_client_executables.get('ycbcr'),
       ],
     },
   ]
+
+  test_cases += wayland_test_cases
+  privileged_test_cases += wayland_test_cases
+
   if have_xwayland
     x11_compositor_checker = executable('x11-compositor-checker',
       sources: ['x11-compositor-checker.c'],
@@ -704,6 +717,9 @@ stacking_tests = [
   'overview-focus',
   'suspend-state-timeout',
   'cloned-windows',
+  'sloppy-focus',
+  'sloppy-focus-pointer-rest',
+  'sloppy-focus-auto-raise',
 ]
 
 foreach stacking_test: stacking_tests
@@ -743,12 +759,13 @@ if have_kvm_tests or have_tty_tests
       variants = [['', test_env_variables, []]]
     endif
 
-    test_executable = executable('mutter-' + test_case['name'],
+    test_executable = executable('mutter-privileged-' + test_case['name'],
       sources: test_case['sources'],
       include_directories: tests_includes,
       c_args: [
         tests_c_args,
         '-DG_LOG_DOMAIN="mutter-@0@-test"'.format(test_case['name']),
+        '-DMUTTER_PRIVILEGED_TEST=1',
       ],
       dependencies: [
         libmutter_test_dep,

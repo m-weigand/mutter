@@ -24,50 +24,66 @@
 
 #include "common/meta-cogl-drm-formats.h"
 
-gboolean
-meta_cogl_pixel_format_from_drm_format (uint32_t                drm_format,
-                                        CoglPixelFormat        *out_format,
-                                        MetaMultiTextureFormat *out_multi_texture_format)
-{
-  const size_t n = G_N_ELEMENTS (meta_cogl_drm_format_map);
-  size_t i;
 
-  for (i = 0; i < n; i++)
+/**
+ * meta_drm_format_to_string:
+ * @tmp: temporary buffer
+ * @drm_format: DRM fourcc pixel format
+ *
+ * Returns a pointer to a string naming the given pixel format,
+ * usually a pointer to the temporary buffer but not always.
+ * Invalid formats may return nonsense names.
+ *
+ * When calling this, allocate one MetaDrmFormatBuf on the stack to
+ * be used as the temporary buffer.
+ */
+const char *
+meta_drm_format_to_string (MetaDrmFormatBuf *tmp,
+                           uint32_t          drm_format)
+{
+  int i;
+
+  if (drm_format == DRM_FORMAT_INVALID)
+    return "INVALID";
+
+  G_STATIC_ASSERT (sizeof (tmp->s) == 5);
+  for (i = 0; i < 4; i++)
     {
-      if (meta_cogl_drm_format_map[i].drm_format == drm_format)
-        break;
+      char c = (drm_format >> (i * 8)) & 0xff;
+      tmp->s[i] = g_ascii_isgraph (c) ? c : '.';
     }
 
-  if (i == n)
-    return FALSE;
+  tmp->s[i] = 0;
 
-  if (out_format)
-    *out_format = meta_cogl_drm_format_map[i].cogl_format;
-
-  if (out_multi_texture_format)
-    *out_multi_texture_format = meta_cogl_drm_format_map[i].multi_texture_format;
-
-  return TRUE;
+  return tmp->s;
 }
 
-gboolean
-meta_drm_format_from_cogl_pixel_format (CoglPixelFormat  cogl_format,
-                                        uint32_t        *out_drm_format)
+const MetaFormatInfo *
+meta_format_info_from_drm_format (uint32_t drm_format)
 {
-  const size_t n = G_N_ELEMENTS (meta_cogl_drm_format_map);
+  const size_t n = G_N_ELEMENTS (meta_format_info);
   size_t i;
 
   for (i = 0; i < n; i++)
     {
-      if (meta_cogl_drm_format_map[i].cogl_format == cogl_format)
-        break;
+      if (meta_format_info[i].drm_format == drm_format)
+        return &meta_format_info[i];
     }
 
-  if (i == n)
-    return FALSE;
+  return NULL;
+}
 
-  if (out_drm_format)
-    *out_drm_format = meta_cogl_drm_format_map[i].drm_format;
+const MetaFormatInfo *
+meta_format_info_from_cogl_format (CoglPixelFormat cogl_format)
+{
+  const size_t n = G_N_ELEMENTS (meta_format_info);
+  size_t i;
 
-  return TRUE;
+  for (i = 0; i < n; i++)
+    {
+      if (meta_format_info[i].cogl_format == cogl_format)
+        return &meta_format_info[i];
+    }
+
+  return NULL;
 }

@@ -34,23 +34,7 @@
 #error "Only <cogl/cogl.h> can be included directly."
 #endif
 
-/* We forward declare the CoglTexture type here to avoid some circular
- * dependency issues with the following headers.
- */
-#if defined(__COGL_H_INSIDE__) && !defined(COGL_ENABLE_MUTTER_API) && \
-  !defined(COGL_GIR_SCANNING)
-/* For the public C api we typedef interface types as void to avoid needing
- * lots of casting in code and instead we will rely on runtime type checking
- * for these objects. */
-typedef void CoglTexture;
-#else
-typedef struct _CoglTexture CoglTexture;
-#define COGL_TEXTURE(X) ((CoglTexture *)X)
-#endif
-
-#include "cogl/cogl-types.h"
 #include "cogl/cogl-macros.h"
-#include "cogl/cogl-defines.h"
 #include "cogl/cogl-pixel-buffer.h"
 #include "cogl/cogl-pixel-format.h"
 #include "cogl/cogl-bitmap.h"
@@ -60,23 +44,32 @@ typedef struct _CoglTexture CoglTexture;
 G_BEGIN_DECLS
 
 /**
- * SECTION:cogl-texture
- * @short_description: Functions for creating and manipulating textures
+ * CoglTexture:
+ *
+ * Functions for creating and manipulating textures
  *
  * Cogl allows creating and manipulating textures using a uniform
  * API that tries to hide all the various complexities of creating,
  * loading and manipulating textures.
  */
 
-#define COGL_TEXTURE_MAX_WASTE  127
+#define COGL_TYPE_TEXTURE            (cogl_texture_get_type ())
+#define COGL_TEXTURE(obj)            (G_TYPE_CHECK_INSTANCE_CAST ((obj), COGL_TYPE_TEXTURE, CoglTexture))
+#define COGL_TEXTURE_CONST(obj)      (G_TYPE_CHECK_INSTANCE_CAST ((obj), COGL_TYPE_TEXTURE, CoglTexture const))
+#define COGL_TEXTURE_CLASS(klass)    (G_TYPE_CHECK_CLASS_CAST ((klass),  COGL_TYPE_TEXTURE, CoglTextureClass))
+#define COGL_IS_TEXTURE(obj)         (G_TYPE_CHECK_INSTANCE_TYPE ((obj), COGL_TYPE_TEXTURE))
+#define COGL_IS_TEXTURE_CLASS(klass) (G_TYPE_CHECK_CLASS_TYPE ((klass),  COGL_TYPE_TEXTURE))
+#define COGL_TEXTURE_GET_CLASS(obj)  (G_TYPE_INSTANCE_GET_CLASS ((obj),  COGL_TYPE_TEXTURE, CoglTextureClass))
 
-/**
- * cogl_texture_get_gtype:
- *
- * Returns: a #GType that can be used with the GLib type system.
- */
+typedef struct _CoglTextureClass CoglTextureClass;
+typedef struct _CoglTexture CoglTexture;
+
+G_DEFINE_AUTOPTR_CLEANUP_FUNC (CoglTexture, g_object_unref)
+
 COGL_EXPORT
-GType cogl_texture_get_gtype (void);
+GType       cogl_texture_get_type (void) G_GNUC_CONST;
+
+#define COGL_TEXTURE_MAX_WASTE  127
 
 /**
  * COGL_TEXTURE_ERROR:
@@ -105,17 +98,6 @@ typedef enum
 COGL_EXPORT
 uint32_t cogl_texture_error_quark (void);
 
-/**
- * cogl_is_texture:
- * @object: A #CoglObject pointer
- *
- * Gets whether the given object references a texture object.
- *
- * Return value: %TRUE if the @object references a texture, and
- *   %FALSE otherwise
- */
-COGL_EXPORT gboolean
-cogl_is_texture (void *object);
 
 /**
  * CoglTextureComponents:
@@ -311,10 +293,10 @@ cogl_texture_get_gl_texture (CoglTexture *texture,
  *
  * Copies the pixel data from a cogl texture to system memory.
  *
- * <note>Don't pass the value of cogl_texture_get_rowstride() as the
+ * Don't pass the value of cogl_texture_get_rowstride() as the
  * @rowstride argument, the rowstride should be the rowstride you
  * want for the destination @data buffer not the rowstride of the
- * source texture</note>
+ * source texture
  *
  * Return value: the size of the texture data in bytes
  */
@@ -345,7 +327,7 @@ cogl_texture_get_data (CoglTexture *texture,
  * Sets the pixels in a rectangular subregion of @texture from an in-memory
  * buffer containing pixel data.
  *
- * <note>The region set can't be larger than the source @data</note>
+ * The region set can't be larger than the source @data
  *
  * Return value: %TRUE if the subregion upload was successful, and
  *   %FALSE otherwise
@@ -391,16 +373,16 @@ cogl_texture_set_region (CoglTexture *texture,
  * fraction then round the number down (floor()), but clamp to 1
  * something like this:
  *
- * |[
+ * ```
  *  next_width = MAX (1, floor (prev_width));
- * ]|
+ * ```
  *
  * You can determine the number of mipmap levels for a given texture
  * like this:
  *
- * |[
+ * ```
  *  n_levels = 1 + floor (log2 (max_dimension));
- * ]|
+ * ```
  *
  * Where %max_dimension is the larger of cogl_texture_get_width() and
  * cogl_texture_get_height().
@@ -408,10 +390,10 @@ cogl_texture_set_region (CoglTexture *texture,
  * It is an error to pass a @level number >= the number of levels that
  * @texture can have according to the above calculation.
  *
- * <note>Since the storage for a #CoglTexture is allocated lazily then
+ * Since the storage for a #CoglTexture is allocated lazily then
  * if the given @texture has not previously been allocated then this
  * api can return %FALSE and throw an exceptional @error if there is
- * not enough memory to allocate storage for @texture.</note>
+ * not enough memory to allocate storage for @texture.
  *
  * Return value: %TRUE if the data upload was successful, and
  *               %FALSE otherwise
@@ -440,8 +422,8 @@ cogl_texture_set_data (CoglTexture *texture,
  * Copies a specified source region from @bitmap to the position
  * (@src_x, @src_y) of the given destination texture @handle.
  *
- * <note>The region updated can't be larger than the source
- * bitmap</note>
+ * The region updated can't be larger than the source
+ * bitmap
  *
  * Return value: %TRUE if the subregion upload was successful, and
  *   %FALSE otherwise
@@ -465,10 +447,10 @@ cogl_texture_set_region_from_bitmap (CoglTexture *texture,
  * allows you to be sure that there is enough memory for the
  * texture and if not then the error can be handled gracefully.
  *
- * <note>Normally applications don't need to use this api directly
+ * Normally applications don't need to use this api directly
  * since the texture will be implicitly allocated when data is set on
  * the texture, or if the texture is attached to a #CoglOffscreen
- * framebuffer and rendered too.</note>
+ * framebuffer and rendered too.
  *
  * Return value: %TRUE if the texture was successfully allocated,
  *               otherwise %FALSE and @error will be updated if it
@@ -479,7 +461,7 @@ cogl_texture_allocate (CoglTexture *texture,
                        GError **error);
 
 /**
- * cogl_texture_is_get_data_supported: (skip)
+ * cogl_texture_is_get_data_supported:
  */
 COGL_EXPORT gboolean
 cogl_texture_is_get_data_supported (CoglTexture *texture);

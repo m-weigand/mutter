@@ -19,9 +19,8 @@
  */
 
 /**
- * SECTION: meta-wayland-client
- * @title MetaWaylandClient
- * @include: gio/gsubprocess.h
+ * MetaWaylandClient:
+ * 
  * A class that allows to launch a trusted client and detect if an specific
  * Wayland window belongs to it.
  */
@@ -493,6 +492,27 @@ meta_wayland_client_make_desktop (MetaWaylandClient *client,
     return;
 
   meta_window_set_type (window, META_WINDOW_DESKTOP);
+}
+
+/**
+ * meta_wayland_client_make_dock:
+ * @client: a #MetaWaylandClient
+ * @window: a MetaWindow
+ *
+ * Mark window as DOCK window
+ */
+void
+meta_wayland_client_make_dock (MetaWaylandClient *client,
+                               MetaWindow        *window)
+{
+  g_return_if_fail (META_IS_WAYLAND_CLIENT (client));
+  g_return_if_fail (META_IS_WINDOW (window));
+  g_return_if_fail (window->type == META_WINDOW_NORMAL);
+
+  if (!meta_wayland_client_owns_window (client, window))
+    return;
+
+  meta_window_set_type (window, META_WINDOW_DOCK);
 }
 
 gboolean

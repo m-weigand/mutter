@@ -4,6 +4,7 @@
 #include <clutter/clutter.h>
 #include <cogl/cogl.h>
 
+#include "clutter/test-utils.h"
 #include "tests/clutter-test-utils.h"
 
 /* Coglbox declaration
@@ -82,16 +83,16 @@ test_coglbox_fade_texture (CoglFramebuffer *framebuffer,
     {
       CoglColor cogl_color;
 
-      cogl_color_init_from_4ub (&cogl_color,
-                                255,
-                                255,
-                                255,
-                                ((i ^ (i >> 1)) & 1) ? 0 : 128);
+      cogl_color_init_from_4f (&cogl_color,
+                               1.0,
+                               1.0,
+                               1.0,
+                               ((i ^ (i >> 1)) & 1) ? 0.0 : 128.0 / 255.0);
       cogl_color_premultiply (&cogl_color);
-      vertices[i].r = cogl_color_get_red_byte (&cogl_color);
-      vertices[i].g = cogl_color_get_green_byte (&cogl_color);
-      vertices[i].b = cogl_color_get_blue_byte (&cogl_color);
-      vertices[i].a = cogl_color_get_alpha_byte (&cogl_color);
+      vertices[i].r = cogl_color_get_red (&cogl_color) * 255.0;
+      vertices[i].g = cogl_color_get_green (&cogl_color) * 255.0;
+      vertices[i].b = cogl_color_get_blue (&cogl_color) * 255.0;
+      vertices[i].a = cogl_color_get_alpha (&cogl_color) * 255.0;
     }
 
   primitive =
@@ -100,7 +101,7 @@ test_coglbox_fade_texture (CoglFramebuffer *framebuffer,
                                4,
                                vertices);
   cogl_primitive_draw (primitive, framebuffer, pipeline);
-  cogl_object_unref (primitive);
+  g_object_unref (primitive);
 }
 
 static void
@@ -143,7 +144,7 @@ test_coglbox_triangle_texture (CoglFramebuffer *framebuffer,
                                        3,
                                        vertices);
   cogl_primitive_draw (primitive, framebuffer, pipeline);
-  cogl_object_unref (primitive);
+  g_object_unref (primitive);
 }
 
 static void
@@ -210,7 +211,7 @@ test_coglbox_paint (ClutterActor        *self,
 
   cogl_framebuffer_pop_matrix (framebuffer);
 
-  cogl_object_unref (pipeline);
+  g_object_unref (pipeline);
 }
 
 static void
@@ -218,8 +219,8 @@ test_coglbox_dispose (GObject *object)
 {
   TestCoglbox *coglbox = TEST_COGLBOX (object);
 
-  cogl_object_unref (coglbox->not_sliced_tex);
-  cogl_object_unref (coglbox->sliced_tex);
+  g_object_unref (coglbox->not_sliced_tex);
+  g_object_unref (coglbox->sliced_tex);
 
   G_OBJECT_CLASS (test_coglbox_parent_class)->dispose (object);
 }
@@ -237,9 +238,8 @@ test_coglbox_init (TestCoglbox *self)
 
   file = g_build_filename (TESTS_DATADIR, "redhand.png", NULL);
   self->sliced_tex =
-    cogl_texture_2d_sliced_new_from_file (ctx, file,
-                                          COGL_TEXTURE_MAX_WASTE,
-                                          &error);
+    clutter_test_texture_2d_sliced_new_from_file (ctx, file,
+                                                  &error);
   if (self->sliced_tex == NULL)
     {
       if (error)
@@ -252,7 +252,7 @@ test_coglbox_init (TestCoglbox *self)
         g_warning ("Texture loading failed: <unknown>");
     }
 
-  self->not_sliced_tex = cogl_texture_2d_new_from_file (ctx, file, &error);
+  self->not_sliced_tex = clutter_test_texture_2d_new_from_file (ctx, file, &error);
   if (self->not_sliced_tex == NULL)
     {
       if (error)
@@ -322,7 +322,8 @@ make_toggle (const char *label_text, gboolean *toggle_val)
   update_toggle_text (CLUTTER_TEXT (button), *toggle_val);
 
   clutter_actor_set_position (button, clutter_actor_get_width (label) + 10, 0);
-  clutter_container_add (CLUTTER_CONTAINER (group), label, button, NULL);
+  clutter_actor_add_child (group, label);
+  clutter_actor_add_child (group, button);
 
   g_signal_connect (button, "button-press-event", G_CALLBACK (on_toggle_click),
                     toggle_val);
@@ -352,8 +353,7 @@ test_cogl_tex_polygon_main (int argc, char *argv[])
 
   /* Cogl Box */
   coglbox = TEST_COGLBOX (test_coglbox_new ());
-  clutter_container_add_actor (CLUTTER_CONTAINER (stage),
-                               CLUTTER_ACTOR (coglbox));
+  clutter_actor_add_child (stage, CLUTTER_ACTOR (coglbox));
 
   /* Timeline for animation */
   timeline = clutter_timeline_new_for_actor (stage, 6000);
@@ -378,11 +378,9 @@ test_cogl_tex_polygon_main (int argc, char *argv[])
                                + clutter_actor_get_y (filtering_toggle)) / 2
                               - clutter_actor_get_height (note) / 2);
 
-  clutter_container_add (CLUTTER_CONTAINER (stage),
-                         slicing_toggle,
-                         filtering_toggle,
-                         note,
-                         NULL);
+  clutter_actor_add_child (stage, slicing_toggle);
+  clutter_actor_add_child (stage, filtering_toggle);
+  clutter_actor_add_child (stage, note);
 
   clutter_actor_show (stage);
 

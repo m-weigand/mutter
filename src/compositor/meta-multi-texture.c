@@ -18,9 +18,9 @@
  */
 
 /**
- * SECTION:meta-multi-texture
- * @title: MetaMultiTexture
- * @short_description: A texture that can have multiple planes.
+ * MetaMultiTexture:
+ *
+ * A texture that can have multiple planes.
  *
  * #MetaMultiTexture allows one to deal with non-trivial formats that
  * have multiple planes, requires subsampling and/or aren't in RGB. A common
@@ -171,7 +171,7 @@ meta_multi_texture_finalize (GObject *object)
   int i;
 
   for (i = 0; i < multi_texture->n_planes; i++)
-    cogl_clear_object (&multi_texture->planes[i]);
+    g_clear_object (&multi_texture->planes[i]);
 
   g_free (multi_texture->planes);
 
@@ -198,7 +198,7 @@ meta_multi_texture_class_init (MetaMultiTextureClass *klass)
  * @n_planes: The number of planes
  *
  * Creates a #MetaMultiTexture with the given @format. Each of the
- * #CoglTexture<!-- -->s represents a plane.
+ * `CoglTexture`s represents a plane.
  *
  * Returns: (transfer full): A new #MetaMultiTexture. Use g_object_unref() when
  * you're done with it.

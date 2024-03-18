@@ -85,7 +85,7 @@
  * of [vfunc@OffscreenEffect.create_pipeline].
  */
 
-#include "clutter/clutter-build-config.h"
+#include "config.h"
 
 #include "clutter/clutter-offscreen-effect.h"
 
@@ -103,11 +103,11 @@
 #include "clutter/clutter-paint-volume-private.h"
 #include "clutter/clutter-actor-box-private.h"
 
-struct _ClutterOffscreenEffectPrivate
+typedef struct _ClutterOffscreenEffectPrivate
 {
   CoglOffscreen *offscreen;
   CoglPipeline *pipeline;
-  CoglHandle texture;
+  CoglTexture *texture;
 
   ClutterActor *actor;
   ClutterActor *stage;
@@ -123,7 +123,7 @@ struct _ClutterOffscreenEffectPrivate
   int target_height;
 
   gulong purge_handler_id;
-};
+} ClutterOffscreenEffectPrivate;
 
 G_DEFINE_ABSTRACT_TYPE_WITH_PRIVATE (ClutterOffscreenEffect,
                                      clutter_offscreen_effect,
@@ -134,7 +134,8 @@ clutter_offscreen_effect_set_actor (ClutterActorMeta *meta,
                                     ClutterActor     *actor)
 {
   ClutterOffscreenEffect *self = CLUTTER_OFFSCREEN_EFFECT (meta);
-  ClutterOffscreenEffectPrivate *priv = self->priv;
+  ClutterOffscreenEffectPrivate *priv =
+    clutter_offscreen_effect_get_instance_private (self);
   ClutterActorMetaClass *meta_class;
 
   meta_class = CLUTTER_ACTOR_META_CLASS (clutter_offscreen_effect_parent_class);
@@ -147,7 +148,7 @@ clutter_offscreen_effect_set_actor (ClutterActorMeta *meta,
   priv->actor = clutter_actor_meta_get_actor (meta);
 }
 
-static CoglHandle
+static CoglTexture*
 clutter_offscreen_effect_real_create_texture (ClutterOffscreenEffect *effect,
                                               gfloat                  width,
                                               gfloat                  height)
@@ -162,9 +163,11 @@ static void
 ensure_pipeline_filter_for_scale (ClutterOffscreenEffect *self,
                                   float                   resource_scale)
 {
+  ClutterOffscreenEffectPrivate *priv =
+    clutter_offscreen_effect_get_instance_private (self);
   CoglPipelineFilter filter;
 
-  if (!self->priv->pipeline)
+  if (!priv->pipeline)
     return;
 
   /* If no fractional scaling is set, we're always going to render the texture
@@ -178,7 +181,7 @@ ensure_pipeline_filter_for_scale (ClutterOffscreenEffect *self,
   else
     filter = COGL_PIPELINE_FILTER_LINEAR;
 
-  cogl_pipeline_set_layer_filters (self->priv->pipeline, 0 /* layer_index */,
+  cogl_pipeline_set_layer_filters (priv->pipeline, 0 /* layer_index */,
                                    filter, filter);
 }
 
@@ -186,7 +189,8 @@ static CoglPipeline *
 clutter_offscreen_effect_real_create_pipeline (ClutterOffscreenEffect *effect,
                                                CoglTexture            *texture)
 {
-  ClutterOffscreenEffectPrivate *priv = effect->priv;
+  ClutterOffscreenEffectPrivate *priv =
+    clutter_offscreen_effect_get_instance_private (effect);
   CoglContext *ctx =
     clutter_backend_get_cogl_context (clutter_get_default_backend ());
   CoglPipeline *pipeline;
@@ -204,7 +208,10 @@ clutter_offscreen_effect_real_create_pipeline (ClutterOffscreenEffect *effect,
 static void
 video_memory_purged (ClutterOffscreenEffect *self)
 {
-  g_clear_object (&self->priv->offscreen);
+  ClutterOffscreenEffectPrivate *priv =
+    clutter_offscreen_effect_get_instance_private (self);
+
+  g_clear_object (&priv->offscreen);
 }
 
 static gboolean
@@ -216,7 +223,8 @@ update_fbo (ClutterEffect *effect,
   ClutterOffscreenEffect *self = CLUTTER_OFFSCREEN_EFFECT (effect);
   ClutterOffscreenEffectClass *offscreen_class =
     CLUTTER_OFFSCREEN_EFFECT_GET_CLASS (self);
-  ClutterOffscreenEffectPrivate *priv = self->priv;
+  ClutterOffscreenEffectPrivate *priv =
+    clutter_offscreen_effect_get_instance_private (self);
   ClutterActor *stage_actor;
   CoglOffscreen *offscreen;
   g_autoptr (GError) error = NULL;
@@ -251,12 +259,12 @@ update_fbo (ClutterEffect *effect,
   if (priv->target_width == target_width &&
       priv->target_height == target_height &&
       priv->offscreen != NULL)
-  {
-    ensure_pipeline_filter_for_scale (self, resource_scale);
-    return TRUE;
-  }
+    {
+      ensure_pipeline_filter_for_scale (self, resource_scale);
+      return TRUE;
+    }
 
-  g_clear_pointer (&priv->texture, cogl_object_unref);
+  g_clear_object (&priv->texture);
   g_clear_object (&priv->offscreen);
 
   priv->texture =
@@ -274,7 +282,7 @@ update_fbo (ClutterEffect *effect,
                  error->message);
 
       g_object_unref (offscreen);
-      cogl_clear_object (&priv->pipeline);
+      g_clear_object (&priv->pipeline);
 
       priv->target_width = 0;
       priv->target_height = 0;
@@ -284,7 +292,7 @@ update_fbo (ClutterEffect *effect,
 
   priv->offscreen = offscreen;
 
-  cogl_clear_object (&priv->pipeline);
+  g_clear_object (&priv->pipeline);
   priv->pipeline = offscreen_class->create_pipeline (self, priv->texture);
 
   return TRUE;
@@ -296,7 +304,8 @@ clutter_offscreen_effect_pre_paint (ClutterEffect       *effect,
                                     ClutterPaintContext *paint_context)
 {
   ClutterOffscreenEffect *self = CLUTTER_OFFSCREEN_EFFECT (effect);
-  ClutterOffscreenEffectPrivate *priv = self->priv;
+  ClutterOffscreenEffectPrivate *priv =
+    clutter_offscreen_effect_get_instance_private (self);
   CoglFramebuffer *offscreen;
   ClutterActorBox raw_box, box;
   ClutterActor *stage;
@@ -412,17 +421,18 @@ clutter_offscreen_effect_real_paint_target (ClutterOffscreenEffect *effect,
                                             ClutterPaintNode       *node,
                                             ClutterPaintContext    *paint_context)
 {
-  ClutterOffscreenEffectPrivate *priv = effect->priv;
+  ClutterOffscreenEffectPrivate *priv =
+    clutter_offscreen_effect_get_instance_private (effect);
   ClutterPaintNode *pipeline_node;
-  guint8 paint_opacity;
+  float paint_opacity;
+  CoglColor color;
 
-  paint_opacity = clutter_actor_get_paint_opacity (priv->actor);
+  paint_opacity = clutter_actor_get_paint_opacity (priv->actor) / 255.0;
 
-  cogl_pipeline_set_color4ub (priv->pipeline,
-                              paint_opacity,
-                              paint_opacity,
-                              paint_opacity,
-                              paint_opacity);
+  cogl_color_init_from_4f (&color,
+                           paint_opacity, paint_opacity,
+                           paint_opacity, paint_opacity);
+  cogl_pipeline_set_color (priv->pipeline, &color);
 
   pipeline_node = clutter_pipeline_node_new (priv->pipeline);
   clutter_paint_node_set_static_name (pipeline_node,
@@ -449,7 +459,8 @@ clutter_offscreen_effect_paint_texture (ClutterOffscreenEffect *effect,
                                         ClutterPaintNode       *node,
                                         ClutterPaintContext    *paint_context)
 {
-  ClutterOffscreenEffectPrivate *priv = effect->priv;
+  ClutterOffscreenEffectPrivate *priv =
+    clutter_offscreen_effect_get_instance_private (effect);
   graphene_matrix_t transform;
   float unscale;
 
@@ -485,7 +496,8 @@ clutter_offscreen_effect_post_paint (ClutterEffect       *effect,
                                      ClutterPaintContext *paint_context)
 {
   ClutterOffscreenEffect *self = CLUTTER_OFFSCREEN_EFFECT (effect);
-  ClutterOffscreenEffectPrivate *priv = self->priv;
+  ClutterOffscreenEffectPrivate *priv =
+    clutter_offscreen_effect_get_instance_private (self);
 
   g_warn_if_fail (priv->offscreen);
   g_warn_if_fail (priv->pipeline);
@@ -499,7 +511,8 @@ add_actor_node (ClutterOffscreenEffect *offscreen_effect,
                 ClutterPaintNode       *node,
                 int                     paint_opacity)
 {
-  ClutterOffscreenEffectPrivate *priv = offscreen_effect->priv;
+  ClutterOffscreenEffectPrivate *priv =
+    clutter_offscreen_effect_get_instance_private (offscreen_effect);
   ClutterPaintNode *actor_node;
 
   actor_node = clutter_actor_node_new (priv->actor, paint_opacity);
@@ -514,7 +527,8 @@ clutter_offscreen_effect_paint_node (ClutterEffect           *effect,
                                      ClutterEffectPaintFlags  flags)
 {
   ClutterOffscreenEffect *offscreen_effect = CLUTTER_OFFSCREEN_EFFECT (effect);
-  ClutterOffscreenEffectPrivate *priv = offscreen_effect->priv;
+  ClutterOffscreenEffectPrivate *priv =
+    clutter_offscreen_effect_get_instance_private (offscreen_effect);
   ClutterPaintNode *layer_node;
   CoglFramebuffer *fb;
 
@@ -535,7 +549,8 @@ clutter_offscreen_effect_paint (ClutterEffect           *effect,
                                 ClutterEffectPaintFlags  flags)
 {
   ClutterOffscreenEffect *self = CLUTTER_OFFSCREEN_EFFECT (effect);
-  ClutterOffscreenEffectPrivate *priv = self->priv;
+  ClutterOffscreenEffectPrivate *priv =
+    clutter_offscreen_effect_get_instance_private (self);
   ClutterEffectClass *parent_class =
     CLUTTER_EFFECT_CLASS (clutter_offscreen_effect_parent_class);
 
@@ -562,7 +577,8 @@ clutter_offscreen_effect_set_enabled (ClutterActorMeta *meta,
   ClutterActorMetaClass *parent_class =
     CLUTTER_ACTOR_META_CLASS (clutter_offscreen_effect_parent_class);
   ClutterOffscreenEffect *offscreen_effect = CLUTTER_OFFSCREEN_EFFECT (meta);
-  ClutterOffscreenEffectPrivate *priv = offscreen_effect->priv;
+  ClutterOffscreenEffectPrivate *priv =
+    clutter_offscreen_effect_get_instance_private (offscreen_effect);
 
   g_clear_object (&priv->offscreen);
 
@@ -573,11 +589,12 @@ static void
 clutter_offscreen_effect_finalize (GObject *gobject)
 {
   ClutterOffscreenEffect *self = CLUTTER_OFFSCREEN_EFFECT (gobject);
-  ClutterOffscreenEffectPrivate *priv = self->priv;
+  ClutterOffscreenEffectPrivate *priv =
+    clutter_offscreen_effect_get_instance_private (self);
 
   g_clear_object (&priv->offscreen);
-  g_clear_pointer (&priv->texture, cogl_object_unref);
-  g_clear_pointer (&priv->pipeline, cogl_object_unref);
+  g_clear_object (&priv->texture);
+  g_clear_object (&priv->pipeline);
 
   G_OBJECT_CLASS (clutter_offscreen_effect_parent_class)->finalize (gobject);
 }
@@ -607,7 +624,6 @@ clutter_offscreen_effect_class_init (ClutterOffscreenEffectClass *klass)
 static void
 clutter_offscreen_effect_init (ClutterOffscreenEffect *self)
 {
-  self->priv = clutter_offscreen_effect_get_instance_private (self);
 }
 
 /**
@@ -624,17 +640,20 @@ clutter_offscreen_effect_init (ClutterOffscreenEffect *self)
  * used instead of [method@OffscreenEffect.get_texture] when the
  * effect subclass wants to paint using its own material.
  *
- * Return value: (transfer none): a #CoglHandle or %NULL. The
+ * Return value: (transfer none): a #CoglTexture or %NULL. The
  *   returned texture is owned by Clutter and it should not be
  *   modified or freed
  */
-CoglHandle
+CoglTexture*
 clutter_offscreen_effect_get_texture (ClutterOffscreenEffect *effect)
 {
+  ClutterOffscreenEffectPrivate *priv;
+
   g_return_val_if_fail (CLUTTER_IS_OFFSCREEN_EFFECT (effect),
                         NULL);
 
-  return effect->priv->texture;
+  priv = clutter_offscreen_effect_get_instance_private (effect);
+  return priv->texture;
 }
 
 /**
@@ -654,10 +673,13 @@ clutter_offscreen_effect_get_texture (ClutterOffscreenEffect *effect)
 CoglPipeline *
 clutter_offscreen_effect_get_pipeline (ClutterOffscreenEffect *effect)
 {
+  ClutterOffscreenEffectPrivate *priv;
+
   g_return_val_if_fail (CLUTTER_IS_OFFSCREEN_EFFECT (effect),
                         NULL);
 
-  return effect->priv->pipeline;
+  priv = clutter_offscreen_effect_get_instance_private (effect);
+  return priv->pipeline;
 }
 
 /**
@@ -692,7 +714,7 @@ clutter_offscreen_effect_paint_target (ClutterOffscreenEffect *effect,
  *   %NULL. The returned handle has its reference
  *   count increased.
  */
-CoglHandle
+CoglTexture*
 clutter_offscreen_effect_create_texture (ClutterOffscreenEffect *effect,
                                          gfloat                  width,
                                          gfloat                  height)
@@ -730,7 +752,7 @@ clutter_offscreen_effect_get_target_size (ClutterOffscreenEffect *effect,
 
   g_return_val_if_fail (CLUTTER_IS_OFFSCREEN_EFFECT (effect), FALSE);
 
-  priv = effect->priv;
+  priv = clutter_offscreen_effect_get_instance_private (effect);
 
   if (priv->texture == NULL)
     return FALSE;

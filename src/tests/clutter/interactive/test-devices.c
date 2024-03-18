@@ -127,7 +127,7 @@ seat_device_added_cb (ClutterSeat        *seat,
                                                           NULL);
       g_hash_table_insert (app->devices, device, hand);
 
-      clutter_container_add_actor (CLUTTER_CONTAINER (app->stage), hand);
+      clutter_actor_add_child (app->stage, hand);
     }
 }
 
@@ -150,7 +150,7 @@ seat_device_removed_cb (ClutterSeat        *seat,
     {
       hand = g_hash_table_lookup (app->devices, device);
       if (hand != NULL)
-        clutter_container_add_actor (CLUTTER_CONTAINER (app->stage), hand);
+        clutter_actor_add_child (app->stage, hand);
 
       g_hash_table_remove (app->devices, device);
     }
@@ -170,12 +170,12 @@ test_devices_main (int argc, char **argv)
   app->devices = g_hash_table_new (g_direct_hash, g_direct_equal) ;
 
   stage = clutter_test_get_stage ();
-  clutter_actor_set_background_color (stage, CLUTTER_COLOR_LightSkyBlue);
+  clutter_actor_set_background_color (stage, &CLUTTER_COLOR_INIT (114, 159, 207, 255));
   clutter_stage_set_title (CLUTTER_STAGE (stage), "Devices");
   g_signal_connect (stage,
                     "destroy", G_CALLBACK (clutter_test_quit),
                     NULL);
-  g_signal_connect (stage, 
+  g_signal_connect (stage,
                     "motion-event", G_CALLBACK (stage_motion_event_cb),
                     app);
   g_signal_connect (stage,
@@ -222,7 +222,7 @@ test_devices_main (int argc, char **argv)
                                                               NULL);
           g_hash_table_insert (app->devices, device, hand);
 
-          clutter_container_add_actor (CLUTTER_CONTAINER (stage), hand);
+          clutter_actor_add_child (stage, hand);
         }
     }
 
@@ -231,4 +231,4 @@ test_devices_main (int argc, char **argv)
   clutter_test_main ();
 
   return EXIT_SUCCESS;
-} 
+}

@@ -55,7 +55,7 @@ struct _ClutterColor
   guint8 red;
   guint8 green;
   guint8 blue;
-  
+
   guint8 alpha;
 };
 
@@ -68,7 +68,13 @@ struct _ClutterColor
  *
  * A macro that initializes a #ClutterColor, to be used when declaring it.
  */
-#define CLUTTER_COLOR_INIT(r,g,b,a)     { (r), (g), (b), (a) }
+#define CLUTTER_COLOR_INIT(_r, _g, _b, _a) \
+        (ClutterColor) { \
+          .red = (_r), \
+          .green = (_g), \
+          .blue = (_b), \
+          .alpha = (_a) \
+        }
 
 CLUTTER_EXPORT
 GType clutter_color_get_type (void) G_GNUC_CONST;
@@ -90,25 +96,6 @@ CLUTTER_EXPORT
 ClutterColor *clutter_color_copy        (const ClutterColor *color);
 CLUTTER_EXPORT
 void          clutter_color_free        (ClutterColor       *color);
-
-CLUTTER_EXPORT
-void          clutter_color_add         (const ClutterColor *a,
-                                         const ClutterColor *b,
-                                         ClutterColor       *result);
-CLUTTER_EXPORT
-void          clutter_color_subtract    (const ClutterColor *a,
-                                         const ClutterColor *b,
-                                         ClutterColor       *result);
-CLUTTER_EXPORT
-void          clutter_color_lighten     (const ClutterColor *color,
-                                         ClutterColor       *result);
-CLUTTER_EXPORT
-void          clutter_color_darken      (const ClutterColor *color,
-                                         ClutterColor       *result);
-CLUTTER_EXPORT
-void          clutter_color_shade       (const ClutterColor *color,
-                                         gdouble             factor,
-                                         ClutterColor       *result);
 
 CLUTTER_EXPORT
 gchar *       clutter_color_to_string   (const ClutterColor *color);
@@ -144,6 +131,8 @@ void          clutter_color_interpolate (const ClutterColor *initial,
                                          const ClutterColor *final,
                                          gdouble             progress,
                                          ClutterColor       *result);
+
+G_DEFINE_AUTOPTR_CLEANUP_FUNC (ClutterColor, clutter_color_free)
 
 #define CLUTTER_TYPE_PARAM_COLOR           (clutter_param_color_get_type ())
 #define CLUTTER_PARAM_SPEC_COLOR(pspec)    (G_TYPE_CHECK_INSTANCE_CAST ((pspec), CLUTTER_TYPE_PARAM_COLOR, ClutterParamSpecColor))
@@ -189,8 +178,5 @@ GParamSpec *    clutter_param_spec_color        (const gchar        *name,
                                                  const gchar        *blurb,
                                                  const ClutterColor *default_value,
                                                  GParamFlags         flags);
-
-CLUTTER_EXPORT
-const ClutterColor *clutter_color_get_static (ClutterStaticColor color);
 
 G_END_DECLS

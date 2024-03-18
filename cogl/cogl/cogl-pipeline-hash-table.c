@@ -31,7 +31,7 @@
  *   Robert Bragg <robert@linux.intel.com>
  */
 
-#include "cogl-config.h"
+#include "config.h"
 
 #include "cogl/cogl-context-private.h"
 #include "cogl/cogl-pipeline-private.h"
@@ -64,7 +64,7 @@ value_destroy_cb (void *value)
 {
   CoglPipelineHashTableEntry *entry = value;
 
-  cogl_object_unref (entry->parent.pipeline);
+  g_object_unref (entry->parent.pipeline);
 
   g_free (entry);
 }
@@ -88,8 +88,7 @@ entry_equal (const void *a,
   return _cogl_pipeline_equal (entry_a->parent.pipeline,
                                entry_b->parent.pipeline,
                                hash->main_state,
-                               hash->layer_state,
-                               0);
+                               hash->layer_state);
 }
 
 void
@@ -185,8 +184,7 @@ _cogl_pipeline_hash_table_get (CoglPipelineHashTable *hash,
   dummy_entry.hash = hash;
   dummy_entry.hash_value = _cogl_pipeline_hash (key_pipeline,
                                                 hash->main_state,
-                                                hash->layer_state,
-                                                0);
+                                                hash->layer_state);
   entry = g_hash_table_lookup (hash->table, &dummy_entry);
 
   if (entry)

@@ -34,23 +34,13 @@
 G_BEGIN_DECLS
 
 #define CLUTTER_TYPE_OFFSCREEN_EFFECT           (clutter_offscreen_effect_get_type ())
-#define CLUTTER_OFFSCREEN_EFFECT(o)             (G_TYPE_CHECK_INSTANCE_CAST ((o), CLUTTER_TYPE_OFFSCREEN_EFFECT, ClutterOffscreenEffect))
-#define CLUTTER_IS_OFFSCREEN_EFFECT(o)          (G_TYPE_CHECK_INSTANCE_TYPE ((o), CLUTTER_TYPE_OFFSCREEN_EFFECT))
-#define CLUTTER_OFFSCREEN_EFFECT_CLASS(k)       (G_TYPE_CHECK_CLASS_CAST ((k), CLUTTER_TYPE_OFFSCREEN_EFFECT, ClutterOffscreenEffectClass))
-#define CLUTTER_IS_OFFSCREEN_EFFECT_CLASS(k)    (G_TYPE_CHECK_CLASS_TYPE ((k), CLUTTER_TYPE_OFFSCREEN_EFFECT))
-#define CLUTTER_OFFSCREEN_EFFECT_GET_CLASS(o)   (G_TYPE_INSTANCE_GET_CLASS ((o), CLUTTER_TYPE_OFFSCREEN_EFFECT, ClutterOffscreenEffectClass))
 
-typedef struct _ClutterOffscreenEffect          ClutterOffscreenEffect;
-typedef struct _ClutterOffscreenEffectPrivate   ClutterOffscreenEffectPrivate;
-typedef struct _ClutterOffscreenEffectClass     ClutterOffscreenEffectClass;
-
-struct _ClutterOffscreenEffect
-{
-  /*< private >*/
-  ClutterEffect parent_instance;
-
-  ClutterOffscreenEffectPrivate *priv;
-};
+CLUTTER_EXPORT
+G_DECLARE_DERIVABLE_TYPE (ClutterOffscreenEffect,
+                          clutter_offscreen_effect,
+                          CLUTTER,
+                          OFFSCREEN_EFFECT,
+                          ClutterEffect)
 
 /**
  * ClutterOffscreenEffectClass:
@@ -65,33 +55,30 @@ struct _ClutterOffscreenEffectClass
   ClutterEffectClass parent_class;
 
   /*< public >*/
-  CoglHandle (* create_texture) (ClutterOffscreenEffect *effect,
-                                 gfloat                  width,
-                                 gfloat                  height);
+  CoglTexture* (* create_texture) (ClutterOffscreenEffect *effect,
+                                   gfloat                  width,
+                                   gfloat                  height);
   CoglPipeline* (* create_pipeline) (ClutterOffscreenEffect *effect,
                                      CoglTexture            *texture);
-  void       (* paint_target)   (ClutterOffscreenEffect *effect,
-                                 ClutterPaintNode       *node,
-                                 ClutterPaintContext    *paint_context);
+  void (* paint_target) (ClutterOffscreenEffect *effect,
+                         ClutterPaintNode       *node,
+                         ClutterPaintContext    *paint_context);
 };
-
-CLUTTER_EXPORT
-GType clutter_offscreen_effect_get_type (void) G_GNUC_CONST;
 
 CLUTTER_EXPORT
 CoglPipeline *  clutter_offscreen_effect_get_pipeline           (ClutterOffscreenEffect *effect);
 
 CLUTTER_EXPORT
-CoglHandle      clutter_offscreen_effect_get_texture            (ClutterOffscreenEffect *effect);
+CoglTexture*    clutter_offscreen_effect_get_texture            (ClutterOffscreenEffect *effect);
 
 CLUTTER_EXPORT
 void            clutter_offscreen_effect_paint_target           (ClutterOffscreenEffect *effect,
                                                                  ClutterPaintNode       *node,
                                                                  ClutterPaintContext    *paint_context);
 CLUTTER_EXPORT
-CoglHandle      clutter_offscreen_effect_create_texture         (ClutterOffscreenEffect *effect,
-                                                                 gfloat                  width,
-                                                                 gfloat                  height);
+CoglTexture* clutter_offscreen_effect_create_texture         (ClutterOffscreenEffect *effect,
+                                                              gfloat                  width,
+                                                              gfloat                  height);
 
 CLUTTER_EXPORT
 gboolean        clutter_offscreen_effect_get_target_size        (ClutterOffscreenEffect *effect,

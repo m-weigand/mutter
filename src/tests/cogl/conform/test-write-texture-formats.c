@@ -41,7 +41,7 @@ test_write_byte (CoglContext *context,
 
   test_color (texture, expected_pixel);
 
-  cogl_object_unref (texture);
+  g_object_unref (texture);
 }
 
 static void
@@ -63,7 +63,7 @@ test_write_short (CoglContext *context,
 
   test_color (texture, expected_pixel);
 
-  cogl_object_unref (texture);
+  g_object_unref (texture);
 }
 
 static void
@@ -87,7 +87,7 @@ test_write_bytes (CoglContext *context,
 
   test_color (texture, expected_pixel);
 
-  cogl_object_unref (texture);
+  g_object_unref (texture);
 }
 
 static void
@@ -127,7 +127,7 @@ test_write_int (CoglContext *context,
 
   test_color (texture, expected_pixel);
 
-  cogl_object_unref (texture);
+  g_object_unref (texture);
 }
 
 static void
@@ -138,7 +138,7 @@ test_write_texture_formats (void)
   /* I'm not sure what's the right value to put here because Nvidia
      and Mesa seem to behave differently so one of them must be
      wrong. */
-  test_write_byte (test_ctx, COGL_PIXEL_FORMAT_G_8, 0x34, 0x340000ff);
+  test_write_byte (test_ctx, COGL_PIXEL_FORMAT_R_8, 0x34, 0x340000ff);
 #endif
 
   /* We should always be able to read from an RG buffer regardless of

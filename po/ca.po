@@ -11,9 +11,9 @@
 msgid ""
 msgstr ""
 "Project-Id-Version: metacity 2.24\n"
-"Report-Msgid-Bugs-To: https://gitlab.gnome.org/GNOME/mutter/issues\n"
-"POT-Creation-Date: 2023-09-25 05:49+0000\n"
-"PO-Revision-Date: 2023-10-02 20:02+0200\n"
+"Report-Msgid-Bugs-To: https://gitlab.gnome.org/GNOME/mutter/issues/\n"
+"POT-Creation-Date: 2024-03-02 12:22+0000\n"
+"PO-Revision-Date: 2024-03-03 20:57+0100\n"
 "Last-Translator: maite guix <maite.guix@me.com>\n"
 "Language-Team: Catalan <tradgnome@softcatala.org>\n"
 "Language: ca\n"
@@ -253,11 +253,11 @@ msgstr "Maximitza la finestra verticalment"
 msgid "Maximize window horizontally"
 msgstr "Maximitza la finestra horitzontalment"
 
-#: data/50-mutter-windows.xml:41 data/org.gnome.mutter.gschema.xml.in:164
+#: data/50-mutter-windows.xml:41 data/org.gnome.mutter.gschema.xml.in:167
 msgid "View split on left"
 msgstr "Mostra la partició a l'esquerra"
 
-#: data/50-mutter-windows.xml:45 data/org.gnome.mutter.gschema.xml.in:169
+#: data/50-mutter-windows.xml:45 data/org.gnome.mutter.gschema.xml.in:172
 msgid "View split on right"
 msgstr "Mostra la partició a la dreta"
 
@@ -405,41 +405,43 @@ msgid ""
 "space, while scaling monitor framebuffers instead of window content, to "
 "manage HiDPI monitors. Does not require a restart. • “kms-modifiers” — makes "
 "mutter always allocate scanout buffers with explicit modifiers, if supported "
-"by the driver. Requires a restart. • “rt-scheduler” — makes mutter request a "
-"low priority real-time scheduling. Requires a restart. • “autoclose-"
-"xwayland” — automatically terminates Xwayland if all relevant X11 clients "
-"are gone. Requires a restart."
+"by the driver. Requires a restart. • “autoclose-xwayland” — automatically "
+"terminates Xwayland if all relevant X11 clients are gone. Requires a "
+"restart. • “variable-refresh-rate” — makes mutter dynamically adjust the "
+"refresh rate of the monitor when applicable if supported by the monitor, GPU "
+"and DRM driver. Configurable in Settings. Requires a restart."
 msgstr ""
 "Per a habilitar característiques experimentals, afegiu la paraula clau de la "
 "característica a la llista. Que la característica requereixi reiniciar el "
 "compositor o no depèn de cada característica. És possible que alguna "
 "característica experimental no estigui disponible o no es pugui configurar. "
-"No espereu afegir res en aquest ajustament que sigui una futura prova. "
+"No espereu que res afegit en aquest ajustament es mantingui en el futur. "
 "Actualment, les paraules clau possibles són: • «scale-monitor-framebuffer»: "
-"fa que el mutter organitzi els monitors lògics en un espai de coordenades "
-"pixelades lògiques per defecte a l'hora de gestionar monitors HiDPI, de "
-"manera que redimensiona els marcs de memòria dels monitors en comptes del "
-"contingut de les finestres. No requereix un reinici. • «kms-modifiers» - fa "
-"que el mutter assigni sempre memòries intermèdies d'escaneig amb "
-"modificadors explícits, si és compatible amb el conductor. Requereix un "
-"reinici. • «rt-scheduler»: fa que el mutter demani una planificació a temps "
-"real de baixa prioritat. Requereix un reinici. • «autoclose-xwayland»: acaba "
+"fa que per defecte el mutter disposi els monitors lògics en un espai de "
+"coordenades de píxels lògics, al temps que escala la memòria de treball dels "
+"monitors en lloc del contingut de la finestra, per gestionar monitors HiDPI. "
+"No requereix reiniciar. • «kms-modifiers»: fa que el mutter assigni sempre "
+"memòries intermèdies d'escaneig amb modificadors explícits, si és compatible "
+"amb el controlador. Requereix reiniciar. • «autoclose-xwayland»: acaba "
 "automàticament Xwayland si tots els clients X11 rellevants han desaparegut. "
-"No requereix un reinici."
+"Requereix reiniciar. • «variable-refresh-rate»: fa que el mutter ajusti "
+"dinàmicament la freqüència d'actualització del monitor quan calgui i si són "
+"compatibles el monitor, la GPU i el controlador DRM. És configurable als "
+"Paràmetres. Requereix reiniciar."
 
-#: data/org.gnome.mutter.gschema.xml.in:141
+#: data/org.gnome.mutter.gschema.xml.in:144
 msgid "Modifier to use to locate the pointer"
 msgstr "Modificar a usar per a localitzar el punter"
 
-#: data/org.gnome.mutter.gschema.xml.in:142
+#: data/org.gnome.mutter.gschema.xml.in:145
 msgid "This key will initiate the “locate pointer” action."
 msgstr "Aquesta clau inicialitzarà l'acció «locate pointer»."
 
-#: data/org.gnome.mutter.gschema.xml.in:149
+#: data/org.gnome.mutter.gschema.xml.in:152
 msgid "Timeout for check-alive ping"
 msgstr "Temps d'espera per a la comprovació «ping alive»"
 
-#: data/org.gnome.mutter.gschema.xml.in:150
+#: data/org.gnome.mutter.gschema.xml.in:153
 msgid ""
 "Number of milliseconds a client has to respond to a ping request in order to "
 "not be detected as frozen. Using 0 will disable the alive check completely."
@@ -448,15 +450,15 @@ msgstr ""
 "«ping» per no ser detectat com a congelat. L'ús de 0 inhabilitarà "
 "completament la comprovació."
 
-#: data/org.gnome.mutter.gschema.xml.in:174
+#: data/org.gnome.mutter.gschema.xml.in:177
 msgid "Switch monitor configurations"
 msgstr "Canvia configuracions de monitor"
 
-#: data/org.gnome.mutter.gschema.xml.in:179
+#: data/org.gnome.mutter.gschema.xml.in:182
 msgid "Rotates the built-in monitor configuration"
 msgstr "Gira la configuració del monitor integrada"
 
-#: data/org.gnome.mutter.gschema.xml.in:184
+#: data/org.gnome.mutter.gschema.xml.in:187
 msgid "Cancel any active input capture session"
 msgstr "Cancel·la qualsevol sessió  activa de captura de l'entrada"
 
@@ -647,39 +649,39 @@ msgstr "%s %s"
 msgid "Bell event"
 msgstr "Esdeveniment de campana"
 
-#: src/core/display.c:723
+#: src/core/display.c:734
 msgid "Privacy Screen Enabled"
 msgstr "S'ha habilitat la pantalla de privadesa"
 
-#: src/core/display.c:724
+#: src/core/display.c:735
 msgid "Privacy Screen Disabled"
 msgstr "S'ha inhabilitat la pantalla de privadesa"
 
-#: src/core/meta-context-main.c:579
+#: src/core/meta-context-main.c:601
 msgid "Replace the running window manager"
 msgstr "Reemplaça el gestor de finestres en execució"
 
-#: src/core/meta-context-main.c:585
+#: src/core/meta-context-main.c:607
 msgid "X Display to use"
 msgstr "Visualització X per a usar"
 
-#: src/core/meta-context-main.c:591
+#: src/core/meta-context-main.c:613
 msgid "Disable connection to session manager"
 msgstr "Inhabilita la connexió al gestor de sessions"
 
-#: src/core/meta-context-main.c:597
+#: src/core/meta-context-main.c:619
 msgid "Specify session management ID"
 msgstr "Especifica l'ID de gestió de sessió"
 
-#: src/core/meta-context-main.c:603
+#: src/core/meta-context-main.c:625
 msgid "Initialize session from savefile"
 msgstr "Inicialitza la sessió des del fitxer desat"
 
-#: src/core/meta-context-main.c:609
+#: src/core/meta-context-main.c:631
 msgid "Make X calls synchronous"
 msgstr "Fes que les crides a X siguin síncrones"
 
-#: src/core/meta-context-main.c:617
+#: src/core/meta-context-main.c:639
 msgid "Run as a wayland compositor"
 msgstr "Funciona com a compositor de Wayland"
 
@@ -688,42 +690,46 @@ msgstr "Funciona com a compositor de Wayland"
 #
 # Camins:
 # ../src/core/main.c:223
-#: src/core/meta-context-main.c:623
+#: src/core/meta-context-main.c:645
 msgid "Run as a nested compositor"
 msgstr "Funciona com a compositor imbricat"
 
-#: src/core/meta-context-main.c:629
+#: src/core/meta-context-main.c:651
 msgid "Run wayland compositor without starting Xwayland"
 msgstr "Executa el compositor wayland sense iniciar Xwayland"
 
-#: src/core/meta-context-main.c:635
+#: src/core/meta-context-main.c:657
 msgid "Specify Wayland display name to use"
 msgstr "Especifica el nom de pantalla de Wayland a utilitzar"
 
-#: src/core/meta-context-main.c:643
+#: src/core/meta-context-main.c:665
 msgid "Run as a full display server, rather than nested"
 msgstr "Funciona com a servidor de pantalla completa, en comptes d'imbricat"
 
-#: src/core/meta-context-main.c:648
+#: src/core/meta-context-main.c:670
 msgid "Run as a headless display server"
 msgstr "Executa com a servidor de visualització sense cap capçalera"
 
-#: src/core/meta-context-main.c:653
+#: src/core/meta-context-main.c:675
 msgid "Add persistent virtual monitor (WxH or WxH@R)"
 msgstr "Afegeix un monitor virtual persistent (WxH or WxH@R)"
 
-#: src/core/meta-context-main.c:665
+#: src/core/meta-context-main.c:687
 msgid "Run with X11 backend"
 msgstr "Executa amb un rerefons X11"
 
-#: src/core/meta-context-main.c:671
+#: src/core/meta-context-main.c:693
 msgid "Profile performance using trace instrumentation"
 msgstr "Analitza el rendiment usant la instrumentació de traça"
+
+#: src/core/meta-context-main.c:699
+msgid "Enable debug control D-Bus interface"
+msgstr "Activa la interfície D-Bus per al control de la depuració"
 
 #. TRANSLATORS: This string refers to a button that switches between
 #. * different modes.
 #.
-#: src/core/meta-pad-action-mapper.c:805
+#: src/core/meta-pad-action-mapper.c:826
 #, c-format
 msgid "Mode Switch (Group %d)"
 msgstr "Mode de commutació (grup %d)"
@@ -731,11 +737,11 @@ msgstr "Mode de commutació (grup %d)"
 #. TRANSLATORS: This string refers to an action, cycles drawing tablets'
 #. * mapping through the available outputs.
 #.
-#: src/core/meta-pad-action-mapper.c:827
+#: src/core/meta-pad-action-mapper.c:848
 msgid "Switch monitor"
 msgstr "Commuta el monitor"
 
-#: src/core/meta-pad-action-mapper.c:829
+#: src/core/meta-pad-action-mapper.c:850
 msgid "Show on-screen help"
 msgstr "Mostra l'ajuda en pantalla"
 
@@ -752,7 +758,7 @@ msgstr "Escriu versió"
 msgid "Mutter plugin to use"
 msgstr "Connector del Mutter a utilitzar"
 
-#: src/core/prefs.c:1843
+#: src/core/prefs.c:1842
 #, c-format
 msgid "Workspace %d"
 msgstr "Espai de treball %d"
@@ -761,7 +767,7 @@ msgstr "Espai de treball %d"
 msgid "Mutter was compiled without support for verbose mode"
 msgstr "El Mutter s'ha compilat sense compatibilitat amb el mode detallat"
 
-#: src/core/workspace.c:512
+#: src/core/workspace.c:510
 msgid "Workspace switched"
 msgstr "S'ha commutat d'espai de treball"
 
@@ -770,7 +776,7 @@ msgstr "S'ha commutat d'espai de treball"
 msgid "Mode Switch: Mode %d"
 msgstr "Mode de commutació: mode %d"
 
-#: src/x11/meta-x11-display.c:717
+#: src/x11/meta-x11-display.c:723
 #, c-format
 msgid ""
 "Display “%s” already has a window manager; try using the --replace option to "
@@ -779,19 +785,19 @@ msgstr ""
 "La pantalla «%s» ja té un gestor de finestres; proveu l'opció --replace per "
 "a reemplaçar el gestor de finestres actual."
 
-#: src/x11/meta-x11-display.c:1082
+#: src/x11/meta-x11-display.c:1088
 #, c-format
 msgid "Failed to open X Window System display “%s”"
 msgstr "No s'ha pogut obrir la pantalla del sistema de finestres X «%s»"
 
-#: src/x11/meta-x11-display.c:1228
+#: src/x11/meta-x11-display.c:1268
 #, c-format
 msgid "Screen %d on display “%s” is invalid"
 msgstr "El monitor %d de la pantalla «%s» no és vàlid"
 
 #. This probably means that a non-WM compositor like xcompmgr is running;
 #. * we have no way to get it to exit
-#: src/x11/meta-x11-display.c:2554
+#: src/x11/meta-x11-display.c:2538
 #, c-format
 msgid ""
 "Another compositing manager is already running on screen %i on display “%s”."
@@ -804,7 +810,7 @@ msgstr ""
 msgid "Format %s not supported"
 msgstr "El format %s no és compatible"
 
-#: src/x11/window-props.c:548
+#: src/x11/window-props.c:528
 #, c-format
 msgid "%s (on %s)"
 msgstr "%s (a %s)"

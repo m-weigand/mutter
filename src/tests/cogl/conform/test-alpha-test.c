@@ -3,7 +3,7 @@
 
 #include "tests/cogl-test-utils.h"
 
-static CoglTexture2D *
+static CoglTexture *
 create_texture (CoglContext *context)
 {
   static const uint8_t data[] =
@@ -37,7 +37,7 @@ test_alpha_test (void)
                                          COGL_PIPELINE_ALPHA_FUNC_GEQUAL,
                                          254 / 255.0f /* alpha reference */);
 
-  cogl_color_init_from_4ub (&clear_color, 0x00, 0x00, 0xff, 0xff);
+  cogl_color_init_from_4f (&clear_color, 0.0, 0.0, 1.0, 1.0);
   cogl_framebuffer_clear (test_fb,
                           COGL_BUFFER_BIT_COLOR,
                           &clear_color);
@@ -47,8 +47,8 @@ test_alpha_test (void)
                                    -1, -1,
                                    1, 1);
 
-  cogl_object_unref (pipeline);
-  cogl_object_unref (tex);
+  g_object_unref (pipeline);
+  g_object_unref (tex);
 
   /* The left side of the framebuffer should use the first pixel from
    * the texture which is red */

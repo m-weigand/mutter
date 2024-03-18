@@ -31,9 +31,10 @@
  *   Robert Bragg <robert@linux.intel.com>
  */
 
-#include "cogl-config.h"
+#include "config.h"
 
 #include "cogl/cogl-context-private.h"
+#include "cogl/cogl-debug.h"
 #include "cogl/cogl-pipeline-private.h"
 #include "cogl/cogl-pipeline-layer-private.h"
 #include "cogl/cogl-node-private.h"
@@ -61,7 +62,7 @@ dump_layer_cb (CoglNode *node, void *user_data)
   if (state->parent_id >= 0)
     g_string_append_printf (state->graph, "%*slayer%p -> layer%p;\n",
                             state->indent, "",
-                            layer->_parent.parent,
+                            layer->parent_instance.parent,
                             layer);
 
   g_string_append_printf (state->graph,
@@ -71,7 +72,7 @@ dump_layer_cb (CoglNode *node, void *user_data)
                           state->indent, "",
                           layer,
                           layer,
-                          COGL_OBJECT (layer)->ref_count);
+                          G_OBJECT (layer)->ref_count);
 
   changes_label = g_string_new ("");
   g_string_append_printf (changes_label,
@@ -161,9 +162,9 @@ dump_pipeline_cb (CoglNode *node, void *user_data)
                           state->indent, "",
                           pipeline_id,
                           pipeline,
-                          COGL_OBJECT (pipeline)->ref_count,
+                          G_OBJECT (pipeline)->ref_count,
+#ifdef COGL_ENABLE_DEBUG
                           pipeline->has_static_breadcrumb ?
-#ifdef COGL_DEBUG_ENABLED
                           pipeline->static_breadcrumb : "NULL"
 #else
                           "NULL"
@@ -186,10 +187,10 @@ dump_pipeline_cb (CoglNode *node, void *user_data)
       changes = TRUE;
       g_string_append_printf (changes_label,
                               "\\lcolor=0x%02X%02X%02X%02X\\n",
-                              cogl_color_get_red_byte (&pipeline->color),
-                              cogl_color_get_green_byte (&pipeline->color),
-                              cogl_color_get_blue_byte (&pipeline->color),
-                              cogl_color_get_alpha_byte (&pipeline->color));
+                              (int) (cogl_color_get_red (&pipeline->color) * 255.0),
+                              (int) (cogl_color_get_green (&pipeline->color) * 255.0),
+                              (int) (cogl_color_get_blue (&pipeline->color) * 255.0),
+                              (int) (cogl_color_get_alpha (&pipeline->color) * 255.0));
     }
 
   if (pipeline->differences & COGL_PIPELINE_STATE_BLEND)

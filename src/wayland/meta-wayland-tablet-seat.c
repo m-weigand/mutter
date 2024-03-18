@@ -192,7 +192,9 @@ static void
 meta_wayland_tablet_seat_device_added (MetaWaylandTabletSeat *tablet_seat,
                                        ClutterInputDevice    *device)
 {
-  MetaWaylandSurface *pad_focus = tablet_seat->seat->keyboard->focus_surface;
+  MetaWaylandSurface *pad_focus;
+
+  pad_focus = meta_wayland_seat_get_input_focus (tablet_seat->seat);
 
   if (is_tablet_device (device))
     {
@@ -435,8 +437,7 @@ meta_wayland_tablet_seat_handle_event (MetaWaylandTabletSeat *tablet_seat,
       if (!tool)
         return CLUTTER_EVENT_PROPAGATE;
 
-      meta_wayland_tablet_tool_handle_event (tool, event);
-      return CLUTTER_EVENT_PROPAGATE;
+      return meta_wayland_tablet_tool_handle_event (tool, event);
     case CLUTTER_PAD_BUTTON_PRESS:
     case CLUTTER_PAD_BUTTON_RELEASE:
     case CLUTTER_PAD_RING:
@@ -566,4 +567,77 @@ meta_wayland_tablet_seat_can_popup (MetaWaylandTabletSeat *tablet_seat,
     }
 
   return FALSE;
+}
+
+gboolean
+meta_wayland_tablet_seat_get_grab_info (MetaWaylandTabletSeat *tablet_seat,
+                                        MetaWaylandSurface    *surface,
+                                        uint32_t               serial,
+                                        gboolean               require_pressed,
+                                        ClutterInputDevice   **device_out,
+                                        float                 *x,
+                                        float                 *y)
+{
+  g_autoptr (GList) tools = NULL;
+  GList *l;
+
+  tools = g_hash_table_get_values (tablet_seat->tools);
+
+  for (l = tools; l; l = l->next)
+    {
+      MetaWaylandTabletTool *tool = l->data;
+
+      if (meta_wayland_tablet_tool_get_grab_info (tool,
+                                                  surface,
+                                                  serial,
+                                                  require_pressed,
+                                                  device_out,
+                                                  x, y))
+        return TRUE;
+    }
+
+  return FALSE;
+}
+
+MetaWaylandSurface *
+meta_wayland_tablet_seat_get_current_surface (MetaWaylandTabletSeat *tablet_seat,
+                                              ClutterInputDevice    *device)
+{
+  MetaWaylandTablet *tablet;
+  g_autoptr (GList) tools = NULL;
+  GList *l;
+
+  tools = g_hash_table_get_values (tablet_seat->tools);
+  tablet = meta_wayland_tablet_seat_lookup_tablet (tablet_seat, device);
+
+  for (l = tools; l; l = l->next)
+    {
+      MetaWaylandTabletTool *tool = l->data;
+
+      if (meta_wayland_tablet_tool_has_current_tablet (tool, tablet))
+        return meta_wayland_tablet_tool_get_current_surface (tool);
+    }
+
+  return NULL;
+}
+
+void
+meta_wayland_tablet_seat_focus_surface (MetaWaylandTabletSeat *tablet_seat,
+                                        ClutterInputDevice    *device,
+                                        MetaWaylandSurface    *surface)
+{
+  MetaWaylandTablet *tablet;
+  g_autoptr (GList) tools = NULL;
+  GList *l;
+
+  tools = g_hash_table_get_values (tablet_seat->tools);
+  tablet = meta_wayland_tablet_seat_lookup_tablet (tablet_seat, device);
+
+  for (l = tools; l; l = l->next)
+    {
+      MetaWaylandTabletTool *tool = l->data;
+
+      if (meta_wayland_tablet_tool_has_current_tablet (tool, tablet))
+        meta_wayland_tablet_tool_focus_surface (tool, surface);
+    }
 }

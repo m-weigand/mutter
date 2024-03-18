@@ -24,7 +24,7 @@
 
 /**
  * CallyActor:
- * 
+ *
  * Implementation of the ATK interfaces for [class@Clutter.Actor]
  *
  * #CallyActor implements the required ATK interfaces of [class@Clutter.Actor]
@@ -66,7 +66,7 @@
  *
  */
 
-#include "clutter/clutter-build-config.h"
+#include "config.h"
 
 #include <glib.h>
 
@@ -222,7 +222,7 @@ cally_actor_initialize (AtkObject *obj,
   ATK_OBJECT_CLASS (cally_actor_parent_class)->initialize (obj, data);
 
   self = CALLY_ACTOR(obj);
-  priv = self->priv;
+  priv = cally_actor_get_instance_private (self);
   actor = CLUTTER_ACTOR (data);
 
   g_signal_connect (actor,
@@ -240,13 +240,13 @@ cally_actor_initialize (AtkObject *obj,
    * need to remove these handlers.
    */
   handler_id = g_signal_connect (actor,
-                                 "actor-added",
+                                 "child-added",
                                  G_CALLBACK (cally_actor_add_actor),
                                  obj);
   g_object_set_data (G_OBJECT (obj), "cally-add-handler-id",
                      GUINT_TO_POINTER (handler_id));
   handler_id = g_signal_connect (actor,
-                                 "actor-removed",
+                                 "child-removed",
                                  G_CALLBACK (cally_actor_remove_actor),
                                  obj);
   g_object_set_data (G_OBJECT (obj), "cally-remove-handler-id",
@@ -284,8 +284,6 @@ cally_actor_init (CallyActor *cally_actor)
 {
   CallyActorPrivate *priv = cally_actor_get_instance_private (cally_actor);
 
-  cally_actor->priv = priv;
-
   priv->action_queue = NULL;
   priv->action_idle_handler = 0;
 
@@ -301,7 +299,7 @@ cally_actor_finalize (GObject *obj)
   CallyActorPrivate *priv       = NULL;
 
   cally_actor = CALLY_ACTOR (obj);
-  priv = cally_actor->priv;
+  priv = cally_actor_get_instance_private (cally_actor);
 
   _cally_actor_clean_action_list (cally_actor);
 
@@ -561,10 +559,10 @@ cally_actor_real_add_actor (ClutterActor *container,
   AtkObject        *atk_parent = ATK_OBJECT (data);
   AtkObject        *atk_child  = clutter_actor_get_accessible (actor);
   CallyActor        *cally_actor = CALLY_ACTOR (atk_parent);
-  CallyActorPrivate *priv       = cally_actor->priv;
+  CallyActorPrivate *priv = cally_actor_get_instance_private (cally_actor);
   gint              index;
 
-  g_return_val_if_fail (CLUTTER_IS_CONTAINER (container), 0);
+  g_return_val_if_fail (CLUTTER_IS_ACTOR (container), 0);
   g_return_val_if_fail (CLUTTER_IS_ACTOR (actor), 0);
 
   g_object_notify (G_OBJECT (atk_child), "accessible_parent");
@@ -591,7 +589,7 @@ cally_actor_real_remove_actor (ClutterActor *container,
   CallyActorPrivate  *priv        = NULL;
   gint               index;
 
-  g_return_val_if_fail (CLUTTER_IS_CONTAINER (container), 0);
+  g_return_val_if_fail (CLUTTER_IS_ACTOR (container), 0);
   g_return_val_if_fail (CLUTTER_IS_ACTOR (actor), 0);
 
   atk_parent = ATK_OBJECT (data);
@@ -611,7 +609,7 @@ cally_actor_real_remove_actor (ClutterActor *container,
       g_object_unref (atk_child);
     }
 
-  priv = CALLY_ACTOR (atk_parent)->priv;
+  priv = cally_actor_get_instance_private (CALLY_ACTOR (atk_parent));
   index = g_list_index (priv->children, actor);
   g_list_free (priv->children);
 
@@ -647,7 +645,6 @@ cally_actor_get_extents (AtkComponent *component,
 {
   CallyActor   *cally_actor = NULL;
   ClutterActor *actor      = NULL;
-  gint          top_level_x, top_level_y;
   gfloat        f_width, f_height;
   graphene_point3d_t verts[4];
   ClutterActor  *stage = NULL;
@@ -673,22 +670,6 @@ cally_actor_get_extents (AtkComponent *component,
   *y = verts[0].y;
   *width = ceilf (f_width);
   *height = ceilf (f_height);
-
-  /* In the ATK_XY_WINDOW case, we consider the stage as the
-   * "top-level-window"
-   *
-   * http://library.gnome.org/devel/atk/stable/AtkUtil.html#AtkCoordType
-   */
-
-  if (coord_type == ATK_XY_SCREEN)
-    {
-      _cally_actor_get_top_level_origin (actor, &top_level_x, &top_level_y);
-
-      *x += top_level_x;
-      *y += top_level_y;
-    }
-
-  return;
 }
 
 static gint
@@ -725,25 +706,6 @@ cally_actor_grab_focus (AtkComponent    *component)
   return TRUE;
 }
 
-/*
- *
- * This gets the top level origin, it is, the position of the stage in
- * the global screen. You can see it as the absolute display position
- * of the stage. This is 0,0 for a compositor.
- */
-void
-_cally_actor_get_top_level_origin (ClutterActor *actor,
-                                   gint         *xp,
-                                   gint         *yp)
-{
-  /* default values */
-  if (xp)
-    *xp = 0;
-
-  if (yp)
-    *yp = 0;
-}
-
 /* AtkAction implementation */
 static void
 cally_actor_action_interface_init (AtkActionIface *iface)
@@ -769,7 +731,7 @@ cally_actor_action_do_action (AtkAction *action,
   gboolean did_action = FALSE;
 
   cally_actor = CALLY_ACTOR (action);
-  priv = cally_actor->priv;
+  priv = cally_actor_get_instance_private (cally_actor);
 
   set = atk_object_ref_state_set (ATK_OBJECT (cally_actor));
 
@@ -812,7 +774,7 @@ idle_do_action (gpointer data)
   ClutterActor     *actor      = NULL;
 
   cally_actor = CALLY_ACTOR (data);
-  priv = cally_actor->priv;
+  priv = cally_actor_get_instance_private (cally_actor);
   actor = CALLY_GET_CLUTTER_ACTOR (cally_actor);
   priv->action_idle_handler = 0;
 
@@ -840,7 +802,7 @@ cally_actor_action_get_n_actions (AtkAction *action)
   g_return_val_if_fail (CALLY_IS_ACTOR (action), 0);
 
   cally_actor = CALLY_ACTOR (action);
-  priv       = cally_actor->priv;
+  priv = cally_actor_get_instance_private (cally_actor);
 
   return g_list_length (priv->action_list);
 }
@@ -989,7 +951,7 @@ _cally_actor_clean_action_list (CallyActor *cally_actor)
 {
   CallyActorPrivate *priv = NULL;
 
-  priv = cally_actor->priv;
+  priv = cally_actor_get_instance_private (cally_actor);
 
   if (priv->action_list)
     {
@@ -1008,7 +970,7 @@ _cally_actor_get_action_info (CallyActor *cally_actor,
 
   g_return_val_if_fail (CALLY_IS_ACTOR (cally_actor), NULL);
 
-  priv = cally_actor->priv;
+  priv = cally_actor_get_instance_private (cally_actor);
 
   if (priv->action_list == NULL)
     return NULL;
@@ -1077,7 +1039,7 @@ cally_actor_add_action_full (CallyActor          *cally_actor,
   g_return_val_if_fail (CALLY_IS_ACTOR (cally_actor), -1);
   g_return_val_if_fail (callback != NULL, -1);
 
-  priv = cally_actor->priv;
+  priv = cally_actor_get_instance_private (cally_actor);
 
   info = g_new0 (CallyActorActionInfo, 1);
   info->name = g_strdup (action_name);
@@ -1109,7 +1071,7 @@ cally_actor_remove_action (CallyActor *cally_actor,
   CallyActorPrivate *priv      = NULL;
 
   g_return_val_if_fail (CALLY_IS_ACTOR (cally_actor), FALSE);
-  priv = cally_actor->priv;
+  priv = cally_actor_get_instance_private (cally_actor);
 
   list_node = g_list_nth (priv->action_list, action_id - 1);
 
@@ -1142,7 +1104,7 @@ cally_actor_remove_action_by_name (CallyActor  *cally_actor,
   CallyActorPrivate *priv         = NULL;
 
   g_return_val_if_fail (CALLY_IS_ACTOR (cally_actor), FALSE);
-  priv = CALLY_ACTOR (cally_actor)->priv;
+  priv = cally_actor_get_instance_private (cally_actor);
 
   for (node = priv->action_list; node && !action_found;
        node = node->next)

@@ -20,17 +20,7 @@
  * You should have received a copy of the GNU Lesser General Public
  * License along with this library. If not, see <http://www.gnu.org/licenses/>.
  */
-
-/**
- * SECTION:clutter-geometric-types
- * @Title: Base geometric types
- * @Short_Description: Common geometric data types used by Clutter
- *
- * Clutter defines a set of geometric data structures that are commonly used
- * across the whole API.
- */
-
-#include "clutter/clutter-build-config.h"
+#include "config.h"
 
 #include "clutter/clutter-types.h"
 #include "clutter/clutter-private.h"
@@ -49,7 +39,7 @@
  * Creates a new #ClutterMargin.
  *
  * Return value: (transfer full): a newly allocated #ClutterMargin. Use
- *   clutter_margin_free() to free the resources associated with it when
+ *   [method@Clutter.Margin.free] to free the resources associated with it when
  *   done.
  */
 ClutterMargin *
@@ -80,8 +70,8 @@ clutter_margin_copy (const ClutterMargin *margin_)
  * clutter_margin_free:
  * @margin_: a #ClutterMargin
  *
- * Frees the resources allocated by clutter_margin_new() and
- * clutter_margin_copy().
+ * Frees the resources allocated by [ctor@Clutter.Margin.new] and
+ * [method@Clutter.Margin.copy].
  */
 void
 clutter_margin_free (ClutterMargin *margin_)

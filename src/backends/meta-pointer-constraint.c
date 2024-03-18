@@ -47,7 +47,8 @@
 struct _MetaPointerConstraint
 {
   GObject parent_instance;
-  cairo_region_t *region;
+  MtkRegion *region;
+  graphene_point_t origin;
   double min_edge_distance;
 };
 
@@ -61,7 +62,7 @@ meta_pointer_constraint_finalize (GObject *object)
 {
   MetaPointerConstraint *constraint = META_POINTER_CONSTRAINT (object);
 
-  g_clear_pointer (&constraint->region, cairo_region_destroy);
+  g_clear_pointer (&constraint->region, mtk_region_unref);
 
   G_OBJECT_CLASS (meta_pointer_constraint_parent_class)->finalize (object);
 }
@@ -81,21 +82,27 @@ meta_pointer_constraint_class_init (MetaPointerConstraintClass *klass)
 
 
 MetaPointerConstraint *
-meta_pointer_constraint_new (const cairo_region_t *region,
-                             double                min_edge_distance)
+meta_pointer_constraint_new (const MtkRegion  *region,
+                             graphene_point_t  origin,
+                             double            min_edge_distance)
 {
   MetaPointerConstraint *constraint;
 
   constraint = g_object_new (META_TYPE_POINTER_CONSTRAINT, NULL);
-  constraint->region = cairo_region_copy (region);
+  constraint->region = mtk_region_copy (region);
+  constraint->origin = origin;
   constraint->min_edge_distance = min_edge_distance;
 
   return constraint;
 }
 
-cairo_region_t *
-meta_pointer_constraint_get_region (MetaPointerConstraint *constraint)
+MtkRegion *
+meta_pointer_constraint_get_region (MetaPointerConstraint *constraint,
+                                    graphene_point_t      *origin)
 {
+  if (origin)
+    *origin = constraint->origin;
+
   return constraint->region;
 }
 

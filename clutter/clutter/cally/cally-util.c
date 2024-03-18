@@ -30,12 +30,12 @@
  * includes the name "Util" it is in fact one of the most important
  * interfaces to be implemented in any ATK toolkit implementation.
 
- * For instance, it defines atk_get_root(), the method that returns
+ * For instance, it defines [func@Atk.get_root], the method that returns
  * the root object in the hierarchy. Without it, you don't have
  * available any accessible object.
  */
 
-#include "clutter/clutter-build-config.h"
+#include "config.h"
 
 #include <stdlib.h>
 #include <string.h>
@@ -128,7 +128,7 @@ cally_util_get_toolkit_name (void)
 static const gchar *
 cally_util_get_toolkit_version (void)
 {
-  return MUTTER_VERSION;
+  return VERSION;
 }
 
 static guint

@@ -578,7 +578,7 @@ touch_can_grab_surface (MetaWaylandTouchInfo *touch_info,
   if (touch_info->touch_surface->surface == surface)
     return TRUE;
 
-  META_WAYLAND_SURFACE_FOREACH_SUBSURFACE (&surface->output_state,
+  META_WAYLAND_SURFACE_FOREACH_SUBSURFACE (&surface->applied_state,
                                            subsurface)
     {
       if (touch_can_grab_surface (touch_info, subsurface))
@@ -635,6 +635,22 @@ meta_wayland_touch_get_press_coords (MetaWaylandTouch     *touch,
     *y = touch_info->start_y;
 
   return TRUE;
+}
+
+MetaWaylandSurface *
+meta_wayland_touch_get_surface (MetaWaylandTouch     *touch,
+                                ClutterEventSequence *sequence)
+{
+  MetaWaylandTouchInfo *touch_info;
+
+  if (!touch->touches)
+    return NULL;
+
+  touch_info = touch_get_info (touch, sequence, FALSE);
+  if (!touch_info || !touch_info->touch_surface)
+    return NULL;
+
+  return touch_info->touch_surface->surface;
 }
 
 static void

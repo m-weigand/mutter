@@ -39,17 +39,17 @@
 G_BEGIN_DECLS
 
 /**
- * SECTION:cogl-meta-texture
- * @short_description: Interface for high-level textures built from
- *                     low-level textures like #CoglTexture2D.
+ * SECTION:meta-texture
+ * Interface for high-level textures built from 
+ * low-level textures like #CoglTexture2D.
  *
  * Cogl helps to make it easy to deal with high level textures such
- * as #CoglAtlasTexture<!-- -->s, #CoglSubTexture<!-- -->s,
+ * as `CoglAtlasTexture`s, `CoglSubTexture`s,
  * #CoglTexturePixmapX11 textures and #CoglTexture2DSliced textures
  * consistently.
  *
  * A #CoglMetaTexture is a texture that might internally be
- * represented by one or more low-level #CoglTexture<!-- -->s
+ * represented by one or more low-level `CoglTexture`s
  * such as #CoglTexture2D. These low-level textures are the only ones
  * that a GPU really understands but because applications often want
  * more high-level texture abstractions (such as storing multiple
@@ -76,29 +76,18 @@ G_BEGIN_DECLS
  *
  * If you want to develop custom primitive APIs like
  * cogl_framebuffer_draw_rectangle() and you want to support drawing
- * with #CoglAtlasTexture<!-- -->s or #CoglSubTexture<!-- -->s for
+ * with `CoglAtlasTexture`s or `CoglSubTexture`s for
  * example, then you will need to use this #CoglMetaTexture interface
  * to be able to resolve high-level textures into low-level textures
  * before drawing with Cogl's low-level drawing APIs such as
  * cogl_primitive_draw().
  *
- * <note>Most developers won't need to use this interface directly
+ * Most developers won't need to use this interface directly
  * but still it is worth understanding the distinction between
  * low-level and meta textures because you may find other references
  * in the documentation that detail limitations of using
- * meta-textures.</note>
+ * meta-textures.
  */
-
-#if defined(__COGL_H_INSIDE__) && !defined(COGL_ENABLE_MUTTER_API) && \
-  !defined(COGL_GIR_SCANNING)
-/* For the public C api we typedef interface types as void to avoid needing
- * lots of casting in code and instead we will rely on runtime type checking
- * for these objects. */
-typedef void CoglMetaTexture;
-#else
-typedef struct _CoglMetaTexture CoglMetaTexture;
-#define COGL_META_TEXTURE(X) ((CoglMetaTexture *)X)
-#endif
 
 /**
  * CoglMetaTextureCallback:
@@ -121,7 +110,7 @@ typedef struct _CoglMetaTexture CoglMetaTexture;
  *             cogl_meta_texture_foreach_in_region().
  *
  * A callback used with cogl_meta_texture_foreach_in_region() to
- * retrieve details of all the low-level #CoglTexture<!-- -->s that
+ * retrieve details of all the low-level `CoglTexture`s that
  * make up a given #CoglMetaTexture.
  */
 typedef void (*CoglMetaTextureCallback) (CoglTexture *sub_texture,
@@ -131,15 +120,14 @@ typedef void (*CoglMetaTextureCallback) (CoglTexture *sub_texture,
 
 /**
  * cogl_meta_texture_foreach_in_region:
- * @meta_texture: An object implementing the #CoglMetaTexture
- *                interface.
+ * @texture: An object implementing the #CoglMetaTexture interface.
  * @tx_1: The top-left x coordinate of the region to iterate
  * @ty_1: The top-left y coordinate of the region to iterate
  * @tx_2: The bottom-right x coordinate of the region to iterate
  * @ty_2: The bottom-right y coordinate of the region to iterate
  * @wrap_s: The wrap mode for the x-axis
  * @wrap_t: The wrap mode for the y-axis
- * @callback: A #CoglMetaTextureCallback pointer to be called
+ * @callback: (scope call): A #CoglMetaTextureCallback pointer to be called
  *            for each low-level texture within the specified region.
  * @user_data: A private pointer that is passed to @callback.
  *
@@ -161,17 +149,17 @@ typedef void (*CoglMetaTextureCallback) (CoglTexture *sub_texture,
  * internally use this API to resolve the low level textures of any
  * meta textures you have associated with CoglPipeline layers.
  *
- * <note>The low level drawing APIs such as cogl_primitive_draw()
+ * The low level drawing APIs such as cogl_primitive_draw()
  * don't understand the #CoglMetaTexture interface and so it is your
  * responsibility to use this API to resolve all CoglPipeline textures
- * into low-level textures before drawing.</note>
+ * into low-level textures before drawing.
  *
  * For each low-level texture that makes up part of the given region
  * of the @meta_texture, @callback is called specifying how the
  * low-level texture maps to the original region.
  */
 COGL_EXPORT void
-cogl_meta_texture_foreach_in_region (CoglMetaTexture *meta_texture,
+cogl_meta_texture_foreach_in_region (CoglTexture *texture,
                                      float tx_1,
                                      float ty_1,
                                      float tx_2,

@@ -27,7 +27,7 @@
 #include "wayland/meta-wayland-actor-surface.h"
 #include "wayland/meta-wayland-buffer.h"
 #include "wayland/meta-wayland-subsurface.h"
-#include "wayland/meta-wayland-surface.h"
+#include "wayland/meta-wayland-surface-private.h"
 #include "wayland/meta-window-wayland.h"
 
 typedef struct _MetaWaylandShellSurfacePrivate
@@ -58,7 +58,7 @@ meta_wayland_shell_surface_calculate_geometry (MetaWaylandShellSurface *shell_su
     .height = meta_wayland_surface_get_height (surface),
   };
 
-  META_WAYLAND_SURFACE_FOREACH_SUBSURFACE (&surface->output_state,
+  META_WAYLAND_SURFACE_FOREACH_SUBSURFACE (&surface->applied_state,
                                            subsurface_surface)
     {
       MetaWaylandSubsurface *subsurface;
@@ -139,12 +139,6 @@ meta_wayland_shell_surface_set_window (MetaWaylandShellSurface *shell_surface,
 
   priv->window = window;
 
-  priv->highest_scale_monitor_handler_id =
-    g_signal_connect_swapped (window, "highest-scale-monitor-changed",
-                              G_CALLBACK (meta_wayland_surface_notify_highest_scale_monitor),
-                              surface);
-  meta_wayland_surface_notify_highest_scale_monitor (surface);
-
   surface_actor = meta_wayland_surface_get_actor (surface);
   if (surface_actor)
     clutter_actor_set_reactive (CLUTTER_ACTOR (surface_actor), TRUE);
@@ -156,6 +150,12 @@ meta_wayland_shell_surface_set_window (MetaWaylandShellSurface *shell_surface,
                       shell_surface);
 
   meta_window_update_monitor (window, META_WINDOW_UPDATE_MONITOR_FLAGS_NONE);
+
+  priv->highest_scale_monitor_handler_id =
+    g_signal_connect_swapped (window, "highest-scale-monitor-changed",
+                              G_CALLBACK (meta_wayland_surface_notify_highest_scale_monitor),
+                              surface);
+  meta_wayland_surface_notify_highest_scale_monitor (surface);
 }
 
 void

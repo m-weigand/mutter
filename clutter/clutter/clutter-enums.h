@@ -467,44 +467,17 @@ typedef enum /*< prefix=CLUTTER_ALIGN >*/
 } ClutterAlignAxis;
 
 /**
- * ClutterBinAlignment:
- * @CLUTTER_BIN_ALIGNMENT_FIXED: Fixed position alignment; the
- *   #ClutterBinLayout will honour the fixed position provided
- *   by the actors themselves when allocating them
- * @CLUTTER_BIN_ALIGNMENT_FILL: Fill the allocation size
- * @CLUTTER_BIN_ALIGNMENT_START: Position the actors at the top
- *   or left side of the container, depending on the axis
- * @CLUTTER_BIN_ALIGNMENT_END: Position the actors at the bottom
- *   or right side of the container, depending on the axis
- * @CLUTTER_BIN_ALIGNMENT_CENTER: Position the actors at the
- *   center of the container, depending on the axis
- *
- * The alignment policies available on each axis for #ClutterBinLayout
- *
- * Deprecated: 1.12: Use #ClutterActorAlign and the #ClutterActor
- *   API instead
- */
-typedef enum
-{
-  CLUTTER_BIN_ALIGNMENT_FIXED,
-  CLUTTER_BIN_ALIGNMENT_FILL,
-  CLUTTER_BIN_ALIGNMENT_START,
-  CLUTTER_BIN_ALIGNMENT_END,
-  CLUTTER_BIN_ALIGNMENT_CENTER
-} ClutterBinAlignment;
-
-/**
  * ClutterBindCoordinate:
  * @CLUTTER_BIND_X: Bind the X coordinate
  * @CLUTTER_BIND_Y: Bind the Y coordinate
  * @CLUTTER_BIND_WIDTH: Bind the width
  * @CLUTTER_BIND_HEIGHT: Bind the height
  * @CLUTTER_BIND_POSITION: Equivalent to to %CLUTTER_BIND_X and
- *   %CLUTTER_BIND_Y (added in Clutter 1.6)
+ *   %CLUTTER_BIND_Y
  * @CLUTTER_BIND_SIZE: Equivalent to %CLUTTER_BIND_WIDTH and
- *   %CLUTTER_BIND_HEIGHT (added in Clutter 1.6)
+ *   %CLUTTER_BIND_HEIGHT
  * @CLUTTER_BIND_ALL: Equivalent to %CLUTTER_BIND_POSITION and
- *   %CLUTTER_BIND_SIZE (added in Clutter 1.10)
+ *   %CLUTTER_BIND_SIZE
  *
  * Specifies which property should be used in a binding
  */
@@ -536,22 +509,6 @@ typedef enum /*< prefix=CLUTTER_EFFECT_PAINT >*/
   CLUTTER_EFFECT_PAINT_BYPASS_EFFECT = (1 << 1)
 } ClutterEffectPaintFlags;
 
-/**
- * ClutterBoxAlignment:
- * @CLUTTER_BOX_ALIGNMENT_START: Align the child to the top or to
- *   to the left, depending on the used axis
- * @CLUTTER_BOX_ALIGNMENT_CENTER: Align the child to the center
- * @CLUTTER_BOX_ALIGNMENT_END: Align the child to the bottom or to
- *   the right, depending on the used axis
- *
- * The alignment policies available on each axis of the #ClutterBoxLayout
- */
-typedef enum
-{
-  CLUTTER_BOX_ALIGNMENT_START,
-  CLUTTER_BOX_ALIGNMENT_END,
-  CLUTTER_BOX_ALIGNMENT_CENTER
-} ClutterBoxAlignment;
 
 /**
  * ClutterLongPressState:
@@ -568,127 +525,6 @@ typedef enum /*< prefix=CLUTTER_LONG_PRESS >*/
   CLUTTER_LONG_PRESS_ACTIVATE,
   CLUTTER_LONG_PRESS_CANCEL
 } ClutterLongPressState;
-
-/**
- * ClutterStaticColor:
- * @CLUTTER_COLOR_WHITE: White color (ffffffff)
- * @CLUTTER_COLOR_BLACK: Black color (000000ff)
- * @CLUTTER_COLOR_RED: Red color (ff0000ff)
- * @CLUTTER_COLOR_DARK_RED: Dark red color (800000ff)
- * @CLUTTER_COLOR_GREEN: Green color (00ff00ff)
- * @CLUTTER_COLOR_DARK_GREEN: Dark green color (008000ff)
- * @CLUTTER_COLOR_BLUE: Blue color (0000ffff)
- * @CLUTTER_COLOR_DARK_BLUE: Dark blue color (000080ff)
- * @CLUTTER_COLOR_CYAN: Cyan color (00ffffff)
- * @CLUTTER_COLOR_DARK_CYAN: Dark cyan color (008080ff)
- * @CLUTTER_COLOR_MAGENTA: Magenta color (ff00ffff)
- * @CLUTTER_COLOR_DARK_MAGENTA: Dark magenta color (800080ff)
- * @CLUTTER_COLOR_YELLOW: Yellow color (ffff00ff)
- * @CLUTTER_COLOR_DARK_YELLOW: Dark yellow color (808000ff)
- * @CLUTTER_COLOR_GRAY: Gray color (a0a0a4ff)
- * @CLUTTER_COLOR_DARK_GRAY: Dark Gray color (808080ff)
- * @CLUTTER_COLOR_LIGHT_GRAY: Light gray color (c0c0c0ff)
- * @CLUTTER_COLOR_BUTTER: Butter color (edd400ff)
- * @CLUTTER_COLOR_BUTTER_LIGHT: Light butter color (fce94fff)
- * @CLUTTER_COLOR_BUTTER_DARK: Dark butter color (c4a000ff)
- * @CLUTTER_COLOR_ORANGE: Orange color (f57900ff)
- * @CLUTTER_COLOR_ORANGE_LIGHT: Light orange color (fcaf3fff)
- * @CLUTTER_COLOR_ORANGE_DARK: Dark orange color (ce5c00ff)
- * @CLUTTER_COLOR_CHOCOLATE: Chocolate color (c17d11ff)
- * @CLUTTER_COLOR_CHOCOLATE_LIGHT: Light chocolate color (e9b96eff)
- * @CLUTTER_COLOR_CHOCOLATE_DARK: Dark chocolate color (8f5902ff)
- * @CLUTTER_COLOR_CHAMELEON: Chameleon color (73d216ff)
- * @CLUTTER_COLOR_CHAMELEON_LIGHT: Light chameleon color (8ae234ff)
- * @CLUTTER_COLOR_CHAMELEON_DARK: Dark chameleon color (4e9a06ff)
- * @CLUTTER_COLOR_SKY_BLUE: Sky color (3465a4ff)
- * @CLUTTER_COLOR_SKY_BLUE_LIGHT: Light sky color (729fcfff)
- * @CLUTTER_COLOR_SKY_BLUE_DARK: Dark sky color (204a87ff)
- * @CLUTTER_COLOR_PLUM: Plum color (75507bff)
- * @CLUTTER_COLOR_PLUM_LIGHT: Light plum color (ad7fa8ff)
- * @CLUTTER_COLOR_PLUM_DARK: Dark plum color (5c3566ff)
- * @CLUTTER_COLOR_SCARLET_RED: Scarlet red color (cc0000ff)
- * @CLUTTER_COLOR_SCARLET_RED_LIGHT: Light scarlet red color (ef2929ff)
- * @CLUTTER_COLOR_SCARLET_RED_DARK: Dark scarlet red color (a40000ff)
- * @CLUTTER_COLOR_ALUMINIUM_1: Aluminium, first variant (eeeeecff)
- * @CLUTTER_COLOR_ALUMINIUM_2: Aluminium, second variant (d3d7cfff)
- * @CLUTTER_COLOR_ALUMINIUM_3: Aluminium, third variant (babdb6ff)
- * @CLUTTER_COLOR_ALUMINIUM_4: Aluminium, fourth variant (888a85ff)
- * @CLUTTER_COLOR_ALUMINIUM_5: Aluminium, fifth variant (555753ff)
- * @CLUTTER_COLOR_ALUMINIUM_6: Aluminium, sixth variant (2e3436ff)
- * @CLUTTER_COLOR_TRANSPARENT: Transparent color (00000000)
- *
- * Named colors, for accessing global colors defined by Clutter
- */
-typedef enum /*< prefix=CLUTTER_COLOR >*/
-{
-  /* CGA/EGA-like palette */
-  CLUTTER_COLOR_WHITE           = 0,
-  CLUTTER_COLOR_BLACK,
-  CLUTTER_COLOR_RED,
-  CLUTTER_COLOR_DARK_RED,
-  CLUTTER_COLOR_GREEN,
-  CLUTTER_COLOR_DARK_GREEN,
-  CLUTTER_COLOR_BLUE,
-  CLUTTER_COLOR_DARK_BLUE,
-  CLUTTER_COLOR_CYAN,
-  CLUTTER_COLOR_DARK_CYAN,
-  CLUTTER_COLOR_MAGENTA,
-  CLUTTER_COLOR_DARK_MAGENTA,
-  CLUTTER_COLOR_YELLOW,
-  CLUTTER_COLOR_DARK_YELLOW,
-  CLUTTER_COLOR_GRAY,
-  CLUTTER_COLOR_DARK_GRAY,
-  CLUTTER_COLOR_LIGHT_GRAY,
-
-  /* Tango icon palette */
-  CLUTTER_COLOR_BUTTER,
-  CLUTTER_COLOR_BUTTER_LIGHT,
-  CLUTTER_COLOR_BUTTER_DARK,
-  CLUTTER_COLOR_ORANGE,
-  CLUTTER_COLOR_ORANGE_LIGHT,
-  CLUTTER_COLOR_ORANGE_DARK,
-  CLUTTER_COLOR_CHOCOLATE,
-  CLUTTER_COLOR_CHOCOLATE_LIGHT,
-  CLUTTER_COLOR_CHOCOLATE_DARK,
-  CLUTTER_COLOR_CHAMELEON,
-  CLUTTER_COLOR_CHAMELEON_LIGHT,
-  CLUTTER_COLOR_CHAMELEON_DARK,
-  CLUTTER_COLOR_SKY_BLUE,
-  CLUTTER_COLOR_SKY_BLUE_LIGHT,
-  CLUTTER_COLOR_SKY_BLUE_DARK,
-  CLUTTER_COLOR_PLUM,
-  CLUTTER_COLOR_PLUM_LIGHT,
-  CLUTTER_COLOR_PLUM_DARK,
-  CLUTTER_COLOR_SCARLET_RED,
-  CLUTTER_COLOR_SCARLET_RED_LIGHT,
-  CLUTTER_COLOR_SCARLET_RED_DARK,
-  CLUTTER_COLOR_ALUMINIUM_1,
-  CLUTTER_COLOR_ALUMINIUM_2,
-  CLUTTER_COLOR_ALUMINIUM_3,
-  CLUTTER_COLOR_ALUMINIUM_4,
-  CLUTTER_COLOR_ALUMINIUM_5,
-  CLUTTER_COLOR_ALUMINIUM_6,
-
-  /* Fully transparent black */
-  CLUTTER_COLOR_TRANSPARENT
-} ClutterStaticColor;
-
-/**
- * ClutterDragAxis:
- * @CLUTTER_DRAG_AXIS_NONE: No constraint
- * @CLUTTER_DRAG_X_AXIS: Set a constraint on the X axis
- * @CLUTTER_DRAG_Y_AXIS: Set a constraint on the Y axis
- *
- * The axis of the constraint that should be applied on the
- * dragging action
- */
-typedef enum /*< prefix=CLUTTER_DRAG >*/
-{
-  CLUTTER_DRAG_AXIS_NONE = 0,
-
-  CLUTTER_DRAG_X_AXIS,
-  CLUTTER_DRAG_Y_AXIS
-} ClutterDragAxis;
 
 /**
  * ClutterEventFlags:
@@ -721,28 +557,20 @@ typedef enum /*< flags prefix=CLUTTER_EVENT >*/
  * @CLUTTER_BUTTON_RELEASE: Pointer button release event
  * @CLUTTER_SCROLL: Pointer scroll event
  * @CLUTTER_TOUCH_BEGIN: A new touch event sequence has started;
- *   event added in 1.10
  * @CLUTTER_TOUCH_UPDATE: A touch event sequence has been updated;
- *   event added in 1.10
  * @CLUTTER_TOUCH_END: A touch event sequence has finished;
- *   event added in 1.10
  * @CLUTTER_TOUCH_CANCEL: A touch event sequence has been canceled;
- *   event added in 1.10
  * @CLUTTER_TOUCHPAD_PINCH: A pinch gesture event, the current state is
- *   determined by its phase field; event added in 1.24
+ *   determined by its phase field;
  * @CLUTTER_TOUCHPAD_SWIPE: A swipe gesture event, the current state is
- *   determined by its phase field; event added in 1.24
+ *   determined by its phase field;
  * @CLUTTER_TOUCHPAD_HOLD: A hold gesture event, the current state is
  *   determined by its phase field. A hold gesture starts when the user places a
  *   finger on the touchpad and ends when all fingers are lifted. It is
  *   cancelled when the finger(s) move past a certain threshold.
- *   Event added in 40.4
  * @CLUTTER_PROXIMITY_IN: A tool entered in proximity to a tablet;
- *   event added in 1.28
  * @CLUTTER_PROXIMITY_OUT: A tool left from the proximity area of a tablet;
- *   event added in 1.28
  * @CLUTTER_EVENT_LAST: Marks the end of the #ClutterEventType enumeration;
- *   added in 1.10
  *
  * Types of events.
  */
@@ -800,22 +628,6 @@ typedef enum /*< prefix=CLUTTER_SCROLL >*/
   CLUTTER_SCROLL_RIGHT,
   CLUTTER_SCROLL_SMOOTH
 } ClutterScrollDirection;
-
-/**
- * ClutterFlowOrientation:
- * @CLUTTER_FLOW_HORIZONTAL: Arrange the children of the flow layout
- *   horizontally first
- * @CLUTTER_FLOW_VERTICAL: Arrange the children of the flow layout
- *   vertically first
- *
- * The direction of the arrangement of the children inside
- * a #ClutterFlowLayout
- */
-typedef enum /*< prefix=CLUTTER_FLOW >*/
-{
-  CLUTTER_FLOW_HORIZONTAL,
-  CLUTTER_FLOW_VERTICAL
-} ClutterFlowOrientation;
 
 /**
  * ClutterInputDeviceCapabilities:
@@ -1028,59 +840,6 @@ typedef enum
 } ClutterTimelineDirection;
 
 /**
- * ClutterUnitType:
- * @CLUTTER_UNIT_PIXEL: Unit expressed in pixels (with subpixel precision)
- * @CLUTTER_UNIT_EM: Unit expressed in em
- * @CLUTTER_UNIT_MM: Unit expressed in millimeters
- * @CLUTTER_UNIT_POINT: Unit expressed in points
- * @CLUTTER_UNIT_CM: Unit expressed in centimeters
- *
- * The type of unit in which a value is expressed
- *
- * This enumeration might be expanded at later date
- */
-typedef enum /*< prefix=CLUTTER_UNIT >*/
-{
-  CLUTTER_UNIT_PIXEL,
-  CLUTTER_UNIT_EM,
-  CLUTTER_UNIT_MM,
-  CLUTTER_UNIT_POINT,
-  CLUTTER_UNIT_CM
-} ClutterUnitType;
-
-#define CLUTTER_PATH_RELATIVE           (32)
-
-/**
- * ClutterPathNodeType:
- * @CLUTTER_PATH_MOVE_TO: jump to the given position
- * @CLUTTER_PATH_LINE_TO: create a line from the last node to the
- *   given position
- * @CLUTTER_PATH_CURVE_TO: bezier curve using the last position and
- *   three control points.
- * @CLUTTER_PATH_CLOSE: create a line from the last node to the last
- *   %CLUTTER_PATH_MOVE_TO node.
- * @CLUTTER_PATH_REL_MOVE_TO: same as %CLUTTER_PATH_MOVE_TO but with
- *   coordinates relative to the last node.
- * @CLUTTER_PATH_REL_LINE_TO: same as %CLUTTER_PATH_LINE_TO but with
- *   coordinates relative to the last node.
- * @CLUTTER_PATH_REL_CURVE_TO: same as %CLUTTER_PATH_CURVE_TO but with
- *   coordinates relative to the last node.
- *
- * Types of nodes in a #ClutterPath.
- */
-typedef enum
-{
-  CLUTTER_PATH_MOVE_TO      = 0,
-  CLUTTER_PATH_LINE_TO      = 1,
-  CLUTTER_PATH_CURVE_TO     = 2,
-  CLUTTER_PATH_CLOSE        = 3,
-
-  CLUTTER_PATH_REL_MOVE_TO  = CLUTTER_PATH_MOVE_TO | CLUTTER_PATH_RELATIVE,
-  CLUTTER_PATH_REL_LINE_TO  = CLUTTER_PATH_LINE_TO | CLUTTER_PATH_RELATIVE,
-  CLUTTER_PATH_REL_CURVE_TO = CLUTTER_PATH_CURVE_TO | CLUTTER_PATH_RELATIVE
-} ClutterPathNodeType;
-
-/**
  * ClutterActorAlign:
  * @CLUTTER_ACTOR_ALIGN_FILL: Stretch to cover the whole allocated space
  * @CLUTTER_ACTOR_ALIGN_START: Snap to left or top side, leaving space
@@ -1095,8 +854,9 @@ typedef enum
  * assigned to it during the allocation.
  *
  * Alignment only matters if the allocated space given to an actor is
- * bigger than its natural size; for example, when the #ClutterActor:x-expand
- * or the #ClutterActor:y-expand properties of #ClutterActor are set to %TRUE.
+ * bigger than its natural size; for example, when
+ * the [property@Clutter.Actor:x-expand] or the [property@Clutter.Actor:y-expand]
+ * properties of #ClutterActor are set to %TRUE.
  */
 typedef enum
 {
@@ -1252,7 +1012,7 @@ typedef enum
 {
   CLUTTER_COLORSPACE_UNKNOWN,
   CLUTTER_COLORSPACE_SRGB,
-  CLUTTER_COLORSPACE_BT2020
+  CLUTTER_COLORSPACE_BT2020,
 } ClutterColorspace;
 
 /**
@@ -1469,5 +1229,16 @@ typedef enum
   CLUTTER_GRAB_STATE_ALL = (CLUTTER_GRAB_STATE_POINTER |
                             CLUTTER_GRAB_STATE_KEYBOARD),
 } ClutterGrabState;
+
+typedef enum /*< prefix=CLUTTER_GESTURE_STATE >*/
+{
+  CLUTTER_GESTURE_STATE_WAITING,
+  CLUTTER_GESTURE_STATE_POSSIBLE,
+  CLUTTER_GESTURE_STATE_RECOGNIZING,
+  CLUTTER_GESTURE_STATE_COMPLETED,
+  CLUTTER_GESTURE_STATE_CANCELLED,
+
+  CLUTTER_N_GESTURE_STATES
+} ClutterGestureState;
 
 G_END_DECLS

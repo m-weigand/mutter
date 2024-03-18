@@ -24,25 +24,19 @@
 
 /**
  * ClutterBlurEffect:
- * 
+ *
  * A blur effect
  *
  * #ClutterBlurEffect is a sub-class of #ClutterEffect that allows blurring a
  * actor and its contents.
  */
-
-#define CLUTTER_BLUR_EFFECT_CLASS(klass)        (G_TYPE_CHECK_CLASS_CAST ((klass), CLUTTER_TYPE_BLUR_EFFECT, ClutterBlurEffectClass))
-#define CLUTTER_IS_BLUR_EFFECT_CLASS(klass)     (G_TYPE_CHECK_CLASS_TYPE ((klass), CLUTTER_TYPE_BLUR_EFFECT))
-#define CLUTTER_BLUR_EFFECT_GET_CLASS(obj)      (G_TYPE_INSTANCE_GET_CLASS ((obj), CLUTTER_TYPE_BLUR_EFFECT, ClutterBlurEffectClass))
-
-#include "clutter/clutter-build-config.h"
+#include "config.h"
 
 #include "clutter/clutter-blur-effect.h"
 
 #include "cogl/cogl.h"
 
 #include "clutter/clutter-debug.h"
-#include "clutter/clutter-offscreen-effect.h"
 #include "clutter/clutter-private.h"
 
 #define BLUR_PADDING    2
@@ -68,36 +62,30 @@ static const gchar *box_blur_glsl_shader =
 "  cogl_texel /= 9.0;\n";
 #undef SAMPLE
 
-struct _ClutterBlurEffect
+typedef struct _ClutterBlurEffectPrivate
 {
-  ClutterOffscreenEffect parent_instance;
-
   /* a back pointer to our actor, so that we can query it */
   ClutterActor *actor;
 
   gint pixel_step_uniform;
 
   CoglPipeline *pipeline;
-};
+} ClutterBlurEffectPrivate;
 
-struct _ClutterBlurEffectClass
-{
-  ClutterOffscreenEffectClass parent_class;
 
-  CoglPipeline *base_pipeline;
-};
-
-G_DEFINE_TYPE (ClutterBlurEffect,
-               clutter_blur_effect,
-               CLUTTER_TYPE_OFFSCREEN_EFFECT);
+G_DEFINE_TYPE_WITH_PRIVATE (ClutterBlurEffect,
+                            clutter_blur_effect,
+                            CLUTTER_TYPE_OFFSCREEN_EFFECT);
 
 static CoglPipeline *
 clutter_blur_effect_create_pipeline (ClutterOffscreenEffect *effect,
                                      CoglTexture            *texture)
 {
   ClutterBlurEffect *blur_effect = CLUTTER_BLUR_EFFECT (effect);
+  ClutterBlurEffectPrivate *priv =
+    clutter_blur_effect_get_instance_private (blur_effect);
 
-  if (blur_effect->pixel_step_uniform > -1)
+  if (priv->pixel_step_uniform > -1)
     {
       float pixel_step[2];
       int tex_width, tex_height;
@@ -108,16 +96,16 @@ clutter_blur_effect_create_pipeline (ClutterOffscreenEffect *effect,
       pixel_step[0] = 1.0f / tex_width;
       pixel_step[1] = 1.0f / tex_height;
 
-      cogl_pipeline_set_uniform_float (blur_effect->pipeline,
-                                       blur_effect->pixel_step_uniform,
+      cogl_pipeline_set_uniform_float (priv->pipeline,
+                                       priv->pixel_step_uniform,
                                        2, /* n_components */
                                        1, /* count */
                                        pixel_step);
     }
 
-  cogl_pipeline_set_layer_texture (blur_effect->pipeline, 0, texture);
+  cogl_pipeline_set_layer_texture (priv->pipeline, 0, texture);
 
-  return cogl_object_ref (blur_effect->pipeline);
+  return g_object_ref (priv->pipeline);
 }
 
 static gboolean
@@ -146,12 +134,10 @@ static void
 clutter_blur_effect_dispose (GObject *gobject)
 {
   ClutterBlurEffect *self = CLUTTER_BLUR_EFFECT (gobject);
+  ClutterBlurEffectPrivate *priv =
+    clutter_blur_effect_get_instance_private (self);
 
-  if (self->pipeline != NULL)
-    {
-      cogl_object_unref (self->pipeline);
-      self->pipeline = NULL;
-    }
+  g_clear_object (&priv->pipeline);
 
   G_OBJECT_CLASS (clutter_blur_effect_parent_class)->dispose (gobject);
 }
@@ -175,6 +161,8 @@ static void
 clutter_blur_effect_init (ClutterBlurEffect *self)
 {
   ClutterBlurEffectClass *klass = CLUTTER_BLUR_EFFECT_GET_CLASS (self);
+  ClutterBlurEffectPrivate *priv =
+    clutter_blur_effect_get_instance_private (self);
 
   if (G_UNLIKELY (klass->base_pipeline == NULL))
     {
@@ -189,22 +177,22 @@ clutter_blur_effect_init (ClutterBlurEffect *self)
                                   NULL);
       cogl_snippet_set_replace (snippet, box_blur_glsl_shader);
       cogl_pipeline_add_layer_snippet (klass->base_pipeline, 0, snippet);
-      cogl_object_unref (snippet);
+      g_object_unref (snippet);
 
       cogl_pipeline_set_layer_null_texture (klass->base_pipeline, 0);
     }
 
-  self->pipeline = cogl_pipeline_copy (klass->base_pipeline);
+  priv->pipeline = cogl_pipeline_copy (klass->base_pipeline);
 
-  self->pixel_step_uniform =
-    cogl_pipeline_get_uniform_location (self->pipeline, "pixel_step");
+  priv->pixel_step_uniform =
+    cogl_pipeline_get_uniform_location (priv->pipeline, "pixel_step");
 }
 
 /**
  * clutter_blur_effect_new:
  *
  * Creates a new #ClutterBlurEffect to be used with
- * clutter_actor_add_effect()
+ * [method@Clutter.Actor.add_effect]
  *
  * Return value: the newly created #ClutterBlurEffect or %NULL
  */

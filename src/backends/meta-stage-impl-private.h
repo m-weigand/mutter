@@ -25,8 +25,6 @@
 
 #pragma once
 
-#include <cairo.h>
-
 #include "backends/meta-backend-types.h"
 #include "clutter/clutter.h"
 
@@ -62,10 +60,6 @@ struct _MetaStageImplClass
 GType meta_stage_impl_get_type (void) G_GNUC_CONST;
 
 MetaBackend * meta_stage_impl_get_backend (MetaStageImpl *stage_impl);
-
-void meta_stage_impl_presented (MetaStageImpl    *stage_impl,
-                                CoglFrameEvent    frame_event,
-                                ClutterFrameInfo *frame_info);
 
 void meta_stage_impl_add_onscreen_frame_info (MetaStageImpl    *stage_impl,
                                               ClutterStageView *view);

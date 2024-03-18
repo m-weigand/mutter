@@ -19,37 +19,10 @@ wayland_test_clients = [
     'name': 'buffer-transform',
   },
   {
+    'name': 'dma-buf-scanout',
+  },
+  {
     'name': 'fractional-scale',
-  },
-  {
-    'name': 'single-pixel-buffer',
-  },
-  {
-    'name': 'subsurface-remap-toplevel',
-  },
-  {
-    'name': 'subsurface-reparenting',
-  },
-  {
-    'name': 'subsurface-parent-unmapped',
-  },
-  {
-    'name': 'invalid-subsurfaces',
-  },
-  {
-    'name': 'invalid-xdg-shell-actions',
-  },
-  {
-    'name': 'xdg-apply-limits',
-  },
-  {
-    'name': 'xdg-activation',
-  },
-  {
-    'name': 'xdg-foreign',
-  },
-  {
-    'name': 'xdg-toplevel-bounds',
   },
   {
     'name': 'fullscreen',
@@ -58,16 +31,15 @@ wayland_test_clients = [
     'name': 'idle-inhibit',
   },
   {
+    'name': 'invalid-subsurfaces',
+  },
+  {
+    'name': 'invalid-xdg-shell-actions',
+  },
+  {
     'name': 'kms-cursor-hotplug-helper',
     'extra_deps': [
       wayland_cursor_dep,
-    ],
-  },
-  {
-    'name': 'dma-buf-scanout',
-    'extra_deps': [
-      libdrm_dep,
-      libgbm_dep,
     ],
   },
   {
@@ -79,6 +51,36 @@ wayland_test_clients = [
       gio_unix_dep,
     ],
   },
+  {
+    'name': 'single-pixel-buffer',
+  },
+  {
+    'name': 'subsurface-corner-cases',
+  },
+  {
+    'name': 'subsurface-parent-unmapped',
+  },
+  {
+    'name': 'subsurface-remap-toplevel',
+  },
+  {
+    'name': 'subsurface-reparenting',
+  },
+  {
+    'name': 'xdg-activation',
+  },
+  {
+    'name': 'xdg-apply-limits',
+  },
+  {
+    'name': 'xdg-foreign',
+  },
+  {
+    'name': 'xdg-toplevel-bounds',
+  },
+  {
+    'name': 'ycbcr',
+  },
 ]
 
 test_client_executables = {}
@@ -89,6 +91,8 @@ foreach test : wayland_test_clients
     glib_dep,
     gobject_dep,
     wayland_client_dep,
+    libdrm_dep,
+    libgbm_dep,
     m_dep,
   ]
   if test.has_key('extra_deps')

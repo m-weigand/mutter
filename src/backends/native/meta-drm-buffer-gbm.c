@@ -44,11 +44,11 @@ struct _MetaDrmBufferGbm
 };
 
 static void
-cogl_scanout_iface_init (CoglScanoutInterface *iface);
+cogl_scanout_buffer_iface_init (CoglScanoutBufferInterface *iface);
 
 G_DEFINE_TYPE_WITH_CODE (MetaDrmBufferGbm, meta_drm_buffer_gbm, META_TYPE_DRM_BUFFER,
-                         G_IMPLEMENT_INTERFACE (COGL_TYPE_SCANOUT,
-                                                cogl_scanout_iface_init))
+                         G_IMPLEMENT_INTERFACE (COGL_TYPE_SCANOUT_BUFFER,
+                                                cogl_scanout_buffer_iface_init))
 
 struct gbm_bo *
 meta_drm_buffer_gbm_get_bo (MetaDrmBufferGbm *buffer_gbm)
@@ -236,7 +236,8 @@ meta_drm_buffer_gbm_blit_to_framebuffer (CoglScanout      *scanout,
                                          int               y,
                                          GError          **error)
 {
-  MetaDrmBufferGbm *buffer_gbm = META_DRM_BUFFER_GBM (scanout);
+  CoglScanoutBuffer *scanout_buffer = cogl_scanout_get_buffer (scanout);
+  MetaDrmBufferGbm *buffer_gbm = META_DRM_BUFFER_GBM (scanout_buffer);
   MetaDrmBuffer *buffer = META_DRM_BUFFER (buffer_gbm);
   MetaDeviceFile *device_file = meta_drm_buffer_get_device_file (buffer);
   MetaDevicePool *device_pool = meta_device_file_get_pool (device_file);
@@ -254,7 +255,7 @@ meta_drm_buffer_gbm_blit_to_framebuffer (CoglScanout      *scanout,
   CoglPixelFormat cogl_format;
   CoglEglImageFlags flags;
   CoglOffscreen *cogl_fbo = NULL;
-  CoglTexture2D *cogl_tex;
+  CoglTexture *cogl_tex;
   uint32_t n_planes;
   uint64_t *modifiers;
   uint32_t *strides;
@@ -266,6 +267,7 @@ meta_drm_buffer_gbm_blit_to_framebuffer (CoglScanout      *scanout,
   gboolean result;
   int dmabuf_fd = -1;
   uint32_t i;
+  const MetaFormatInfo *format_info;
 
   dmabuf_fd = gbm_bo_get_fd (buffer_gbm->bo);
   if (dmabuf_fd == -1)
@@ -277,10 +279,10 @@ meta_drm_buffer_gbm_blit_to_framebuffer (CoglScanout      *scanout,
     }
 
   drm_format = gbm_bo_get_format (buffer_gbm->bo);
-  result = meta_cogl_pixel_format_from_drm_format (drm_format,
-                                                   &cogl_format,
-                                                   NULL);
-  g_assert (result);
+
+  format_info = meta_format_info_from_drm_format (drm_format);
+  g_assert (format_info);
+  cogl_format = format_info->cogl_format;
 
   width = gbm_bo_get_width (buffer_gbm->bo);
   height = gbm_bo_get_height (buffer_gbm->bo);
@@ -332,8 +334,8 @@ meta_drm_buffer_gbm_blit_to_framebuffer (CoglScanout      *scanout,
       goto out;
     }
 
-  cogl_fbo = cogl_offscreen_new_with_texture (COGL_TEXTURE (cogl_tex));
-  cogl_object_unref (cogl_tex);
+  cogl_fbo = cogl_offscreen_new_with_texture (cogl_tex);
+  g_object_unref (cogl_tex);
 
   if (!cogl_framebuffer_allocate (COGL_FRAMEBUFFER (cogl_fbo), error))
     {
@@ -355,10 +357,28 @@ out:
   return result;
 }
 
+static int
+meta_drm_buffer_gbm_scanout_get_width (CoglScanoutBuffer *scanout_buffer)
+{
+  MetaDrmBuffer *buffer = META_DRM_BUFFER (scanout_buffer);
+
+  return meta_drm_buffer_get_width (buffer);
+}
+
+static int
+meta_drm_buffer_gbm_scanout_get_height (CoglScanoutBuffer *scanout_buffer)
+{
+  MetaDrmBuffer *buffer = META_DRM_BUFFER (scanout_buffer);
+
+  return meta_drm_buffer_get_height (buffer);
+}
+
 static void
-cogl_scanout_iface_init (CoglScanoutInterface *iface)
+cogl_scanout_buffer_iface_init (CoglScanoutBufferInterface *iface)
 {
   iface->blit_to_framebuffer = meta_drm_buffer_gbm_blit_to_framebuffer;
+  iface->get_width = meta_drm_buffer_gbm_scanout_get_width;
+  iface->get_height = meta_drm_buffer_gbm_scanout_get_height;
 }
 
 static void

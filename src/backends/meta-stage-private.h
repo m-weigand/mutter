@@ -36,11 +36,11 @@ typedef enum
   META_STAGE_WATCH_AFTER_PAINT,
 } MetaStageWatchPhase;
 
-typedef void (* MetaStageWatchFunc) (MetaStage            *stage,
-                                     ClutterStageView     *view,
-                                     const cairo_region_t *redraw_clip,
-                                     ClutterFrame         *frame,
-                                     gpointer              user_data);
+typedef void (* MetaStageWatchFunc) (MetaStage        *stage,
+                                     ClutterStageView *view,
+                                     const MtkRegion  *redraw_clip,
+                                     ClutterFrame     *frame,
+                                     gpointer          user_data);
 
 ClutterActor     *meta_stage_new                     (MetaBackend *backend);
 
@@ -56,8 +56,6 @@ void              meta_stage_update_cursor_overlay   (MetaStage            *stag
 
 void meta_overlay_set_visible (MetaOverlay *overlay,
                                gboolean     is_visible);
-
-gboolean meta_overlay_is_visible (MetaOverlay *overlay);
 
 void meta_stage_set_active (MetaStage *stage,
                             gboolean   is_active);

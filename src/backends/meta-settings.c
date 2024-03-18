@@ -292,10 +292,10 @@ experimental_features_handler (GVariant *features_variant,
         feature = META_EXPERIMENTAL_FEATURE_SCALE_MONITOR_FRAMEBUFFER;
       else if (g_str_equal (feature_str, "kms-modifiers"))
         feature = META_EXPERIMENTAL_FEATURE_KMS_MODIFIERS;
-      else if (g_str_equal (feature_str, "rt-scheduler"))
-        feature = META_EXPERIMENTAL_FEATURE_RT_SCHEDULER;
       else if (g_str_equal (feature_str, "autoclose-xwayland"))
         feature = META_EXPERIMENTAL_FEATURE_AUTOCLOSE_XWAYLAND;
+      else if (g_str_equal (feature_str, "variable-refresh-rate"))
+        feature = META_EXPERIMENTAL_FEATURE_VARIABLE_REFRESH_RATE;
 
       if (feature)
         g_message ("Enabling experimental feature '%s'", feature_str);

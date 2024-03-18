@@ -69,7 +69,7 @@
 #include "backends/x11/cm/meta-backend-x11-cm.h"
 #include "backends/x11/nested/meta-backend-x11-nested.h"
 #include "compositor/meta-compositor-x11.h"
-#include "meta/meta-x11-errors.h"
+#include "meta/group.h"
 #include "x11/meta-startup-notification-x11.h"
 #include "x11/meta-x11-display-private.h"
 #include "x11/window-x11.h"
@@ -97,8 +97,6 @@
 #endif
 
 /*
- * SECTION:pings
- *
  * Sometimes we want to see whether a window is responding,
  * so we send it a "ping" message and see whether it sends us back a "pong"
  * message within a reasonable time. Here we have a system which lets us
@@ -207,6 +205,11 @@ static void    prefs_changed_callback    (MetaPreference pref,
 
 static int mru_cmp (gconstpointer a,
                     gconstpointer b);
+
+static void meta_display_reload_cursor (MetaDisplay *display);
+
+static void meta_display_unmanage_windows (MetaDisplay *display,
+                                           guint32      timestamp);
 
 static void
 meta_display_show_osd (MetaDisplay *display,
@@ -346,6 +349,14 @@ meta_display_class_init (MetaDisplayClass *klass)
                   0,
                   g_signal_accumulator_first_wins, NULL, NULL,
                   G_TYPE_BOOLEAN, 0);
+
+  display_signals[FOCUS_WINDOW] =
+    g_signal_new ("focus-window",
+                  G_TYPE_FROM_CLASS (klass),
+                  G_SIGNAL_RUN_LAST,
+                  0,
+                  NULL, NULL, NULL,
+                  G_TYPE_NONE, 2, META_TYPE_WINDOW, G_TYPE_INT64);
 
   display_signals[WINDOW_CREATED] =
     g_signal_new ("window-created",
@@ -1478,34 +1489,6 @@ meta_display_queue_autoraise_callback (MetaDisplay *display,
   display->autoraise_window = window;
 }
 
-void
-meta_display_sync_wayland_input_focus (MetaDisplay *display)
-{
-#ifdef HAVE_WAYLAND
-  MetaWaylandCompositor *compositor = wayland_compositor_from_display (display);
-  MetaWindow *focus_window = NULL;
-  gboolean is_no_focus_xwindow = FALSE;
-
-#ifdef HAVE_X11_CLIENT
-  if (display->x11_display)
-    is_no_focus_xwindow = meta_x11_display_xwindow_is_a_no_focus_window (display->x11_display,
-                                                                         display->x11_display->focus_xwindow);
-#endif
-
-  if (!meta_display_windows_are_interactable (display))
-    focus_window = NULL;
-  else if (is_no_focus_xwindow)
-    focus_window = NULL;
-  else if (display->focus_window &&
-           meta_window_get_wayland_surface (display->focus_window))
-    focus_window = display->focus_window;
-  else
-    meta_topic (META_DEBUG_FOCUS, "Focus change has no effect, because there is no matching wayland surface");
-
-  meta_wayland_compositor_set_input_focus (compositor, focus_window);
-#endif
-}
-
 static void
 meta_window_set_inactive_since (MetaWindow  *window,
                                 int64_t      inactive_since_us)
@@ -1575,13 +1558,10 @@ meta_display_update_focus_window (MetaDisplay *display,
         meta_window_set_inactive_since (display->focus_window, -1);
     }
 
-  if (meta_is_wayland_compositor ())
-    meta_display_sync_wayland_input_focus (display);
-
   g_object_notify (G_OBJECT (display), "focus-window");
 }
 
-gboolean
+static gboolean
 meta_display_timestamp_too_old (MetaDisplay *display,
                                 guint32     *timestamp)
 {
@@ -1613,19 +1593,12 @@ meta_display_timestamp_too_old (MetaDisplay *display,
 void
 meta_display_set_input_focus (MetaDisplay *display,
                               MetaWindow  *window,
-                              gboolean     focus_frame,
                               guint32      timestamp)
 {
   if (meta_display_timestamp_too_old (display, &timestamp))
     return;
 
-#ifdef HAVE_X11_CLIENT
-  if (display->x11_display)
-    {
-      meta_x11_display_set_input_focus (display->x11_display, window,
-                                        focus_frame, timestamp);
-    }
-#endif
+  g_signal_emit (display, display_signals[FOCUS_WINDOW], 0, window, ms2us (timestamp));
 
   meta_display_update_focus_window (display, window);
 
@@ -1639,7 +1612,7 @@ void
 meta_display_unset_input_focus (MetaDisplay *display,
                                 guint32      timestamp)
 {
-  meta_display_set_input_focus (display, NULL, FALSE, timestamp);
+  meta_display_set_input_focus (display, NULL, timestamp);
 }
 
 void
@@ -1729,7 +1702,7 @@ meta_display_notify_window_created (MetaDisplay  *display,
                                     MetaWindow   *window)
 {
   COGL_TRACE_BEGIN_SCOPED (MetaDisplayNotifyWindowCreated,
-                           "Display (notify window created)");
+                           "Meta::Display::notify_window_created()");
   g_signal_emit (display, display_signals[WINDOW_CREATED], 0, window);
 }
 
@@ -1829,7 +1802,7 @@ meta_display_is_grabbed (MetaDisplay *display)
   return meta_compositor_get_current_window_drag (display->compositor) != NULL;
 }
 
-void
+static void
 meta_display_queue_retheme_all_windows (MetaDisplay *display)
 {
   GSList* windows;
@@ -2007,19 +1980,37 @@ meta_display_pong_for_serial (MetaDisplay    *display,
     }
 }
 
-static MetaGroup *
-get_focused_group (MetaDisplay *display)
+static gboolean
+in_tab_chain (MetaWindow  *window,
+              MetaTabList  type)
 {
-  if (display->focus_window)
-    return display->focus_window->group;
-  else
-    return NULL;
-}
+  gboolean in_normal_tab_chain_type;
+  gboolean in_normal_tab_chain;
+  gboolean in_dock_tab_chain;
+  gboolean in_group_tab_chain = FALSE;
+#ifdef HAVE_X11_CLIENT
+  MetaGroup *focus_group = NULL;
+  MetaGroup *window_group = NULL;
 
-#define IN_TAB_CHAIN(w,t) (((t) == META_TAB_LIST_NORMAL && META_WINDOW_IN_NORMAL_TAB_CHAIN (w)) \
-    || ((t) == META_TAB_LIST_DOCKS && META_WINDOW_IN_DOCK_TAB_CHAIN (w)) \
-    || ((t) == META_TAB_LIST_GROUP && META_WINDOW_IN_GROUP_TAB_CHAIN (w, get_focused_group (w->display))) \
-    || ((t) == META_TAB_LIST_NORMAL_ALL && META_WINDOW_IN_NORMAL_TAB_CHAIN_TYPE (w)))
+  if (window->display->focus_window &&
+      window->display->focus_window->client_type == META_WINDOW_CLIENT_TYPE_X11)
+    focus_group = meta_window_x11_get_group (window->display->focus_window);
+
+  if (window->client_type == META_WINDOW_CLIENT_TYPE_X11)
+    window_group = meta_window_x11_get_group (window);
+
+  in_group_tab_chain = meta_window_is_focusable (window) && (!focus_group || window_group == focus_group);
+#endif
+
+  in_normal_tab_chain_type = window->type != META_WINDOW_DOCK && window->type != META_WINDOW_DESKTOP;
+  in_normal_tab_chain = meta_window_is_focusable (window) && in_normal_tab_chain_type && !window->skip_taskbar;
+  in_dock_tab_chain = meta_window_is_focusable (window) && (!in_normal_tab_chain_type || window->skip_taskbar);
+
+  return (type == META_TAB_LIST_NORMAL && in_normal_tab_chain)
+         || (type == META_TAB_LIST_DOCKS && in_dock_tab_chain)
+         || (type == META_TAB_LIST_GROUP && in_group_tab_chain)
+         || (type == META_TAB_LIST_NORMAL_ALL && in_normal_tab_chain_type);
+}
 
 static MetaWindow*
 find_tab_forward (MetaDisplay   *display,
@@ -2041,7 +2032,7 @@ find_tab_forward (MetaDisplay   *display,
     {
       MetaWindow *window = tmp->data;
 
-      if (IN_TAB_CHAIN (window, type))
+      if (in_tab_chain (window, type))
         return window;
 
       tmp = tmp->next;
@@ -2052,7 +2043,7 @@ find_tab_forward (MetaDisplay   *display,
     {
       MetaWindow *window = tmp->data;
 
-      if (IN_TAB_CHAIN (window, type))
+      if (in_tab_chain (window, type))
         return window;
 
       tmp = tmp->next;
@@ -2080,7 +2071,7 @@ find_tab_backward (MetaDisplay   *display,
     {
       MetaWindow *window = tmp->data;
 
-      if (IN_TAB_CHAIN (window, type))
+      if (in_tab_chain (window, type))
         return window;
 
       tmp = tmp->prev;
@@ -2091,7 +2082,7 @@ find_tab_backward (MetaDisplay   *display,
     {
       MetaWindow *window = tmp->data;
 
-      if (IN_TAB_CHAIN (window, type))
+      if (in_tab_chain (window, type))
         return window;
 
       tmp = tmp->prev;
@@ -2184,7 +2175,7 @@ meta_display_get_tab_list (MetaDisplay   *display,
     {
       MetaWindow *window = tmp->data;
 
-      if (!window->minimized && IN_TAB_CHAIN (window, type))
+      if (!window->minimized && in_tab_chain (window, type))
         tab_list = g_list_prepend (tab_list, window);
     }
 
@@ -2192,7 +2183,7 @@ meta_display_get_tab_list (MetaDisplay   *display,
     {
       MetaWindow *window = tmp->data;
 
-      if (window->minimized && IN_TAB_CHAIN (window, type))
+      if (window->minimized && in_tab_chain (window, type))
         tab_list = g_list_prepend (tab_list, window);
     }
 
@@ -2208,7 +2199,7 @@ meta_display_get_tab_list (MetaDisplay   *display,
 
         if (l_window->wm_state_demands_attention &&
             !meta_window_located_on_workspace (l_window, workspace) &&
-            IN_TAB_CHAIN (l_window, type))
+            in_tab_chain (l_window, type))
           tab_list = g_list_prepend (tab_list, l_window);
       }
 
@@ -2291,7 +2282,7 @@ meta_display_get_tab_current (MetaDisplay   *display,
   window = display->focus_window;
 
   if (window != NULL &&
-      IN_TAB_CHAIN (window, type) &&
+      in_tab_chain (window, type) &&
       (workspace == NULL ||
        meta_window_located_on_workspace (window, workspace)))
     return window;
@@ -2503,6 +2494,7 @@ meta_display_sanity_check_timestamps (MetaDisplay *display,
               meta_warning ("%s appears to be one of the offending windows "
                             "with a timestamp of %u.  Working around...",
                             window->desc, window->net_wm_user_time);
+              window->net_wm_user_time_set = FALSE;
               meta_window_set_user_time (window, timestamp);
             }
 
@@ -2545,29 +2537,6 @@ meta_display_modifiers_accelerator_activate (MetaDisplay *display)
   g_signal_emit (display, display_signals[MODIFIERS_ACCELERATOR_ACTIVATED], 0, &freeze);
 
   return freeze;
-}
-
-/**
- * meta_display_supports_extended_barriers:
- * @display: a #MetaDisplay
- *
- * Returns: whether pointer barriers can be supported.
- *
- * When running as an X compositor the X server needs XInput 2
- * version 2.3. When running as a display server it is supported
- * when running on the native backend.
- *
- * Clients should use this method to determine whether their
- * interfaces should depend on new barrier features.
- */
-gboolean
-meta_display_supports_extended_barriers (MetaDisplay *display)
-{
-  MetaContext *context = meta_display_get_context (display);
-  MetaBackend *backend = meta_context_get_backend (context);
-
-  return !!(meta_backend_get_capabilities (backend) &
-            META_BACKEND_CAPABILITY_BARRIERS);
 }
 
 /**
@@ -2950,7 +2919,7 @@ meta_display_notify_pad_group_switch (MetaDisplay        *display,
   g_string_free (message, TRUE);
 }
 
-void
+static void
 meta_display_foreach_window (MetaDisplay           *display,
                              MetaListWindowsFlags   flags,
                              MetaDisplayWindowFunc  func,
@@ -3623,7 +3592,7 @@ update_window_visibilities (MetaDisplay *display,
   GList *l;
 
   COGL_TRACE_BEGIN_SCOPED (MetaDisplayUpdateVisibility,
-                           "Display: Update visibility");
+                           "Meta::Display::update_window_visibilities()");
 
   for (l = windows; l; l = l->next)
     {
@@ -3645,18 +3614,20 @@ update_window_visibilities (MetaDisplay *display,
   should_show = g_list_sort (should_show, window_stack_cmp);
   should_show = g_list_reverse (should_show);
 
-  COGL_TRACE_BEGIN (MetaDisplayShowUnplacedWindows,
-                    "Display: Show unplaced windows");
+  COGL_TRACE_BEGIN_SCOPED (MetaDisplayShowUnplacedWindows,
+                           "Meta::Display::update_window_visibilities#show_unplaced()");
   g_list_foreach (unplaced, (GFunc) meta_window_update_visibility, NULL);
   COGL_TRACE_END (MetaDisplayShowUnplacedWindows);
 
   meta_stack_freeze (display->stack);
 
-  COGL_TRACE_BEGIN (MetaDisplayShowWindows, "Display: Show windows");
+  COGL_TRACE_BEGIN_SCOPED (MetaDisplayShowWindows,
+                           "Meta::Display::update_window_visibilities#show()");
   g_list_foreach (should_show, (GFunc) meta_window_update_visibility, NULL);
   COGL_TRACE_END (MetaDisplayShowWindows);
 
-  COGL_TRACE_BEGIN (MetaDisplayHideWindows, "Display: Hide windows");
+  COGL_TRACE_BEGIN_SCOPED (MetaDisplayHideWindows,
+                           "Meta::Display::update_window_visibilities#hide()");
   g_list_foreach (should_hide, (GFunc) meta_window_update_visibility, NULL);
   COGL_TRACE_END (MetaDisplayHideWindows);
 
@@ -3806,4 +3777,171 @@ meta_display_flush_queued_window (MetaDisplay   *display,
 
       window_queue_func[queue_idx] (display, windows);
     }
+}
+
+typedef struct
+{
+  MetaDisplay *display;
+  MetaWindow *window;
+  int pointer_x;
+  int pointer_y;
+} MetaFocusData;
+
+static void
+meta_focus_data_free (MetaFocusData *focus_data)
+{
+  g_clear_object (&focus_data->window);
+  g_free (focus_data);
+}
+
+static void
+focus_mouse_mode (MetaDisplay *display,
+                  MetaWindow  *window,
+                  uint32_t     timestamp_ms)
+{
+  if (window && window->override_redirect)
+    return;
+
+  if (window && window->type != META_WINDOW_DESKTOP)
+    {
+      meta_topic (META_DEBUG_FOCUS,
+                  "Focusing %s at time %u.", window->desc, timestamp_ms);
+
+      meta_window_focus (window, timestamp_ms);
+
+      if (meta_prefs_get_auto_raise ())
+        meta_display_queue_autoraise_callback (display, window);
+      else
+        meta_topic (META_DEBUG_FOCUS, "Auto raise is disabled");
+    }
+  else
+    {
+      /* In mouse focus mode, we defocus when the mouse *enters*
+       * the DESKTOP window, instead of defocusing on LeaveNotify.
+       * This is because having the mouse enter override-redirect
+       * child windows unfortunately causes LeaveNotify events that
+       * we can't distinguish from the mouse actually leaving the
+       * toplevel window as we expect.  But, since we filter out
+       * EnterNotify events on override-redirect windows, this
+       * alternative mechanism works great.
+       */
+      if (meta_prefs_get_focus_mode () == G_DESKTOP_FOCUS_MODE_MOUSE &&
+          display->focus_window != NULL)
+        {
+          meta_topic (META_DEBUG_FOCUS,
+                      "Unsetting focus from %s due to mouse entering "
+                      "the DESKTOP window",
+                      display->focus_window->desc);
+          meta_display_unset_input_focus (display, timestamp_ms);
+        }
+    }
+}
+
+static gboolean
+focus_on_pointer_rest_callback (gpointer data)
+{
+  MetaFocusData *focus_data = data;
+  MetaWindow *window = focus_data->window;
+  MetaDisplay *display = focus_data->display;
+  MetaBackend *backend = backend_from_display (display);
+  MetaCursorTracker *cursor_tracker = meta_backend_get_cursor_tracker (backend);
+  graphene_point_t point;
+  uint32_t timestamp_ms;
+
+  if (window && window->unmanaging)
+    goto out;
+
+  if (meta_prefs_get_focus_mode () == G_DESKTOP_FOCUS_MODE_CLICK)
+    goto out;
+
+  meta_cursor_tracker_get_pointer (cursor_tracker, &point, NULL);
+
+  if ((int) point.x != focus_data->pointer_x ||
+      (int) point.y != focus_data->pointer_y)
+    {
+      focus_data->pointer_x = point.x;
+      focus_data->pointer_y = point.y;
+      return G_SOURCE_CONTINUE;
+    }
+
+  if (window && !meta_window_has_pointer (window))
+    goto out;
+
+  timestamp_ms = meta_display_get_current_time_roundtrip (display);
+  focus_mouse_mode (display, window, timestamp_ms);
+
+ out:
+  display->focus_timeout_id = 0;
+  return G_SOURCE_REMOVE;
+}
+
+/* The interval, in milliseconds, we use in focus-follows-mouse
+ * mode to check whether the pointer has stopped moving after a
+ * crossing event.
+ */
+#define FOCUS_TIMEOUT_DELAY 25
+
+static void
+queue_pointer_rest_callback (MetaDisplay *display,
+                             MetaWindow  *window,
+                             int          pointer_x,
+                             int          pointer_y)
+{
+  MetaFocusData *focus_data;
+
+  focus_data = g_new (MetaFocusData, 1);
+  focus_data->display = display;
+  focus_data->window = NULL;
+  focus_data->pointer_x = pointer_x;
+  focus_data->pointer_y = pointer_y;
+
+  if (window)
+    focus_data->window = g_object_ref (window);
+
+  g_clear_handle_id (&display->focus_timeout_id, g_source_remove);
+
+  display->focus_timeout_id =
+    g_timeout_add_full (G_PRIORITY_DEFAULT,
+                        FOCUS_TIMEOUT_DELAY,
+                        focus_on_pointer_rest_callback,
+                        focus_data,
+                        (GDestroyNotify) meta_focus_data_free);
+  g_source_set_name_by_id (display->focus_timeout_id,
+                           "[mutter] focus_on_pointer_rest_callback");
+}
+
+void
+meta_display_handle_window_enter (MetaDisplay *display,
+                                  MetaWindow  *window,
+                                  uint32_t     timestamp_ms,
+                                  int          root_x,
+                                  int          root_y)
+{
+  switch (meta_prefs_get_focus_mode ())
+    {
+    case G_DESKTOP_FOCUS_MODE_SLOPPY:
+    case G_DESKTOP_FOCUS_MODE_MOUSE:
+      display->mouse_mode = TRUE;
+      if (!window || window->type != META_WINDOW_DOCK)
+        {
+          if (meta_prefs_get_focus_change_on_pointer_rest ())
+            queue_pointer_rest_callback (display, window, root_x, root_y);
+          else
+            focus_mouse_mode (display, window, timestamp_ms);
+        }
+      break;
+    case G_DESKTOP_FOCUS_MODE_CLICK:
+      break;
+    }
+
+  if (window && window->type == META_WINDOW_DOCK)
+    meta_window_raise (window);
+}
+
+void
+meta_display_handle_window_leave (MetaDisplay *display,
+                                  MetaWindow  *window)
+{
+  if (window && window->type == META_WINDOW_DOCK && !window->has_focus)
+    meta_window_lower (window);
 }

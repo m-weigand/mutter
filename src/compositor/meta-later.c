@@ -89,24 +89,24 @@ meta_later_destroy (MetaLater *later)
   meta_later_unref (later);
 }
 
-#ifdef COGL_HAS_TRACING
+#ifdef HAVE_PROFILER
 static const char *
 later_type_to_string (MetaLaterType when)
 {
   switch (when)
     {
     case META_LATER_RESIZE:
-      return "Later (resize)";
+      return "resize";
     case META_LATER_CALC_SHOWING:
-      return "Later (calc-showing)";
+      return "calc-showing";
     case META_LATER_CHECK_FULLSCREEN:
-      return "Later (check-fullscreen)";
+      return "check-fullscreen";
     case META_LATER_SYNC_STACK:
-      return "Later (sync-stack)";
+      return "sync-stack";
     case META_LATER_BEFORE_REDRAW:
-      return "Later (before-redraw)";
+      return "before-redraw";
     case META_LATER_IDLE:
-      return "Later (idle)";
+      return "idle";
     }
 
   return "unknown";
@@ -116,7 +116,9 @@ later_type_to_string (MetaLaterType when)
 static gboolean
 meta_later_invoke (MetaLater *later)
 {
-  COGL_TRACE_BEGIN_SCOPED (later, later_type_to_string (later->when));
+  COGL_TRACE_BEGIN_SCOPED (later, "Meta::Later::invoke()");
+  COGL_TRACE_DESCRIBE (later, later_type_to_string (later->when));
+
   return later->func (later->user_data);
 }
 

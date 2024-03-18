@@ -40,13 +40,10 @@
 #include "cogl/cogl-context.h"
 #include "cogl/cogl-framebuffer.h"
 #include "cogl/cogl-frame-info.h"
-#include "cogl/cogl-object.h"
 
 #include <glib-object.h>
 
 G_BEGIN_DECLS
-
-typedef struct _CoglScanout CoglScanout;
 
 #define COGL_TYPE_ONSCREEN (cogl_onscreen_get_type ())
 COGL_EXPORT
@@ -86,15 +83,6 @@ struct _CoglOnscreenClass
   int (* get_buffer_age) (CoglOnscreen *onscreen);
 };
 
-#define COGL_SCANOUT_ERROR (cogl_scanout_error_quark ())
-COGL_EXPORT GQuark
-cogl_scanout_error_quark (void);
-
-typedef enum _CoglScanoutError
-{
-  COGL_SCANOUT_ERROR_INHIBITED,
-} CoglScanoutError;
-
 /**
  * cogl_onscreen_show:
  * @onscreen: The onscreen framebuffer to make visible
@@ -114,11 +102,11 @@ typedef enum _CoglScanoutError
  * cogl_onscreen_show() and set its own type directly with the Wayland
  * client API via cogl_wayland_onscreen_get_surface().
  *
- * <note>Since Cogl doesn't explicitly track the visibility status of
+ * Since Cogl doesn't explicitly track the visibility status of
  * onscreen framebuffers it won't try to avoid redundant window system
  * requests e.g. to show an already visible window. This also means
  * that it's acceptable to alternatively use native APIs to show and
- * hide windows without confusing Cogl.</note>
+ * hide windows without confusing Cogl.
  */
 COGL_EXPORT void
 cogl_onscreen_show (CoglOnscreen *onscreen);
@@ -136,11 +124,11 @@ cogl_onscreen_show (CoglOnscreen *onscreen);
  * This function does not implicitly allocate the given @onscreen
  * framebuffer before hiding it.
  *
- * <note>Since Cogl doesn't explicitly track the visibility status of
+ * Since Cogl doesn't explicitly track the visibility status of
  * onscreen framebuffers it won't try to avoid redundant window system
  * requests e.g. to show an already visible window. This also means
  * that it's acceptable to alternatively use native APIs to show and
- * hide windows without confusing Cogl.</note>
+ * hide windows without confusing Cogl.
  */
 COGL_EXPORT void
 cogl_onscreen_hide (CoglOnscreen *onscreen);
@@ -157,11 +145,11 @@ cogl_onscreen_hide (CoglOnscreen *onscreen);
  * start a new frame that incrementally builds on the contents of the previous
  * frame.
  *
- * <note>It is highly recommended that applications use
+ * It is highly recommended that applications use
  * cogl_onscreen_swap_buffers_with_damage() instead whenever possible
  * and also use the cogl_onscreen_get_buffer_age() api so they can
  * perform incremental updates to older buffers instead of having to
- * render a full buffer for every frame.</note>
+ * render a full buffer for every frame.
  */
 COGL_EXPORT void
 cogl_onscreen_swap_buffers (CoglOnscreen  *onscreen,
@@ -190,10 +178,10 @@ cogl_onscreen_swap_buffers (CoglOnscreen  *onscreen,
  *
  * The queried value remains valid until the next buffer swap.
  *
- * <note>One caveat is that under X11 the buffer age does not reflect
+ * One caveat is that under X11 the buffer age does not reflect
  * changes to buffer contents caused by the window systems. X11
  * applications must track Expose events to determine what buffer
- * regions need to additionally be repaired each frame.</note>
+ * regions need to additionally be repaired each frame.
  *
  * The recommended way to take advantage of this buffer age api is to
  * build up a circular buffer of length 3 for tracking damage regions
@@ -203,14 +191,14 @@ cogl_onscreen_swap_buffers (CoglOnscreen  *onscreen,
  * everything that must be redrawn to update the old contents for the
  * new frame.
  *
- * <note>If the system doesn't not support being able to track the age
+ * If the system doesn't not support being able to track the age
  * of back buffers then this function will always return 0 which
- * implies that the contents are undefined.</note>
+ * implies that the contents are undefined.
  *
- * <note>The %COGL_FEATURE_ID_BUFFER_AGE feature can optionally be
+ * The %COGL_FEATURE_ID_BUFFER_AGE feature can optionally be
  * explicitly checked to determine if Cogl is currently tracking the
  * age of #CoglOnscreen back buffer contents. If this feature is
- * missing then this function will always return 0.</note>
+ * missing then this function will always return 0.
  *
  * Return value: The age of the buffer contents or 0 when the buffer
  *               contents are undefined.
@@ -221,8 +209,8 @@ cogl_onscreen_get_buffer_age (CoglOnscreen *onscreen);
 /**
  * cogl_onscreen_queue_damage_region:
  * @onscreen: A #CoglOnscreen framebuffer
- * @rectangles: An array of integer 4-tuples representing damaged
- *              rectangles as (x, y, width, height) tuples.
+ * @rectangles: (array length=n_rectangles): An array of integer 4-tuples
+ *              representing damaged rectangles as (x, y, width, height) tuples.
  * @n_rectangles: The number of 4-tuples to be read from @rectangles
  *
  * Implementation for https://www.khronos.org/registry/EGL/extensions/KHR/EGL_KHR_partial_update.txt
@@ -241,8 +229,8 @@ cogl_onscreen_queue_damage_region (CoglOnscreen *onscreen,
 /**
  * cogl_onscreen_swap_buffers_with_damage:
  * @onscreen: A #CoglOnscreen framebuffer
- * @rectangles: An array of integer 4-tuples representing damaged
- *              rectangles as (x, y, width, height) tuples.
+ * @rectangles: (array length=n_rectangles): An array of integer 4-tuples
+ *              representing damaged rectangles as (x, y, width, height) tuples.
  * @n_rectangles: The number of 4-tuples to be read from @rectangles
  *
  * Swaps the current back buffer being rendered too, to the front for
@@ -279,9 +267,9 @@ cogl_onscreen_queue_damage_region (CoglOnscreen *onscreen,
  * function instead of cogl_onscreen_swap_buffers() to improve
  * performance when running under a compositor.
  *
- * <note>It is highly recommended to use this API in conjunction with
+ * It is highly recommended to use this API in conjunction with
  * the cogl_onscreen_get_buffer_age() api so that your application can
- * perform incremental rendering based on old back buffers.</note>
+ * perform incremental rendering based on old back buffers.
  */
 COGL_EXPORT void
 cogl_onscreen_swap_buffers_with_damage (CoglOnscreen *onscreen,
@@ -291,7 +279,7 @@ cogl_onscreen_swap_buffers_with_damage (CoglOnscreen *onscreen,
                                         gpointer user_data);
 
 /**
- * cogl_onscreen_direct_scanout: (skip)
+ * cogl_onscreen_direct_scanout:
  */
 COGL_EXPORT gboolean
 cogl_onscreen_direct_scanout (CoglOnscreen   *onscreen,
@@ -301,7 +289,9 @@ cogl_onscreen_direct_scanout (CoglOnscreen   *onscreen,
                               GError        **error);
 
 /**
- * cogl_onscreen_add_frame_info: (skip)
+ * cogl_onscreen_add_frame_info:
+ * @onscreen: A #CoglOnscreen framebuffer
+ * @info: (transfer full): A #CoglFrameInfo
  */
 COGL_EXPORT void
 cogl_onscreen_add_frame_info (CoglOnscreen  *onscreen,
@@ -310,8 +300,8 @@ cogl_onscreen_add_frame_info (CoglOnscreen  *onscreen,
 /**
  * cogl_onscreen_swap_region:
  * @onscreen: A #CoglOnscreen framebuffer
- * @rectangles: An array of integer 4-tuples representing rectangles as
- *              (x, y, width, height) tuples.
+ * @rectangles: (array length=n_rectangles): An array of integer 4-tuples
+ *              representing rectangles as (x, y, width, height) tuples.
  * @n_rectangles: The number of 4-tuples to be read from @rectangles
  *
  * Swaps a region of the back buffer being rendered too, to the front for
@@ -355,9 +345,9 @@ cogl_onscreen_swap_region (CoglOnscreen *onscreen,
  * opportunity to collect statistics about a frame since the
  * #CoglFrameInfo should hold the most data at this point.
  *
- * <note>A frame may not be completed before the next frame can start
+ * A frame may not be completed before the next frame can start
  * so applications should avoid needing to collect all statistics for
- * a particular frame before they can start a new frame.</note>
+ * a particular frame before they can start a new frame.
  */
 typedef enum _CoglFrameEvent
 {
@@ -398,12 +388,12 @@ typedef void (*CoglFrameCallback) (CoglOnscreen *onscreen,
 typedef struct _CoglClosure CoglFrameClosure;
 
 /**
- * cogl_frame_closure_get_gtype:
+ * cogl_frame_closure_get_type:
  *
  * Returns: a #GType that can be used with the GLib type system.
  */
 COGL_EXPORT
-GType cogl_frame_closure_get_gtype (void);
+GType cogl_frame_closure_get_type (void);
 
 /**
  * cogl_onscreen_add_frame_callback:
@@ -437,14 +427,14 @@ GType cogl_frame_closure_get_gtype (void);
  * wasting resources, drawing more frames than your system compositor
  * can display.
  *
- * Return value: a #CoglFrameClosure pointer that can be used to
- *               remove the callback and associated @user_data later.
+ * Returns: (transfer none): a #CoglFrameClosure pointer that can be used to
+ *          remove the callback and associated @user_data later.
  */
 COGL_EXPORT CoglFrameClosure *
 cogl_onscreen_add_frame_callback (CoglOnscreen *onscreen,
                                   CoglFrameCallback callback,
                                   void *user_data,
-                                  CoglUserDataDestroyCallback destroy);
+                                  GDestroyNotify destroy);
 
 /**
  * cogl_onscreen_remove_frame_callback:
@@ -510,12 +500,12 @@ typedef void (*CoglOnscreenDirtyCallback) (CoglOnscreen *onscreen,
 typedef struct _CoglClosure CoglOnscreenDirtyClosure;
 
 /**
- * cogl_onscreen_dirty_closure_get_gtype:
+ * cogl_onscreen_dirty_closure_get_type:
  *
  * Returns: a #GType that can be used with the GLib type system.
  */
 COGL_EXPORT
-GType cogl_onscreen_dirty_closure_get_gtype (void);
+GType cogl_onscreen_dirty_closure_get_type (void);
 
 /**
  * cogl_onscreen_add_dirty_callback:
@@ -542,14 +532,14 @@ GType cogl_onscreen_dirty_closure_get_gtype (void);
  * the dirty region to ensure that the framebuffer is actually ready
  * for rendering.
  *
- * Return value: a #CoglOnscreenDirtyClosure pointer that can be used to
- *               remove the callback and associated @user_data later.
+ * Returns: (transfer none): a #CoglOnscreenDirtyClosure pointer that can be
+ *          used to remove the callback and associated @user_data later.
  */
 COGL_EXPORT CoglOnscreenDirtyClosure *
 cogl_onscreen_add_dirty_callback (CoglOnscreen *onscreen,
                                   CoglOnscreenDirtyCallback callback,
                                   void *user_data,
-                                  CoglUserDataDestroyCallback destroy);
+                                  GDestroyNotify destroy);
 
 /**
  * cogl_onscreen_remove_dirty_callback:

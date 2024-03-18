@@ -28,19 +28,14 @@
 #include "meta/window.h"
 
 #define META_TYPE_GESTURE_TRACKER            (meta_gesture_tracker_get_type ())
-#define META_GESTURE_TRACKER(obj)            (G_TYPE_CHECK_INSTANCE_CAST ((obj), META_TYPE_GESTURE_TRACKER, MetaGestureTracker))
-#define META_GESTURE_TRACKER_CLASS(klass)    (G_TYPE_CHECK_CLASS_CAST ((klass),  META_TYPE_GESTURE_TRACKER, MetaGestureTrackerClass))
-#define META_IS_GESTURE_TRACKER(obj)         (G_TYPE_CHECK_INSTANCE_TYPE ((obj), META_TYPE_GESTURE_TRACKER))
-#define META_IS_GESTURE_TRACKER_CLASS(klass) (G_TYPE_CHECK_CLASS_TYPE ((klass),  META_TYPE_GESTURE_TRACKER))
-#define META_GESTURE_TRACKER_GET_CLASS(obj)  (G_TYPE_INSTANCE_GET_CLASS ((obj),  META_TYPE_GESTURE_TRACKER, MetaGestureTrackerClass))
 
 typedef struct _MetaGestureTracker MetaGestureTracker;
 typedef struct _MetaGestureTrackerClass MetaGestureTrackerClass;
 
-struct _MetaGestureTracker
-{
-  GObject parent_instance;
-};
+G_DECLARE_DERIVABLE_TYPE (MetaGestureTracker,
+                          meta_gesture_tracker,
+                          META, GESTURE_TRACKER,
+                          GObject)
 
 struct _MetaGestureTrackerClass
 {
@@ -51,8 +46,6 @@ struct _MetaGestureTrackerClass
                           MetaSequenceState     state);
 };
 
-GType                meta_gesture_tracker_get_type           (void) G_GNUC_CONST;
-
 MetaGestureTracker * meta_gesture_tracker_new                (void);
 
 gboolean             meta_gesture_tracker_handle_event       (MetaGestureTracker   *tracker,
@@ -61,6 +54,4 @@ gboolean             meta_gesture_tracker_handle_event       (MetaGestureTracker
 gboolean             meta_gesture_tracker_set_sequence_state (MetaGestureTracker   *tracker,
                                                               ClutterEventSequence *sequence,
                                                               MetaSequenceState     state);
-MetaSequenceState    meta_gesture_tracker_get_sequence_state (MetaGestureTracker   *tracker,
-                                                              ClutterEventSequence *sequence);
 gint                 meta_gesture_tracker_get_n_current_touches (MetaGestureTracker *tracker);

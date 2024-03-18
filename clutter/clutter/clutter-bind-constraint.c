@@ -24,7 +24,7 @@
 
 /**
  * ClutterBindConstraint:
- * 
+ *
  * A constraint binding the position or size of an actor
  *
  * #ClutterBindConstraint is a [class@Constraint] that binds the
@@ -81,7 +81,7 @@
  * ```
  */
 
-#include "clutter/clutter-build-config.h"
+#include "config.h"
 
 #include <math.h>
 
@@ -94,10 +94,6 @@
 #include "clutter/clutter-enum-types.h"
 #include "clutter/clutter-private.h"
 
-#define CLUTTER_BIND_CONSTRAINT_CLASS(klass)    (G_TYPE_CHECK_CLASS_CAST ((klass), CLUTTER_TYPE_BIND_CONSTRAINT, ClutterBindConstraintClass))
-#define CLUTTER_IS_BIND_CONSTRAINT_CLASS(klass) (G_TYPE_CHECK_CLASS_TYPE ((klass), CLUTTER_TYPE_BIND_CONSTRAINT))
-#define CLUTTER_BIND_CONSTRAINT_GET_CLASS(obj)  (G_TYPE_INSTANCE_GET_CLASS ((obj), CLUTTER_TYPE_BIND_CONSTRAINT, ClutterBindConstraintClass))
-
 struct _ClutterBindConstraint
 {
   ClutterConstraint parent_instance;
@@ -106,11 +102,6 @@ struct _ClutterBindConstraint
   ClutterActor *source;
   ClutterBindCoordinate coordinate;
   gfloat offset;
-};
-
-struct _ClutterBindConstraintClass
-{
-  ClutterConstraintClass parent_class;
 };
 
 enum
@@ -126,9 +117,9 @@ enum
 
 static GParamSpec *obj_props[PROP_LAST];
 
-G_DEFINE_TYPE (ClutterBindConstraint,
-               clutter_bind_constraint,
-               CLUTTER_TYPE_CONSTRAINT);
+G_DEFINE_FINAL_TYPE (ClutterBindConstraint,
+                     clutter_bind_constraint,
+                     CLUTTER_TYPE_CONSTRAINT);
 
 static void
 source_queue_relayout (ClutterActor          *source,
@@ -394,7 +385,9 @@ clutter_bind_constraint_class_init (ClutterBindConstraintClass *klass)
   obj_props[PROP_SOURCE] =
     g_param_spec_object ("source", NULL, NULL,
                          CLUTTER_TYPE_ACTOR,
-                         CLUTTER_PARAM_READWRITE | G_PARAM_CONSTRUCT);
+                         G_PARAM_READWRITE |
+                         G_PARAM_STATIC_STRINGS |
+                         G_PARAM_CONSTRUCT);
 
   /**
    * ClutterBindConstraint:coordinate:
@@ -405,7 +398,9 @@ clutter_bind_constraint_class_init (ClutterBindConstraintClass *klass)
     g_param_spec_enum ("coordinate", NULL, NULL,
                        CLUTTER_TYPE_BIND_COORDINATE,
                        CLUTTER_BIND_X,
-                       CLUTTER_PARAM_READWRITE | G_PARAM_CONSTRUCT);
+                       G_PARAM_READWRITE |
+                       G_PARAM_STATIC_STRINGS |
+                       G_PARAM_CONSTRUCT);
 
   /**
    * ClutterBindConstraint:offset:
@@ -416,7 +411,9 @@ clutter_bind_constraint_class_init (ClutterBindConstraintClass *klass)
     g_param_spec_float ("offset", NULL, NULL,
                         -G_MAXFLOAT, G_MAXFLOAT,
                         0.0f,
-                        CLUTTER_PARAM_READWRITE | G_PARAM_CONSTRUCT);
+                        G_PARAM_READWRITE |
+                        G_PARAM_STATIC_STRINGS |
+                        G_PARAM_CONSTRUCT);
 
   g_object_class_install_properties (gobject_class,
                                      PROP_LAST,
@@ -526,7 +523,7 @@ clutter_bind_constraint_set_source (ClutterBindConstraint *constraint,
  * clutter_bind_constraint_get_source:
  * @constraint: a #ClutterBindConstraint
  *
- * Retrieves the #ClutterActor set using clutter_bind_constraint_set_source()
+ * Retrieves the #ClutterActor set using [method@Clutter.BindConstraint.set_source]
  *
  * Return value: (transfer none): a pointer to the source actor
  */
@@ -607,7 +604,7 @@ clutter_bind_constraint_set_offset (ClutterBindConstraint *constraint,
  * clutter_bind_constraint_get_offset:
  * @constraint: a #ClutterBindConstraint
  *
- * Retrieves the offset set using clutter_bind_constraint_set_offset()
+ * Retrieves the offset set using [method@Clutter.BindConstraint.set_offset]
  *
  * Return value: the offset, in pixels
  */

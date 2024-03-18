@@ -1,4 +1,3 @@
-#define CLUTTER_DISABLE_DEPRECATION_WARNINGS
 #include <clutter/clutter.h>
 
 #include "tests/clutter-test-utils.h"
@@ -46,6 +45,7 @@ foo_actor_paint (ClutterActor        *actor,
   ClutterActorBox allocation;
   CoglPipeline *pipeline;
   CoglFramebuffer *framebuffer;
+  CoglColor color;
 
   foo_actor->last_paint_opacity = clutter_actor_get_paint_opacity (actor);
   foo_actor->paint_count++;
@@ -54,9 +54,9 @@ foo_actor_paint (ClutterActor        *actor,
 
   /* Paint a red rectangle with the right opacity */
   pipeline = cogl_pipeline_new (ctx);
-  cogl_pipeline_set_color4ub (pipeline,
-                              255, 0, 0,
-                              foo_actor->last_paint_opacity);
+  cogl_color_init_from_4f (&color, 1.0, 0.0, 0.0,
+                           foo_actor->last_paint_opacity / 255.);
+  cogl_pipeline_set_color (pipeline, &color);
 
   framebuffer = clutter_paint_context_get_framebuffer (paint_context);
   cogl_framebuffer_draw_rectangle (framebuffer,
@@ -65,7 +65,7 @@ foo_actor_paint (ClutterActor        *actor,
                                    allocation.y1,
                                    allocation.x2,
                                    allocation.y2);
-  cogl_object_unref (pipeline);
+  g_object_unref (pipeline);
 }
 
 static gboolean

@@ -1,4 +1,3 @@
-#define CLUTTER_DISABLE_DEPRECATION_WARNINGS
 #include <clutter/clutter.h>
 
 #include "tests/clutter-test-utils.h"
@@ -233,7 +232,7 @@ get_pixel (CoglFramebuffer *fb,
 static void
 view_painted_cb (ClutterStage     *stage,
                  ClutterStageView *view,
-                 cairo_region_t   *redraw_clip,
+                 MtkRegion        *redraw_clip,
                  ClutterFrame     *frame,
                  gpointer          data)
 {
@@ -263,22 +262,22 @@ actor_shader_effect (void)
   stage = clutter_test_get_stage ();
 
   rect = make_actor (foo_old_shader_effect_get_type ());
-  clutter_container_add_actor (CLUTTER_CONTAINER (stage), rect);
+  clutter_actor_add_child (stage, rect);
   actors = g_list_prepend (actors, rect);
 
   rect = make_actor (foo_new_shader_effect_get_type ());
   clutter_actor_set_x (rect, 100);
-  clutter_container_add_actor (CLUTTER_CONTAINER (stage), rect);
+  clutter_actor_add_child (stage, rect);
   actors = g_list_prepend (actors, rect);
 
   rect = make_actor (foo_another_new_shader_effect_get_type ());
   clutter_actor_set_x (rect, 200);
-  clutter_container_add_actor (CLUTTER_CONTAINER (stage), rect);
+  clutter_actor_add_child (stage, rect);
   actors = g_list_prepend (actors, rect);
 
   rect = make_actor (foo_new_shader_effect_get_type ());
   clutter_actor_set_x (rect, 300);
-  clutter_container_add_actor (CLUTTER_CONTAINER (stage), rect);
+  clutter_actor_add_child (stage, rect);
   actors = g_list_prepend (actors, rect);
 
   clutter_actor_show (stage);

@@ -23,7 +23,7 @@ test_shader_effects_main (int argc, char *argv[])
 
   stage = clutter_test_get_stage ();
   clutter_stage_set_title (CLUTTER_STAGE (stage), "Rotations");
-  clutter_actor_set_background_color (stage, CLUTTER_COLOR_Aluminium3);
+  clutter_actor_set_background_color (stage, &CLUTTER_COLOR_INIT (186, 189, 182, 255));
   g_signal_connect (stage, "destroy", G_CALLBACK (clutter_test_quit), NULL);
 
   /* Make a timeline */
@@ -50,7 +50,7 @@ test_shader_effects_main (int argc, char *argv[])
                                        NULL);
 
   rect = clutter_actor_new ();
-  clutter_actor_set_background_color (rect, CLUTTER_COLOR_DarkOrange);
+  clutter_actor_set_background_color (rect, &CLUTTER_COLOR_INIT (206, 92, 0, 255));
   clutter_actor_add_effect_with_name (rect, "blur", clutter_blur_effect_new ());
   clutter_actor_set_position (rect, 415, 215);
   clutter_actor_set_size (rect, 150, 150);
@@ -73,8 +73,10 @@ test_shader_effects_main (int argc, char *argv[])
                                        "fixed::anchor-y", 125.0,
                                        NULL);
 
-  clutter_container_add (CLUTTER_CONTAINER (stage), rect, hand, label, NULL);
-  
+  clutter_actor_add_child (stage, rect);
+  clutter_actor_add_child (stage, hand);
+  clutter_actor_add_child (stage, label);
+
   /* start the timeline and thus the animations */
   clutter_timeline_start (timeline);
 

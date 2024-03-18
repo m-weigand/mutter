@@ -400,9 +400,9 @@ actor_remove_all (void)
 }
 
 static void
-actor_added (ClutterContainer *container,
-             ClutterActor     *child,
-             gpointer          data)
+child_added (ClutterActor *container,
+             ClutterActor *child,
+             gpointer      data)
 {
   ClutterActor *actor = CLUTTER_ACTOR (container);
   int *counter = data;
@@ -419,9 +419,9 @@ actor_added (ClutterContainer *container,
 }
 
 static void
-actor_removed (ClutterContainer *container,
-               ClutterActor     *child,
-               gpointer          data)
+child_removed (ClutterActor *container,
+               ClutterActor *child,
+               gpointer      data)
 {
   int *counter = data;
 
@@ -442,10 +442,10 @@ actor_container_signals (void)
 
   add_count = remove_count = 0;
   g_signal_connect (actor,
-                    "actor-added", G_CALLBACK (actor_added),
+                    "child-added", G_CALLBACK (child_added),
                     &add_count);
   g_signal_connect (actor,
-                    "actor-removed", G_CALLBACK (actor_removed),
+                    "child-removed", G_CALLBACK (child_removed),
                     &remove_count);
 
   clutter_actor_add_child (actor, g_object_new (CLUTTER_TYPE_ACTOR,
@@ -464,9 +464,9 @@ actor_container_signals (void)
   g_assert_cmpint (remove_count, ==, 1);
   g_assert_cmpint (clutter_actor_get_n_children (actor), ==, 1);
 
-  g_signal_handlers_disconnect_by_func (actor, G_CALLBACK (actor_added),
+  g_signal_handlers_disconnect_by_func (actor, G_CALLBACK (child_added),
                                         &add_count);
-  g_signal_handlers_disconnect_by_func (actor, G_CALLBACK (actor_removed),
+  g_signal_handlers_disconnect_by_func (actor, G_CALLBACK (child_removed),
                                         &remove_count);
 
   clutter_actor_destroy (actor);

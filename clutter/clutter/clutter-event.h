@@ -113,10 +113,10 @@ typedef struct _ClutterIMEvent          ClutterIMEvent;
  * ClutterEventFilterFunc:
  * @event: the event that is going to be emitted
  * @event_actor: the current device actor of the events device
- * @user_data: the data pointer passed to clutter_event_add_filter()
+ * @user_data: the data pointer passed to [func@Clutter.Event.add_filter]
  *
  * A function pointer type used by event filters that are added with
- * clutter_event_add_filter().
+ * [func@Clutter.Event.add_filter].
  *
  * Return value: %CLUTTER_EVENT_STOP to indicate that the event
  *   has been handled or %CLUTTER_EVENT_PROPAGATE otherwise.
@@ -149,8 +149,6 @@ CLUTTER_EXPORT
 void                    clutter_event_remove_filter             (guint                  id);
 
 CLUTTER_EXPORT
-ClutterEvent *          clutter_event_new                       (ClutterEventType        type);
-CLUTTER_EXPORT
 ClutterEvent *          clutter_event_copy                      (const ClutterEvent     *event);
 CLUTTER_EXPORT
 void                    clutter_event_free                      (ClutterEvent           *event);
@@ -172,7 +170,7 @@ ClutterInputDevice *    clutter_event_get_source_device         (const ClutterEv
 CLUTTER_EXPORT
 ClutterInputDeviceTool *clutter_event_get_device_tool           (const ClutterEvent     *event);
 
-CLUTTER_DEPRECATED
+CLUTTER_EXPORT
 ClutterActor *          clutter_event_get_source                (const ClutterEvent     *event);
 CLUTTER_EXPORT
 ClutterInputDeviceType  clutter_event_get_device_type           (const ClutterEvent     *event);
@@ -204,6 +202,11 @@ CLUTTER_EXPORT
 guint16                 clutter_event_get_key_code              (const ClutterEvent     *event);
 CLUTTER_EXPORT
 gunichar                clutter_event_get_key_unicode           (const ClutterEvent     *event);
+CLUTTER_EXPORT
+void                    clutter_event_get_key_state             (const ClutterEvent     *event,
+                                                                 ClutterModifierType    *pressed,
+                                                                 ClutterModifierType    *latched,
+                                                                 ClutterModifierType    *locked);
 CLUTTER_EXPORT
 guint32                 clutter_event_get_button                (const ClutterEvent     *event);
 CLUTTER_EXPORT

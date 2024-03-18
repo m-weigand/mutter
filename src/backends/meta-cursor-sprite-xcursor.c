@@ -44,47 +44,47 @@ struct _MetaCursorSpriteXcursor
 G_DEFINE_TYPE (MetaCursorSpriteXcursor, meta_cursor_sprite_xcursor,
                META_TYPE_CURSOR_SPRITE)
 
-static const char *
-translate_meta_cursor (MetaCursor cursor)
+const char *
+meta_cursor_get_name (MetaCursor cursor)
 {
   switch (cursor)
     {
     case META_CURSOR_DEFAULT:
-      return "left_ptr";
+      return "default";
     case META_CURSOR_NORTH_RESIZE:
-      return "top_side";
+      return "n-resize";
     case META_CURSOR_SOUTH_RESIZE:
-      return "bottom_side";
+      return "s-resize";
     case META_CURSOR_WEST_RESIZE:
-      return "left_side";
+      return "w-resize";
     case META_CURSOR_EAST_RESIZE:
-      return "right_side";
+      return "e-resize";
     case META_CURSOR_SE_RESIZE:
-      return "bottom_right_corner";
+      return "se-resize";
     case META_CURSOR_SW_RESIZE:
-      return "bottom_left_corner";
+      return "sw-resize";
     case META_CURSOR_NE_RESIZE:
-      return "top_right_corner";
+      return "ne-resize";
     case META_CURSOR_NW_RESIZE:
-      return "top_left_corner";
+      return "nw-resize";
     case META_CURSOR_MOVE_OR_RESIZE_WINDOW:
-      return "fleur";
+      return "move";
     case META_CURSOR_BUSY:
-      return "watch";
+      return "wait";
     case META_CURSOR_DND_IN_DRAG:
-      return "dnd-none";
+      return "default";
     case META_CURSOR_DND_MOVE:
-      return "dnd-move";
+      return "default";
     case META_CURSOR_DND_COPY:
-      return "dnd-copy";
+      return "copy";
     case META_CURSOR_DND_UNSUPPORTED_TARGET:
-      return "dnd-none";
+      return "no-drop";
     case META_CURSOR_POINTING_HAND:
-      return "hand2";
+      return "pointer";
     case META_CURSOR_CROSSHAIR:
       return "crosshair";
     case META_CURSOR_IBEAM:
-      return "xterm";
+      return "text";
     case META_CURSOR_BLANK:
     case META_CURSOR_NONE:
     case META_CURSOR_LAST:
@@ -93,33 +93,6 @@ translate_meta_cursor (MetaCursor cursor)
 
   g_assert_not_reached ();
   return NULL;
-}
-
-static Cursor
-create_blank_cursor (Display *xdisplay)
-{
-  Pixmap pixmap;
-  XColor color;
-  Cursor cursor;
-  XGCValues gc_values;
-  GC gc;
-
-  pixmap = XCreatePixmap (xdisplay, DefaultRootWindow (xdisplay), 1, 1, 1);
-
-  gc_values.foreground = BlackPixel (xdisplay, DefaultScreen (xdisplay));
-  gc = XCreateGC (xdisplay, pixmap, GCForeground, &gc_values);
-
-  XFillRectangle (xdisplay, pixmap, gc, 0, 0, 1, 1);
-
-  color.pixel = 0;
-  color.red = color.blue = color.green = 0;
-
-  cursor = XCreatePixmapCursor (xdisplay, pixmap, pixmap, &color, &color, 1, 1);
-
-  XFreeGC (xdisplay, gc);
-  XFreePixmap (xdisplay, pixmap);
-
-  return cursor;
 }
 
 static XcursorImages *
@@ -143,31 +116,26 @@ meta_cursor_sprite_xcursor_get_cursor (MetaCursorSpriteXcursor *sprite_xcursor)
   return sprite_xcursor->cursor;
 }
 
-Cursor
-meta_create_x_cursor (Display    *xdisplay,
-                      MetaCursor  cursor)
-{
-  if (cursor == META_CURSOR_BLANK)
-    return create_blank_cursor (xdisplay);
-
-  return XcursorLibraryLoadCursor (xdisplay, translate_meta_cursor (cursor));
-}
-
 static XcursorImages *
 load_cursor_on_client (MetaCursor cursor, int scale)
 {
   XcursorImages *xcursor_images;
-  int fallback_size;
+  int fallback_size, i;
+  /* Set a 'default' fallback */
+  MetaCursor cursors[] = { cursor, META_CURSOR_DEFAULT };
 
   if (cursor == META_CURSOR_BLANK)
     return create_blank_cursor_images ();
 
-  xcursor_images =
-    XcursorLibraryLoadImages (translate_meta_cursor (cursor),
-                              meta_prefs_get_cursor_theme (),
-                              meta_prefs_get_cursor_size () * scale);
-  if (xcursor_images)
-    return xcursor_images;
+  for (i = 0; i < G_N_ELEMENTS (cursors); i++)
+    {
+      xcursor_images =
+        XcursorLibraryLoadImages (meta_cursor_get_name (cursors[i]),
+                                  meta_prefs_get_cursor_theme (),
+                                  meta_prefs_get_cursor_size () * scale);
+      if (xcursor_images)
+        return xcursor_images;
+    }
 
   g_warning_once ("No cursor theme available, please install a cursor theme");
 
@@ -190,7 +158,7 @@ load_from_current_xcursor_image (MetaCursorSpriteXcursor *sprite_xcursor)
   CoglPixelFormat cogl_format;
   ClutterBackend *clutter_backend;
   CoglContext *cogl_context;
-  CoglTexture2D *texture;
+  CoglTexture *texture;
   GError *error = NULL;
   int hotspot_x, hotspot_y;
 
@@ -234,10 +202,10 @@ load_from_current_xcursor_image (MetaCursorSpriteXcursor *sprite_xcursor)
       hotspot_y = xc_image->yhot;
     }
   meta_cursor_sprite_set_texture (sprite,
-                                  COGL_TEXTURE (texture),
+                                  texture,
                                   hotspot_x, hotspot_y);
 
-  g_clear_pointer (&texture, cogl_object_unref);
+  g_clear_object (&texture);
 }
 
 void

@@ -40,17 +40,16 @@ check_quadrant (TestState *state,
 static void
 test_paint (TestState *state)
 {
-  CoglTexture2D *tex_2d;
   CoglTexture *tex;
   CoglOffscreen *offscreen;
   CoglFramebuffer *framebuffer;
   CoglPipeline *opaque_pipeline;
   CoglPipeline *texture_pipeline;
+  CoglColor color;
 
-  tex_2d = cogl_texture_2d_new_with_size (test_ctx,
-                                          state->fb_width,
-                                          state->fb_height);
-  tex = tex_2d;
+  tex = cogl_texture_2d_new_with_size (test_ctx,
+                                       state->fb_width,
+                                       state->fb_height);
 
   offscreen = cogl_offscreen_new_with_texture (tex);
   framebuffer = COGL_FRAMEBUFFER (offscreen);
@@ -76,19 +75,24 @@ test_paint (TestState *state)
 
   opaque_pipeline = cogl_pipeline_new (test_ctx);
   /* red, top left */
-  cogl_pipeline_set_color4ub (opaque_pipeline, 0xff, 0x00, 0x00, 0xff);
+  cogl_color_init_from_4f (&color, 1.0, 0.0, 0.0, 1.0);
+  cogl_pipeline_set_color (opaque_pipeline, &color);
   cogl_framebuffer_draw_rectangle (framebuffer, opaque_pipeline,
                                    -0.5, 0.5, 0, 0);
   /* green, top right */
-  cogl_pipeline_set_color4ub (opaque_pipeline, 0x00, 0xff, 0x00, 0xff);
+  /* red, top left */
+  cogl_color_init_from_4f (&color, 0.0, 1.0, 0.0, 1.0);
+  cogl_pipeline_set_color (opaque_pipeline, &color);
   cogl_framebuffer_draw_rectangle (framebuffer, opaque_pipeline,
                                    0, 0.5, 0.5, 0);
   /* blue, bottom left */
-  cogl_pipeline_set_color4ub (opaque_pipeline, 0x00, 0x00, 0xff, 0xff);
+  cogl_color_init_from_4f (&color, 0.0, 0.0, 1.0, 1.0);
+  cogl_pipeline_set_color (opaque_pipeline, &color);
   cogl_framebuffer_draw_rectangle (framebuffer, opaque_pipeline,
                                    -0.5, 0, 0, -0.5);
   /* white, bottom right */
-  cogl_pipeline_set_color4ub (opaque_pipeline, 0xff, 0xff, 0xff, 0xff);
+  cogl_color_init_from_4f (&color, 1.0, 1.0, 1.0, 1.0);
+  cogl_pipeline_set_color (opaque_pipeline, &color);
   cogl_framebuffer_draw_rectangle (framebuffer, opaque_pipeline,
                                    0, 0, 0.5, -0.5);
 
@@ -100,9 +104,9 @@ test_paint (TestState *state)
   cogl_pipeline_set_layer_texture (texture_pipeline, 0, tex);
   cogl_framebuffer_draw_rectangle (test_fb, texture_pipeline, -1, 1, 1, -1);
 
-  cogl_object_unref (opaque_pipeline);
-  cogl_object_unref (texture_pipeline);
-  cogl_object_unref (tex_2d);
+  g_object_unref (opaque_pipeline);
+  g_object_unref (texture_pipeline);
+  g_object_unref (tex);
 
   cogl_framebuffer_pop_matrix (test_fb);
 
@@ -123,15 +127,15 @@ static void
 test_flush (TestState *state)
 {
   CoglPipeline *pipeline;
-  CoglTexture2D *tex_2d;
   CoglTexture *tex;
   CoglOffscreen *offscreen;
   CoglFramebuffer *framebuffer;
-  CoglColor clear_color;
+  CoglColor clear_color, pipeline_color;
   int i;
 
   pipeline = cogl_pipeline_new (test_ctx);
-  cogl_pipeline_set_color4ub (pipeline, 255, 0, 0, 255);
+  cogl_color_init_from_4f (&pipeline_color, 1.0, 0.0, 0.0, 1.0);
+  cogl_pipeline_set_color (pipeline, &pipeline_color);
 
   for (i = 0; i < 3; i++)
     {
@@ -139,14 +143,13 @@ test_flush (TestState *state)
          the contents of the texture will automatically flush the
          journal */
 
-      tex_2d = cogl_texture_2d_new_with_size (test_ctx,
-                                              16, 16); /* width/height */
-      tex = tex_2d;
+      tex = cogl_texture_2d_new_with_size (test_ctx,
+                                           16, 16); /* width/height */
 
       offscreen = cogl_offscreen_new_with_texture (tex);
       framebuffer = COGL_FRAMEBUFFER (offscreen);
 
-      cogl_color_init_from_4ub (&clear_color, 0, 0, 0, 255);
+      cogl_color_init_from_4f (&clear_color, 0.0, 0.0, 0.0, 1.0);
       cogl_framebuffer_clear (framebuffer, COGL_BUFFER_BIT_COLOR, &clear_color);
 
       cogl_framebuffer_draw_rectangle (framebuffer, pipeline, -1, -1, 1, 1);
@@ -184,11 +187,11 @@ test_flush (TestState *state)
                                    0xff0000ff);
         }
 
-      cogl_object_unref (tex_2d);
+      g_object_unref (tex);
       g_object_unref (offscreen);
     }
 
-  cogl_object_unref (pipeline);
+  g_object_unref (pipeline);
 }
 
 static void

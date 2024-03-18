@@ -183,9 +183,6 @@ MetaDisplay * meta_display_new (MetaContext  *context,
 void meta_display_manage_all_xwindows (MetaDisplay *display);
 #endif
 
-void meta_display_unmanage_windows   (MetaDisplay *display,
-                                      guint32      timestamp);
-
 /* Utility function to compare the stacking of two windows */
 int           meta_display_stack_cmp           (const void *a,
                                                 const void *b);
@@ -226,8 +223,6 @@ META_EXPORT_TEST
 GSList*     meta_display_list_windows        (MetaDisplay          *display,
                                               MetaListWindowsFlags  flags);
 
-void meta_display_reload_cursor (MetaDisplay *display);
-
 void     meta_display_grab_window_buttons    (MetaDisplay *display,
                                               MetaWindow  *window);
 void     meta_display_ungrab_window_buttons  (MetaDisplay *display,
@@ -237,12 +232,6 @@ void meta_display_grab_focus_window_button   (MetaDisplay *display,
                                               MetaWindow  *window);
 void meta_display_ungrab_focus_window_button (MetaDisplay *display,
                                               MetaWindow  *window);
-
-/* utility goo */
-const char* meta_event_mode_to_string   (int m);
-const char* meta_event_detail_to_string (int d);
-
-void meta_display_queue_retheme_all_windows (MetaDisplay *display);
 
 void meta_display_ping_window      (MetaWindow  *window,
                                     guint32      serial);
@@ -266,14 +255,11 @@ void meta_display_accelerator_activate (MetaDisplay           *display,
                                         const ClutterKeyEvent *event);
 gboolean meta_display_modifiers_accelerator_activate (MetaDisplay *display);
 
-void meta_display_sync_wayland_input_focus (MetaDisplay *display);
 void meta_display_update_focus_window (MetaDisplay *display,
                                        MetaWindow  *window);
 
 void meta_display_sanity_check_timestamps (MetaDisplay *display,
                                            guint32      timestamp);
-gboolean meta_display_timestamp_too_old (MetaDisplay *display,
-                                         guint32     *timestamp);
 
 void meta_display_remove_pending_pings_for_window (MetaDisplay *display,
                                                    MetaWindow  *window);
@@ -309,11 +295,6 @@ void meta_display_notify_pad_group_switch (MetaDisplay        *display,
                                            guint               n_group,
                                            guint               n_mode,
                                            guint               n_modes);
-
-void meta_display_foreach_window (MetaDisplay           *display,
-                                  MetaListWindowsFlags   flags,
-                                  MetaDisplayWindowFunc  func,
-                                  gpointer               data);
 
 void meta_display_restacked (MetaDisplay *display);
 
@@ -353,3 +334,12 @@ gboolean meta_display_process_captured_input (MetaDisplay        *display,
                                               const ClutterEvent *event);
 
 void meta_display_cancel_input_capture (MetaDisplay *display);
+
+void meta_display_handle_window_enter (MetaDisplay *display,
+                                       MetaWindow  *window,
+                                       uint32_t     timestamp_ms,
+                                       int          root_x,
+                                       int          root_y);
+
+void meta_display_handle_window_leave (MetaDisplay *display,
+                                       MetaWindow  *window);

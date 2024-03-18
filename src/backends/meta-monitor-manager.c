@@ -55,14 +55,16 @@
 #include "backends/meta-orientation-manager.h"
 #include "backends/meta-output.h"
 #include "backends/meta-virtual-monitor.h"
-#include "backends/x11/meta-monitor-manager-xrandr.h"
 #include "clutter/clutter.h"
 #include "core/util-private.h"
 #include "meta/main.h"
 #include "meta/meta-enum-types.h"
-#include "meta/meta-x11-errors.h"
 
 #include "meta-dbus-display-config.h"
+
+#ifdef HAVE_X11
+#include "backends/x11/meta-monitor-manager-xrandr.h"
+#endif
 
 #define DEFAULT_DISPLAY_CONFIGURATION_TIMEOUT 20
 
@@ -108,7 +110,7 @@ static int signals[SIGNALS_LAST];
 typedef struct _MetaMonitorManagerPrivate
 {
   MetaPowerSave power_save_mode;
-  gboolean      initial_orient_change_done;
+  gboolean initial_orient_change_done;
 
   GList *virtual_monitors;
 
@@ -116,8 +118,9 @@ typedef struct _MetaMonitorManagerPrivate
 
   gboolean has_builtin_panel;
   gboolean night_light_supported;
-  const char *experimental_hdr;
+  char *experimental_hdr;
 
+  guint reload_monitor_manager_id;
   guint switch_config_handle_id;
 } MetaMonitorManagerPrivate;
 
@@ -483,6 +486,8 @@ prepare_shutdown (MetaBackend        *backend,
     meta_monitor_manager_get_instance_private (manager);
 
   priv->shutting_down = TRUE;
+
+  g_clear_handle_id (&priv->reload_monitor_manager_id, g_source_remove);
 }
 
 static void
@@ -678,8 +683,12 @@ on_virtual_monitor_destroyed (MetaVirtualMonitor *virtual_monitor,
   priv->virtual_monitors = g_list_remove (priv->virtual_monitors,
                                           virtual_monitor);
 
-  if (!priv->shutting_down)
-    meta_monitor_manager_reload (manager);
+  if (!priv->shutting_down && !priv->reload_monitor_manager_id)
+    {
+      priv->reload_monitor_manager_id =
+        g_idle_add_once ((GSourceOnceFunc) meta_monitor_manager_reload,
+                         manager);
+    }
 }
 
 MetaVirtualMonitor *
@@ -753,7 +762,7 @@ meta_monitor_manager_apply_monitors_config (MetaMonitorManager      *manager,
   return TRUE;
 }
 
-gboolean
+static gboolean
 meta_monitor_manager_has_hotplug_mode_update (MetaMonitorManager *manager)
 {
   GList *gpus;
@@ -1318,17 +1327,34 @@ meta_monitor_manager_setup (MetaMonitorManager *manager)
   if (privacy_screen_needs_update (manager))
     manager->privacy_screen_change_state = META_PRIVACY_SCREEN_CHANGE_STATE_INIT;
 
+  ensure_hdr_settings (manager);
+
   manager->in_init = FALSE;
+}
+
+static void
+on_started (MetaContext        *context,
+            MetaMonitorManager *monitor_manager)
+{
+  g_signal_connect (monitor_manager, "notify::experimental-hdr",
+                    G_CALLBACK (meta_monitor_manager_reconfigure),
+                    NULL);
 }
 
 static void
 meta_monitor_manager_constructed (GObject *object)
 {
   MetaMonitorManager *manager = META_MONITOR_MANAGER (object);
+  MetaMonitorManagerPrivate *priv =
+    meta_monitor_manager_get_instance_private (manager);
   MetaBackend *backend = manager->backend;
+  MetaContext *context = meta_backend_get_context (backend);
   MetaSettings *settings = meta_backend_get_settings (backend);
 
   manager->display_config = meta_dbus_display_config_skeleton_new ();
+
+  if (g_strcmp0 (getenv ("MUTTER_DEBUG_ENABLE_HDR"), "1") == 0)
+    priv->experimental_hdr = g_strdup ("on");
 
   g_signal_connect_object (settings,
                            "experimental-features-changed",
@@ -1361,13 +1387,10 @@ meta_monitor_manager_constructed (GObject *object)
                            G_CALLBACK (lid_is_closed_changed),
                            manager, 0);
 
+  g_signal_connect (context, "started", G_CALLBACK (on_started), manager);
   g_signal_connect (backend, "prepare-shutdown",
                     G_CALLBACK (prepare_shutdown),
                     manager);
-
-  g_signal_connect (manager, "notify::experimental-hdr",
-                    G_CALLBACK (ensure_hdr_settings),
-                    NULL);
 
   manager->current_switch_config = META_MONITOR_SWITCH_CONFIG_UNKNOWN;
 
@@ -1381,6 +1404,7 @@ meta_monitor_manager_finalize (GObject *object)
   MetaMonitorManagerPrivate *priv =
     meta_monitor_manager_get_instance_private (manager);
 
+  g_clear_pointer (&priv->experimental_hdr, g_free);
   g_list_free_full (manager->logical_monitors, g_object_unref);
 
   g_warn_if_fail (!priv->virtual_monitors);
@@ -1403,6 +1427,7 @@ meta_monitor_manager_dispose (GObject *object)
   g_clear_handle_id (&manager->persistent_timeout_id, g_source_remove);
   g_clear_handle_id (&manager->restore_config_id, g_source_remove);
   g_clear_handle_id (&priv->switch_config_handle_id, g_source_remove);
+  g_clear_handle_id (&priv->reload_monitor_manager_id, g_source_remove);
 
   G_OBJECT_CLASS (meta_monitor_manager_parent_class)->dispose (object);
 }
@@ -1430,6 +1455,7 @@ meta_monitor_manager_set_property (GObject      *object,
       manager->backend = g_value_get_object (value);
       break;
     case PROP_EXPERIMENTAL_HDR:
+      g_clear_pointer (&priv->experimental_hdr, g_free);
       priv->experimental_hdr = g_value_dup_string (value);
       break;
     case PROP_PANEL_ORIENTATION_MANAGED:
@@ -2047,6 +2073,7 @@ meta_monitor_manager_handle_get_current_state (MetaDBusDisplayConfig *skeleton,
       MetaMonitorMode *current_mode;
       MetaMonitorMode *preferred_mode;
       MetaPrivacyScreenState privacy_screen_state;
+      int min_refresh_rate;
       GVariantBuilder modes_builder;
       GVariantBuilder monitor_properties_builder;
       GList *k;
@@ -2114,6 +2141,11 @@ meta_monitor_manager_handle_get_current_state (MetaDBusDisplayConfig *skeleton,
             g_variant_builder_add (&mode_properties_builder, "{sv}",
                                    "is-interlaced",
                                    g_variant_new_boolean (TRUE));
+          if (meta_monitor_mode_get_refresh_rate_mode (monitor_mode) ==
+              META_CRTC_REFRESH_RATE_MODE_VARIABLE)
+            g_variant_builder_add (&mode_properties_builder, "{sv}",
+                                   "refresh-rate-mode",
+                                   g_variant_new_string ("variable"));
 
           g_variant_builder_add (&modes_builder, MODE_FORMAT,
                                  mode_id,
@@ -2157,6 +2189,14 @@ meta_monitor_manager_handle_get_current_state (MetaDBusDisplayConfig *skeleton,
 
           g_variant_builder_add (&monitor_properties_builder, "{sv}",
                                  "privacy-screen-state", state);
+        }
+
+      if (meta_monitor_get_min_refresh_rate (monitor,
+                                             &min_refresh_rate))
+        {
+          g_variant_builder_add (&monitor_properties_builder, "{sv}",
+                                 "min-refresh-rate",
+                                 g_variant_new_int32 (min_refresh_rate));
         }
 
       g_variant_builder_add (&monitors_builder, MONITOR_FORMAT,
@@ -3608,17 +3648,6 @@ meta_monitor_manager_tiled_monitor_removed (MetaMonitorManager *manager,
     manager_class->tiled_monitor_removed (manager, monitor);
 }
 
-gboolean
-meta_monitor_manager_is_transform_handled (MetaMonitorManager  *manager,
-                                           MetaCrtc            *crtc,
-                                           MetaMonitorTransform transform)
-{
-  MetaMonitorManagerClass *manager_class =
-    META_MONITOR_MANAGER_GET_CLASS (manager);
-
-  return manager_class->is_transform_handled (manager, crtc, transform);
-}
-
 static void
 meta_monitor_manager_real_read_current_state (MetaMonitorManager *manager)
 {
@@ -3741,11 +3770,10 @@ meta_monitor_manager_rebuild (MetaMonitorManager *manager,
 
   meta_monitor_manager_update_logical_state (manager, config);
 
-  meta_monitor_manager_notify_monitors_changed (manager);
-
   ensure_privacy_screen_settings (manager);
-
   ensure_hdr_settings (manager);
+
+  meta_monitor_manager_notify_monitors_changed (manager);
 
   g_list_free_full (old_logical_monitors, g_object_unref);
 }
@@ -3807,6 +3835,11 @@ meta_monitor_manager_reconfigure (MetaMonitorManager *manager)
 void
 meta_monitor_manager_reload (MetaMonitorManager *manager)
 {
+  MetaMonitorManagerPrivate *priv =
+    meta_monitor_manager_get_instance_private (manager);
+
+  g_clear_handle_id (&priv->reload_monitor_manager_id, g_source_remove);
+
   meta_monitor_manager_read_current_state (manager);
   meta_monitor_manager_reconfigure (manager);
 }
