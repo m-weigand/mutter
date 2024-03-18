@@ -1,3 +1,9 @@
+mutter (46.0-1) UNRELEASED; urgency=medium
+
+  * New upstream release
+
+ -- Jeremy Bícha <jbicha@ubuntu.com>  Mon, 18 Mar 2024 11:55:19 -0400
+
 mutter (45.3-3) experimental; urgency=medium
 
   * Cherry-pick several cursor fixes to fix compatibility with latest
