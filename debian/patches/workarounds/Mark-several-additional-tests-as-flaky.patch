@@ -15,7 +15,7 @@ Forwarded: no
  2 files changed, 34 insertions(+), 3 deletions(-)
 
 diff --git a/src/tests/clutter/conform/grab.c b/src/tests/clutter/conform/grab.c
-index 21524fc..b0e09bb 100644
+index c62eea6..4ba11f4 100644
 --- a/src/tests/clutter/conform/grab.c
 +++ b/src/tests/clutter/conform/grab.c
 @@ -620,6 +620,12 @@ grab_input_only (void)
