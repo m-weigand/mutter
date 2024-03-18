@@ -1,8 +1,25 @@
-mutter (46.0-1) UNRELEASED; urgency=medium
+mutter (46.0-1) experimental; urgency=medium
 
+  [ Jeremy Bícha ]
   * New upstream release
+  * Update binary package names for soname bump
+  * Update symbols
+  * Add Build-Depends: libpixman-1-dev, libdisplay-info-dev
+  * Drop obsolete Build-Depends: libjson-glib-dev
+  * Bump minimum wayland-protocols to 1.33
+  * Drop 4 patches applied in new release
+  * Refresh patches
 
- -- Jeremy Bícha <jbicha@ubuntu.com>  Mon, 18 Mar 2024 11:55:19 -0400
+  [ Daniel van Vugt ]
+  * Update triple buffering patch
+  * Add kms-crtc-Increase-default-deadline-evasion-to-1000-micros.patch
+    to fix cursor stutter in Wayland sessions when nothing else is
+    animating on screen (LP: #2040977)
+  * Add Nvidia-secondary-GPU-copy-acceleration.patch
+    to enable hardware accelerated screen updates on secondary GPU-connected
+    monitors (LP: #1970291).
+
+ -- Jeremy Bícha <jbicha@ubuntu.com>  Mon, 18 Mar 2024 15:11:40 -0400
 
 mutter (45.3-3) experimental; urgency=medium
 
