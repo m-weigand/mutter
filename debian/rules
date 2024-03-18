@@ -20,6 +20,7 @@ export MUTTER_SONAME
 	dh $@
 
 CONFFLAGS = \
+	-Dauto_features=enabled \
 	-Degl_device=true \
 	-Dremote_desktop=true \
 	-Dwayland_eglstream=true
@@ -27,6 +28,10 @@ export deb_udevdir = $(shell pkg-config --variable=udevdir udev | sed s,^/,,)
 
 ifneq ($(filter i386,$(DEB_HOST_ARCH)),)
 CONFFLAGS +=-Dprofiler=false
+endif
+
+ifeq ($(shell dpkg-vendor --query vendor),Ubuntu)
+CONFFLAGS += -Dlibdisplay_info=disabled
 endif
 
 override_dh_gnome_clean:
