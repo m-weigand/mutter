@@ -789,7 +789,7 @@ meta_seat_impl_notify_button_in_impl (MetaSeatImpl       *seat_impl,
                                       uint32_t            button,
                                       uint32_t            state)
 {
-  MetaInputDeviceNative *device_native = (MetaInputDeviceNative *) input_device;
+  MetaInputDeviceNative *device_native = META_INPUT_DEVICE_NATIVE (input_device);
   ClutterEvent *event = NULL;
   ClutterModifierType modifiers;
   int button_nr;
@@ -990,6 +990,7 @@ notify_discrete_scroll (ClutterInputDevice     *input_device,
                                        NULL,
                                        modifiers,
                                        GRAPHENE_POINT_INIT (x, y),
+                                       scroll_source,
                                        direction);
 
   queue_event (seat_impl, event);
@@ -1102,7 +1103,7 @@ meta_seat_impl_notify_discrete_scroll_in_impl (MetaSeatImpl        *seat_impl,
                  dx,
                  dy,
                  scroll_source, CLUTTER_SCROLL_FINISHED_NONE,
-                 FALSE);
+                 TRUE);
 
   /* Notify discrete scroll only when the accumulated value reach 120 */
   evdev_device = META_INPUT_DEVICE_NATIVE (input_device);

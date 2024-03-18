@@ -33,6 +33,7 @@ clutter_headers = [
   'clutter-frame-clock.h',
   'clutter-frame.h',
   'clutter-gesture-action.h',
+  'clutter-gesture.h',
   'clutter-grab.h',
   'clutter-grid-layout.h',
   'clutter-image.h',
@@ -117,6 +118,7 @@ clutter_sources = [
   'clutter-frame-clock.c',
   'clutter-frame.c',
   'clutter-gesture-action.c',
+  'clutter-gesture.c',
   'clutter-grab.c',
   'clutter-graphene.c',
   'clutter-grid-layout.c',
@@ -333,6 +335,7 @@ if have_introspection
     nsversion: libmutter_api_version,
     header: 'cally/cally.h',
     namespace: 'Cally',
+    export_packages: [libmutter_clutter_name],
     includes: [
       libmutter_mtk_gir[0],
       libmutter_cogl_gir[0],

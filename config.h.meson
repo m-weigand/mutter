@@ -129,3 +129,9 @@
 
 /* Supports PangoFt2 */
 #mesondefine HAVE_PANGO_FT2
+
+/* Supports timerfd_create/timerfd_settime */
+#mesondefine HAVE_TIMERFD
+
+/* Supports malloc_trim */
+#mesondefine HAVE_MALLOC_TRIM

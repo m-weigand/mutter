@@ -3928,6 +3928,14 @@ meta_window_move_resize_internal (MetaWindow          *window,
 
   if (flags & META_MOVE_RESIZE_WAYLAND_CLIENT_RESIZE)
     meta_window_queue (window, META_QUEUE_MOVE_RESIZE);
+
+  /* This is a workaround for #1627. We still don't have any tests that can
+   * reproduce this issue reliably and this is not a proper fix! */
+  if (flags & META_MOVE_RESIZE_WAYLAND_FINISH_MOVE_RESIZE &&
+      (result & META_MOVE_RESIZE_RESULT_MOVED ||
+       result & META_MOVE_RESIZE_RESULT_RESIZED) &&
+      (window->maximized_horizontally || window->maximized_vertically))
+    meta_window_queue (window, META_QUEUE_MOVE_RESIZE);
 }
 
 /**
@@ -7339,7 +7347,7 @@ meta_window_has_pointer (MetaWindow *window)
 #endif
 }
 
-void
+gboolean
 meta_window_handle_ungrabbed_event (MetaWindow         *window,
                                     const ClutterEvent *event)
 {
@@ -7355,14 +7363,14 @@ meta_window_handle_ungrabbed_event (MetaWindow         *window,
   guint button;
 
   if (window->unmanaging)
-    return;
+    return CLUTTER_EVENT_PROPAGATE;
 
   event_type = clutter_event_type (event);
   time_ms = clutter_event_get_time (event);
 
   if (event_type != CLUTTER_BUTTON_PRESS &&
       event_type != CLUTTER_TOUCH_BEGIN)
-    return;
+    return CLUTTER_EVENT_PROPAGATE;
 
   if (event_type == CLUTTER_TOUCH_BEGIN)
     {
@@ -7371,7 +7379,7 @@ meta_window_handle_ungrabbed_event (MetaWindow         *window,
       button = 1;
       sequence = clutter_event_get_event_sequence (event);
       if (!meta_display_is_pointer_emulating_sequence (window->display, sequence))
-        return;
+        return CLUTTER_EVENT_PROPAGATE;
     }
   else
     button = clutter_event_get_button (event);
@@ -7381,7 +7389,7 @@ meta_window_handle_ungrabbed_event (MetaWindow         *window,
    * we have to take special care not to act for an override-redirect window.
    */
   if (window->override_redirect)
-    return;
+    return CLUTTER_EVENT_PROPAGATE;
 
   /* Don't focus panels--they must explicitly request focus.
    * See bug 160470
@@ -7462,12 +7470,13 @@ meta_window_handle_ungrabbed_event (MetaWindow         *window,
           if (op != META_GRAB_OP_WINDOW_BASE)
             {
               op |= META_GRAB_OP_WINDOW_FLAG_UNCONSTRAINED;
-              meta_window_begin_grab_op (window,
-                                         op,
-                                         clutter_event_get_device (event),
-                                         clutter_event_get_event_sequence (event),
-                                         time_ms,
-                                         NULL);
+              if (meta_window_begin_grab_op (window,
+                                             op,
+                                             clutter_event_get_device (event),
+                                             clutter_event_get_event_sequence (event),
+                                             time_ms,
+                                             NULL))
+                return CLUTTER_EVENT_STOP;
             }
         }
     }
@@ -7475,23 +7484,29 @@ meta_window_handle_ungrabbed_event (MetaWindow         *window,
     {
       if (meta_prefs_get_raise_on_click ())
         meta_window_raise (window);
+
       meta_window_show_menu (window,
                              META_WINDOW_MENU_WM,
                              x, y);
+
+      return CLUTTER_EVENT_STOP;
     }
   else if (is_window_grab && (int) button == 1)
     {
       if (window->has_move_func)
         {
-          meta_window_begin_grab_op (window,
-                                     META_GRAB_OP_MOVING |
-                                     META_GRAB_OP_WINDOW_FLAG_UNCONSTRAINED,
-                                     clutter_event_get_device (event),
-                                     clutter_event_get_event_sequence (event),
-                                     time_ms,
-                                     NULL);
+          if (meta_window_begin_grab_op (window,
+                                         META_GRAB_OP_MOVING |
+                                         META_GRAB_OP_WINDOW_FLAG_UNCONSTRAINED,
+                                         clutter_event_get_device (event),
+                                         clutter_event_get_event_sequence (event),
+                                         time_ms,
+                                         NULL))
+            return CLUTTER_EVENT_STOP;
         }
     }
+
+  return CLUTTER_EVENT_PROPAGATE;
 }
 
 gboolean

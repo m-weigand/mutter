@@ -135,6 +135,8 @@ typedef struct _ClutterStagePrivate
   GHashTable *pointer_devices;
   GHashTable *touch_sequences;
 
+  GPtrArray *all_active_gestures;
+
   guint actor_needs_immediate_relayout : 1;
 } ClutterStagePrivate;
 
@@ -1263,6 +1265,9 @@ clutter_stage_finalize (GObject *object)
   g_assert (priv->cur_event_emission_chain->len == 0);
   g_array_unref (priv->cur_event_emission_chain);
 
+  g_assert (priv->all_active_gestures->len == 0);
+  g_ptr_array_free (priv->all_active_gestures, TRUE);
+
   g_hash_table_destroy (priv->pointer_devices);
   g_hash_table_destroy (priv->touch_sequences);
 
@@ -1672,6 +1677,8 @@ clutter_stage_init (ClutterStage *self)
   priv->touch_sequences =
     g_hash_table_new_full (NULL, NULL,
                            NULL, (GDestroyNotify) free_pointer_device_entry);
+
+  priv->all_active_gestures = g_ptr_array_sized_new (64);
 
   clutter_actor_set_background_color (CLUTTER_ACTOR (self),
                                       &default_stage_color);
@@ -4292,6 +4299,47 @@ clutter_stage_maybe_lost_implicit_grab (ClutterStage         *self,
   cleanup_implicit_grab (entry);
 }
 
+static void
+setup_sequence_actions (GArray             *emission_chain,
+                        const ClutterEvent *sequence_begin_event)
+{
+  ClutterInputDevice *device = clutter_event_get_device (sequence_begin_event);
+  ClutterEventSequence *sequence = clutter_event_get_event_sequence (sequence_begin_event);
+  unsigned int i, j;
+
+  for (i = 0; i < emission_chain->len; i++)
+    {
+      EventReceiver *receiver = &g_array_index (emission_chain, EventReceiver, i);
+
+      if (!receiver->action)
+        continue;
+
+      if (!clutter_action_register_sequence (receiver->action, sequence_begin_event))
+        g_clear_object (&receiver->action);
+    }
+
+  for (i = 0; i < emission_chain->len; i++)
+    {
+      EventReceiver *receiver_1 = &g_array_index (emission_chain, EventReceiver, i);
+
+      if (!receiver_1->action)
+        continue;
+
+      for (j = i + 1; j < emission_chain->len; j++)
+        {
+          EventReceiver *receiver_2 = &g_array_index (emission_chain, EventReceiver, j);
+
+          if (!receiver_2->action)
+            continue;
+
+          clutter_action_setup_sequence_relationship (receiver_1->action,
+                                                      receiver_2->action,
+                                                      device,
+                                                      sequence);
+        }
+    }
+}
+
 void
 clutter_stage_emit_event (ClutterStage       *self,
                           const ClutterEvent *event)
@@ -4389,6 +4437,7 @@ clutter_stage_emit_event (ClutterStage       *self,
       clutter_actor_set_implicitly_grabbed (entry->implicit_grab_actor, TRUE);
 
       create_event_emission_chain (self, entry->event_emission_chain, seat_grab_actor, target_actor);
+      setup_sequence_actions (entry->event_emission_chain, event);
     }
 
   if (entry && entry->press_count)
@@ -4547,4 +4596,12 @@ clutter_stage_pointing_input_foreach (ClutterStage                 *self,
     }
 
   return TRUE;
+}
+
+GPtrArray *
+clutter_stage_get_active_gestures_array (ClutterStage *self)
+{
+  ClutterStagePrivate *priv = clutter_stage_get_instance_private (self);
+
+  return priv->all_active_gestures;
 }

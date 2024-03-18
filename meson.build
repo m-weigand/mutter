@@ -1,5 +1,5 @@
 project('mutter', 'c',
-  version: '46.rc',
+  version: '46.0',
   meson_version: '>= 0.60.0',
   license: 'GPLv2+'
 )
@@ -45,13 +45,13 @@ udev_req = '>= 228'
 gudev_req = '>= 232'
 
 # wayland version requirements
-wayland_server_req = '>= 1.21'
+wayland_server_req = '>= 1.22'
 wayland_protocols_req = '>= 1.33'
 
 # native backend version requirements
 libinput_req = '>= 1.19.0'
 gbm_req = '>= 21.3'
-libdrm_req = '>= 2.4.95'
+libdrm_req = '>= 2.4.118'
 
 # screen cast version requirements
 libpipewire_req = '>= 0.3.33'
@@ -63,6 +63,7 @@ gnome = import('gnome')
 pkg = import('pkgconfig')
 i18n  = import('i18n')
 fs = import('fs')
+python = import('python')
 cc = meson.get_compiler('c')
 
 add_project_link_arguments(
@@ -331,6 +332,21 @@ if have_introspection
   }
 endif
 
+# Check for timerfd_create(2)
+have_timerfd = cc.links('''
+#include <sys/timerfd.h>
+#include <time.h>
+#include <unistd.h>
+int main (int argc, char ** argv) {
+  struct itimerspec ts = {{0}};
+  int fd = timerfd_create (CLOCK_MONOTONIC, TFD_NONBLOCK | TFD_CLOEXEC);
+  timerfd_settime (fd, TFD_TIMER_ABSTIME, &ts, NULL);
+  return 0;
+}
+''', name : 'timerfd_create(2) system call')
+
+have_malloc_trim = meson.get_compiler('c').has_function('malloc_trim')
+
 have_documentation = get_option('docs')
 have_tests = get_option('tests')
 have_core_tests = false
@@ -343,6 +359,7 @@ have_installed_tests = false
 
 if have_tests
   gtk3_dep = dependency('gtk+-3.0', version: gtk3_req)
+  dbusmock_dep = python.find_installation('python3', modules: ['dbusmock'], required: false)
 
   have_core_tests = get_option('core_tests')
   if have_core_tests
@@ -351,6 +368,9 @@ if have_tests
     endif
     if not have_x11_client
       error('Tests requires an X11 client')
+    endif
+    if not dbusmock_dep.found()
+      error('Tests require python-dbusmock')
     endif
   endif
   have_native_tests = get_option('native_tests')
@@ -551,6 +571,8 @@ cdata.set('HAVE_INTROSPECTION', have_introspection)
 cdata.set('HAVE_PROFILER', have_profiler)
 cdata.set('HAVE_LIBDISPLAY_INFO', have_libdisplay_info)
 cdata.set('HAVE_PANGO_FT2', have_pango_ft2)
+cdata.set('HAVE_TIMERFD', have_timerfd)
+cdata.set('HAVE_MALLOC_TRIM', have_malloc_trim)
 
 if have_x11_client
   xkb_base = xkeyboard_config_dep.get_variable('xkb_base')
@@ -574,7 +596,7 @@ if have_xwayland
     if xwayland_dep.found()
       xwayland_path = xwayland_dep.get_variable('xwayland')
     else
-      xwayland_path = find_program('Xwayland').path()
+      xwayland_path = find_program('Xwayland').full_path()
     endif
   endif
   cdata.set_quoted('XWAYLAND_PATH', xwayland_path)
@@ -593,7 +615,7 @@ if have_xwayland
   if xwayland_dep.found()
     xwayland_supports_initfd = xwayland_dep.get_variable('have_initfd') == 'true'
   else
-    xwayland_options = run_command(xwayland_path, '-help')
+    xwayland_options = run_command(xwayland_path, '-help', check: false)
     xwayland_supports_initfd = xwayland_options.stderr().contains('-initfd')
   endif
 

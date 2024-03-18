@@ -511,6 +511,27 @@ clutter_event_get_position (const ClutterEvent *event,
 }
 
 /**
+ * clutter_event_get_source:
+ * @event: a #ClutterEvent
+ *
+ * Retrieves the source #ClutterActor the event originated from, or
+ * NULL if the event has no source.
+ *
+ * Return value: (transfer none): a #ClutterActor
+ */
+ClutterActor *
+clutter_event_get_source (const ClutterEvent *event)
+{
+  g_return_val_if_fail (event != NULL, NULL);
+
+  if (event->type == CLUTTER_ENTER ||
+      event->type == CLUTTER_LEAVE)
+    return event->crossing.source;
+
+  return NULL;
+}
+
+/**
  * clutter_event_get_flags:
  * @event: a #ClutterEvent
  *
@@ -947,7 +968,7 @@ clutter_event_free (ClutterEvent *event)
 /**
  * clutter_event_get:
  *
- * Pops an event off the event queue. Applications should not need to call 
+ * Pops an event off the event queue. Applications should not need to call
  * this.
  *
  * Return value: A #ClutterEvent or NULL if queue empty
@@ -1870,7 +1891,7 @@ clutter_event_button_new (ClutterEventType        type,
                           ClutterInputDeviceTool *tool,
                           ClutterModifierType     modifiers,
                           graphene_point_t        coords,
-			  int                     button,
+                          int                     button,
                           uint32_t                evcode,
                           double                 *axes)
 {
@@ -2017,6 +2038,7 @@ clutter_event_scroll_discrete_new (ClutterEventFlags       flags,
                                    ClutterInputDeviceTool *tool,
                                    ClutterModifierType     modifiers,
                                    graphene_point_t        coords,
+                                   ClutterScrollSource     scroll_source,
                                    ClutterScrollDirection  direction)
 {
   ClutterEvent *event;
@@ -2031,6 +2053,7 @@ clutter_event_scroll_discrete_new (ClutterEventFlags       flags,
   event->scroll.x = coords.x;
   event->scroll.y = coords.y;
   event->scroll.direction = direction;
+  event->scroll.scroll_source = scroll_source;
   event->scroll.modifier_state = modifiers;
   event->scroll.tool = tool;
 
