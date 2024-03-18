@@ -921,9 +921,6 @@ libmutter-14.so.0 libmutter-14-0 #MINVER#
  meta_x11_display_remove_alarm_filter@Base 43.2
  meta_x11_display_remove_event_func@Base 44~rc
  meta_x11_display_set_stage_input_region@Base 43.0
- meta_x11_error_trap_pop@Base 43.0
- meta_x11_error_trap_pop_with_return@Base 43.0
- meta_x11_error_trap_push@Base 43.0
  meta_xwayland_override_display_number@Base 43.0
  meta_xwayland_signal@Base 43.0
  set_output_hdr_metadata@Base 44~rc
@@ -1422,6 +1419,7 @@ libmutter-clutter-14.so.0 libmutter-14-0 #MINVER#
  clutter_event_get_scroll_direction@Base 43.0
  clutter_event_get_scroll_finish_flags@Base 43.0
  clutter_event_get_scroll_source@Base 43.0
+ clutter_event_get_source@Base 46.0
  clutter_event_get_source_device@Base 43.0
  clutter_event_get_state@Base 43.0
  clutter_event_get_time@Base 43.0
@@ -1516,6 +1514,22 @@ libmutter-clutter-14.so.0 libmutter-14-0 #MINVER#
  clutter_gesture_action_set_n_touch_points@Base 43.0
  clutter_gesture_action_set_threshold_trigger_distance@Base 43.0
  clutter_gesture_action_set_threshold_trigger_edge@Base 43.0
+ clutter_gesture_can_not_cancel@Base 46.0
+ clutter_gesture_cancel@Base 46.0
+ clutter_gesture_get_n_points@Base 46.0
+ clutter_gesture_get_point_begin_coords@Base 46.0
+ clutter_gesture_get_point_begin_coords_abs@Base 46.0
+ clutter_gesture_get_point_coords@Base 46.0
+ clutter_gesture_get_point_coords_abs@Base 46.0
+ clutter_gesture_get_point_event@Base 46.0
+ clutter_gesture_get_point_previous_coords@Base 46.0
+ clutter_gesture_get_point_previous_coords_abs@Base 46.0
+ clutter_gesture_get_points@Base 46.0
+ clutter_gesture_get_state@Base 46.0
+ clutter_gesture_get_type@Base 46.0
+ clutter_gesture_reset_state_machine@Base 46.0
+ clutter_gesture_set_state@Base 46.0
+ clutter_gesture_state_get_type@Base 46.0
  clutter_gesture_trigger_edge_get_type@Base 43.0
  clutter_get_accessibility_enabled@Base 43.0
  clutter_get_current_event@Base 43.0
@@ -2268,6 +2282,7 @@ libmutter-cogl-14.so.0 libmutter-14-0 #MINVER#
  cogl_frame_info_get_sequence@Base 43.0
  cogl_frame_info_get_time_before_buffer_swap_us@Base 43.0
  cogl_frame_info_get_type@Base 46~beta
+ cogl_frame_info_has_valid_gpu_rendering_duration@Base 46.0
  cogl_frame_info_is_hw_clock@Base 43.0
  cogl_frame_info_is_vsync@Base 43.0
  cogl_frame_info_is_zero_copy@Base 43.0
