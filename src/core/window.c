@@ -168,6 +168,8 @@ static MetaWindow * meta_window_find_tile_match (MetaWindow   *window,
                                                  MetaTileMode  mode);
 static void update_edge_constraints (MetaWindow *window);
 
+static void set_hidden_suspended_state (MetaWindow *window);
+
 static void initable_iface_init (GInitableIface *initable_iface);
 
 typedef struct _MetaWindowPrivate
@@ -713,9 +715,6 @@ meta_window_class_init (MetaWindowClass *klass)
 static void
 meta_window_init (MetaWindow *window)
 {
-  MetaWindowPrivate *priv = meta_window_get_instance_private (window);
-
-  priv->suspend_state = META_WINDOW_SUSPEND_STATE_SUSPENDED;
   window->stamp = next_window_stamp++;
   meta_prefs_add_listener (prefs_changed_callback, window);
   window->is_alive = TRUE;
@@ -991,6 +990,7 @@ static void
 meta_window_constructed (GObject *object)
 {
   MetaWindow *window = META_WINDOW (object);
+  MetaWindowPrivate *priv = meta_window_get_instance_private (window);
   MetaDisplay *display = window->display;
   MetaContext *context = meta_display_get_context (display);
   MetaBackend *backend = meta_context_get_backend (context);
@@ -1343,6 +1343,11 @@ meta_window_constructed (GObject *object)
       !window->initially_iconic)
     unminimize_window_and_all_transient_parents (window);
 
+  /* There is a slim chance we'll hit time out before a extremely slow client
+   * managed to become active, but unlikely enough. */
+  priv->suspend_state = META_WINDOW_SUSPEND_STATE_HIDDEN;
+  set_hidden_suspended_state (window);
+
   window->constructing = FALSE;
 }
 
@@ -1690,9 +1695,8 @@ window_has_buffer (MetaWindow *window)
   return TRUE;
 }
 
-gboolean
-meta_window_should_be_showing_on_workspace (MetaWindow    *window,
-                                            MetaWorkspace *workspace)
+static gboolean
+meta_window_is_showable (MetaWindow *window)
 {
 #ifdef HAVE_WAYLAND
   if (window->client_type == META_WINDOW_CLIENT_TYPE_WAYLAND &&
@@ -1704,12 +1708,72 @@ meta_window_should_be_showing_on_workspace (MetaWindow    *window,
       window->decorated && !window->frame)
     return FALSE;
 
-  /* Windows should be showing if they're located on the
-   * workspace and they're showing on their own workspace. */
+  return TRUE;
+}
+
+/**
+ * meta_window_should_show_on_workspace:
+ *
+ * Tells whether a window should be showing on the passed workspace, without
+ * taking into account whether it can immediately be shown. Whether it can be
+ * shown or not depends on what windowing system it was created from.
+ *
+ * Returns: %TRUE if the window should show.
+ */
+static gboolean
+meta_window_should_show_on_workspace (MetaWindow    *window,
+                                      MetaWorkspace *workspace)
+{
   return (meta_window_located_on_workspace (window, workspace) &&
           meta_window_showing_on_its_workspace (window));
 }
 
+/**
+ * meta_window_should_show:
+ *
+ * Tells whether a window should be showing on the current workspace, without
+ * taking into account whether it can immediately be shown. Whether it can be
+ * shown or not depends on what windowing system it was created from.
+ *
+ * Returns: %TRUE if the window should show.
+ */
+gboolean
+meta_window_should_show (MetaWindow *window)
+{
+  MetaWorkspaceManager *workspace_manager = window->display->workspace_manager;
+  MetaWorkspace *active_workspace = workspace_manager->active_workspace;
+
+  return meta_window_should_show_on_workspace (window, active_workspace);
+}
+
+/**
+ * meta_window_should_be_showing_on_workspace:
+ *
+ * Tells whether a window should be showing on the passed workspace, while
+ * taking whether it can be immediately be shown. Whether it can be shown or
+ * not depends on what windowing system it was created from.
+ *
+ * Returns: %TRUE if the window should and can be shown.
+ */
+gboolean
+meta_window_should_be_showing_on_workspace (MetaWindow    *window,
+                                            MetaWorkspace *workspace)
+{
+  if (!meta_window_is_showable (window))
+    return FALSE;
+
+  return meta_window_should_show_on_workspace (window, workspace);
+}
+
+/**
+ * meta_window_should_be_showing:
+ *
+ * Tells whether a window should be showing on the current workspace, while
+ * taking whether it can be immediately be shown. Whether it can be shown or
+ * not depends on what windowing system it was created from.
+ *
+ * Returns: %TRUE if the window should and can be shown.
+ */
 gboolean
 meta_window_should_be_showing (MetaWindow *window)
 {
@@ -2106,6 +2170,19 @@ enter_suspend_state_cb (gpointer user_data)
 }
 
 static void
+set_hidden_suspended_state (MetaWindow *window)
+{
+  MetaWindowPrivate *priv = meta_window_get_instance_private (window);
+
+  priv->suspend_state = META_WINDOW_SUSPEND_STATE_HIDDEN;
+  g_return_if_fail (!priv->suspend_timoeut_id);
+  priv->suspend_timoeut_id =
+    g_timeout_add_seconds (SUSPEND_HIDDEN_TIMEOUT_S,
+                           enter_suspend_state_cb,
+                           window);
+}
+
+static void
 update_suspend_state (MetaWindow *window)
 {
   MetaWindowPrivate *priv = meta_window_get_instance_private (window);
@@ -2122,13 +2199,8 @@ update_suspend_state (MetaWindow *window)
     }
   else if (priv->suspend_state == META_WINDOW_SUSPEND_STATE_ACTIVE)
     {
-      priv->suspend_state = META_WINDOW_SUSPEND_STATE_HIDDEN;
+      set_hidden_suspended_state (window);
       g_object_notify_by_pspec (G_OBJECT (window), obj_props[PROP_SUSPEND_STATE]);
-      g_return_if_fail (!priv->suspend_timoeut_id);
-      priv->suspend_timoeut_id =
-        g_timeout_add_seconds (SUSPEND_HIDDEN_TIMEOUT_S,
-                               enter_suspend_state_cb,
-                               window);
     }
 }
 
@@ -2227,7 +2299,7 @@ meta_window_show (MetaWindow *window)
           window->has_maximize_func)
         {
           MtkRectangle work_area;
-          meta_window_get_work_area_for_monitor (window, window->monitor->number, &work_area);
+          meta_window_get_work_area_current_monitor (window, &work_area);
           /* Automaximize windows that map with a size > MAX_UNMAXIMIZED_WINDOW_AREA of the work area */
           if (window->rect.width * window->rect.height > work_area.width * work_area.height * MAX_UNMAXIMIZED_WINDOW_AREA)
             {
@@ -3101,7 +3173,7 @@ meta_window_unmaximize (MetaWindow        *window,
       MtkRectangle old_frame_rect, old_buffer_rect;
       gboolean has_target_size;
 
-      meta_window_get_work_area_for_monitor (window, window->monitor->number, &work_area);
+      meta_window_get_work_area_current_monitor (window, &work_area);
       meta_window_get_frame_rect (window, &old_frame_rect);
       meta_window_get_buffer_rect (window, &old_buffer_rect);
 
@@ -5837,9 +5909,7 @@ void
 meta_window_get_work_area_current_monitor (MetaWindow   *window,
                                            MtkRectangle *area)
 {
-  meta_window_get_work_area_for_monitor (window,
-                                         window->monitor->number,
-                                         area);
+  meta_window_get_work_area_for_logical_monitor (window, window->monitor, area);
 }
 
 /**
