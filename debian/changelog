@@ -1,3 +1,10 @@
+mutter (46.1-2) experimental; urgency=medium
+
+  * Update libmutter-14-0.symbols for i386
+  * Drop packaging references to Hurd since this is Linux-only
+
+ -- Jeremy Bícha <jbicha@ubuntu.com>  Mon, 29 Apr 2024 16:04:02 -0400
+
 mutter (46.1-1) experimental; urgency=medium
 
   [ Jeremy Bícha ]
