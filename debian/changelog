@@ -1,8 +1,15 @@
-mutter (46.1-1) UNRELEASED; urgency=medium
+mutter (46.1-1) experimental; urgency=medium
 
+  [ Jeremy Bícha ]
   * New upstream release
+  * Update libmutter-14-0.symbols
+  * Update Breaks
+  * Drop Nvidia-secondary-GPU-copy-acceleration.patch: applied in new release
 
- -- Jeremy Bícha <jbicha@ubuntu.com>  Mon, 29 Apr 2024 13:56:39 -0400
+  [ Daniel van Vugt ]
+  * Update triple buffering patch
+
+ -- Jeremy Bícha <jbicha@ubuntu.com>  Mon, 29 Apr 2024 14:43:24 -0400
 
 mutter (46.0-1) experimental; urgency=medium
 
