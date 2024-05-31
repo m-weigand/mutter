@@ -1,3 +1,9 @@
+mutter (46.2-1) UNRELEASED; urgency=medium
+
+  * New upstream release
+
+ -- Jeremy Bícha <jbicha@ubuntu.com>  Fri, 31 May 2024 06:41:45 -0400
+
 mutter (46.1-2) experimental; urgency=medium
 
   * Update libmutter-14-0.symbols for i386
