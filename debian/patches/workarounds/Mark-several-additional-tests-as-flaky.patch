@@ -10,10 +10,67 @@ QA gate.
 Signed-off-by: Simon McVittie <smcv@debian.org>
 Forwarded: no
 ---
- src/tests/clutter/conform/grab.c |  6 ++++++
- src/tests/meson.build            | 31 ++++++++++++++++++++++++++++---
- 2 files changed, 34 insertions(+), 3 deletions(-)
+ src/tests/clutter/conform/gesture.c | 24 ++++++++++++++++++++++++
+ src/tests/clutter/conform/grab.c    |  6 ++++++
+ src/tests/meson.build               | 31 ++++++++++++++++++++++++++++---
+ 3 files changed, 58 insertions(+), 3 deletions(-)
 
+diff --git a/src/tests/clutter/conform/gesture.c b/src/tests/clutter/conform/gesture.c
+index 7d259f6..e732c1d 100644
+--- a/src/tests/clutter/conform/gesture.c
++++ b/src/tests/clutter/conform/gesture.c
+@@ -135,6 +135,12 @@ gesture_state_machine_move_to_waiting (void)
+   ClutterGesture *gesture = CLUTTER_GESTURE (g_object_new (TEST_TYPE_GESTURE, NULL));
+   gboolean was_updated;
+ 
++  if (g_getenv ("DEB_ALLOW_FLAKY_TESTS") == NULL)
++    {
++      g_test_skip ("https://gitlab.gnome.org/GNOME/mutter/-/issues/3521");
++      return;
++    }
++
+   virtual_pointer = clutter_seat_create_virtual_device (seat, CLUTTER_POINTER_DEVICE);
+   now_us = g_get_monotonic_time ();
+ 
+@@ -196,6 +202,12 @@ gesture_state_machine_move_to_cancelled_while_possible (void)
+   gboolean was_updated;
+   ClutterGestureState gesture_state_change;
+ 
++  if (g_getenv ("DEB_ALLOW_FLAKY_TESTS") == NULL)
++    {
++      g_test_skip ("https://gitlab.gnome.org/GNOME/mutter/-/issues/3521");
++      return;
++    }
++
+   virtual_pointer = clutter_seat_create_virtual_device (seat, CLUTTER_POINTER_DEVICE);
+   now_us = g_get_monotonic_time ();
+ 
+@@ -244,6 +256,12 @@ gesture_state_machine_move_to_cancelled_on_sequence_cancel (void)
+   gboolean was_updated;
+   ClutterGestureState gesture_state_change;
+ 
++  if (g_getenv ("DEB_ALLOW_FLAKY_TESTS") == NULL)
++    {
++      g_test_skip ("https://gitlab.gnome.org/GNOME/mutter/-/issues/3521");
++      return;
++    }
++
+   virtual_pointer = clutter_seat_create_virtual_device (seat, CLUTTER_POINTER_DEVICE);
+   now_us = g_get_monotonic_time ();
+ 
+@@ -302,6 +320,12 @@ gesture_multiple_mouse_buttons (void)
+   ClutterGesture *gesture = CLUTTER_GESTURE (g_object_new (TEST_TYPE_GESTURE, NULL));
+   gboolean was_updated;
+ 
++  if (g_getenv ("DEB_ALLOW_FLAKY_TESTS") == NULL)
++    {
++      g_test_skip ("https://gitlab.gnome.org/GNOME/mutter/-/issues/3521");
++      return;
++    }
++
+   virtual_pointer = clutter_seat_create_virtual_device (seat, CLUTTER_POINTER_DEVICE);
+   now_us = g_get_monotonic_time ();
+ 
 diff --git a/src/tests/clutter/conform/grab.c b/src/tests/clutter/conform/grab.c
 index c62eea6..4ba11f4 100644
 --- a/src/tests/clutter/conform/grab.c
