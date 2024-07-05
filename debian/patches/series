@@ -7,4 +7,3 @@ workarounds/tests-Skip-thread-priority-test.patch
 workarounds/Mark-several-additional-tests-as-flaky.patch
 workarounds/kms-crtc-Increase-default-deadline-evasion-to-1000-micros.patch
 workarounds/place-Always-center-initial-setup.patch
-build-Compile-schemas-locally-for-use-in-build-tests.patch
