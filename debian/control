@@ -165,6 +165,7 @@ Depends: libmutter-14-0 (= ${binary:Version}),
          ${gir:Depends},
          ${misc:Depends},
          ${shlibs:Depends}
+Provides: ${gir:Provides}
 Description: GObject introspection data for Mutter
  Mutter is a Wayland display server and X11 window manager and
  compositor library. It contains functionality related to, among other
