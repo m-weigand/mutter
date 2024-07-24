@@ -2,8 +2,27 @@ mutter (46.3.1-3) UNRELEASED; urgency=medium
 
   * Remove version constraints unnecessary since bullseye (oldstable)
   * Explicitly version various dependencies as per meson.build
+  * Make the package cross-compilable
+    - d/control: Explicitly depend on gir1.2-*-dev for every GIR XML
+      module mentioned in 'includes:'
+    - d/control: Build-Depend on gobject-introspection (>= 1.80)
+      instead of libgirepository1.0-dev
+    - d/rules: Opt-in to cross-friendly gobject-introspection
+      (workaround for #1060838)
+    - d/control: Add ${gir:Provides} to gir1.2-mutter-14
+    - d/control: Add ${gir:Depends}, ${gir:Provides} to -dev package
+    - d/control: Remove unused Build-Depends on python3-attr, -jinja2.
+      ei-scanner from the libei source package needs these, but it's run
+      at libei build time and is not packaged.
+    - d/control: Require a build-architecture copy of cvt.
+      We run it during the build, and the xcvt package is not yet marked
+      Multi-Arch: foreign.
+  * d/control: Don't annotate python3-dbusmock as <!nocheck>, avoiding
+    FTBFS when built with nocheck.
+    The build system checks for this if we are building the "as-installed"
+    tests, even if we are not going to run tests during the build.
 
- -- Simon McVittie <smcv@debian.org>  Wed, 24 Jul 2024 12:50:23 +0100
+ -- Simon McVittie <smcv@debian.org>  Wed, 24 Jul 2024 14:23:50 +0100
 
 mutter (46.3.1-2) unstable; urgency=medium
 
