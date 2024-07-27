@@ -1,3 +1,10 @@
+mutter (46.3.1-5) unstable; urgency=medium
+
+  * Run dh_auto_test everywhere even if results are skipped on some
+    architectures
+
+ -- Jeremy Bícha <jbicha@ubuntu.com>  Sat, 27 Jul 2024 11:45:53 -0400
+
 mutter (46.3.1-4) unstable; urgency=medium
 
   [ Daniel van Vugt ]
