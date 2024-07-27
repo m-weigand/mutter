@@ -1,4 +1,4 @@
-mutter (46.3.1-5) unstable; urgency=medium
+mutter (46.3.1-6) unstable; urgency=medium
 
   * Run dh_auto_test everywhere even if results are skipped on some
     architectures
