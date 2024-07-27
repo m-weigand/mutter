@@ -60,7 +60,9 @@ ifeq ($(filter nocheck,$(DEB_BUILD_OPTIONS)),)
 ifeq (,$(filter mips mips64el mipsel riscv64 s390x alpha hppa powerpc sparc64 x32,$(DEB_HOST_ARCH)))
 	$(TEST_COMMAND)
 	-$(TEST_COMMAND_FLAKY) --logbase flaky-tests
-endif
+else
+	-$(TEST_COMMAND)
+	-$(TEST_COMMAND_FLAKY) --logbase flaky-tests
 endif
 
 # debhelper >= 13.4 makes all of /usr/libexec executable, which is not
