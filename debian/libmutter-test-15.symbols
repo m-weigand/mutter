@@ -7,7 +7,7 @@ libmutter-test-15.so libmutter-test-15 #MINVER#
  meta_backend_test_add_test_device@Base 41.0
  meta_backend_test_get_gpu@Base 41.0
  meta_backend_test_get_type@Base 41.0
- meta_backend_test_remove_device@Base 41.0
+ meta_backend_test_remove_test_device@Base 47~beta
  meta_backend_test_set_is_lid_closed@Base 41.0
  meta_check_monitor_configuration@Base 42~beta
  meta_check_monitor_scales@Base 42~beta
