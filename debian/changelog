@@ -1,8 +1,15 @@
-mutter (47~beta-1) UNRELEASED; urgency=medium
+mutter (47~beta-1) experimental; urgency=medium
 
   * New upstream release
+  * Rename packages for API bump (mutter-14 -> mutter-15)
+  * Update symbols files
+  * Bump minimum libinput, libwayland, wayland-protocols, & meson
+  * Refresh patches
+  * Drop 2 obsolete patches
+  * Add patch to skip unreliable focus test
+  * Temporarily disable triple buffering patch
 
- -- Jeremy Bícha <jbicha@ubuntu.com>  Sun, 04 Aug 2024 13:53:41 -0400
+ -- Jeremy Bícha <jbicha@ubuntu.com>  Sun, 04 Aug 2024 15:52:48 -0400
 
 mutter (46.4-1) unstable; urgency=medium
 
