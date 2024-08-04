@@ -1,8 +1,9 @@
-mutter (46.4-1) UNRELEASED; urgency=medium
+mutter (46.4-1) unstable; urgency=medium
 
   * New upstream release
+  * debian/libmutter-14-0.symbols: Update
 
- -- Jeremy Bícha <jbicha@ubuntu.com>  Sun, 04 Aug 2024 12:24:20 -0400
+ -- Jeremy Bícha <jbicha@ubuntu.com>  Sun, 04 Aug 2024 12:37:19 -0400
 
 mutter (46.3.1-7) unstable; urgency=medium
 
