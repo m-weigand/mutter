@@ -2373,7 +2373,6 @@ libmutter-cogl-15.so.0 libmutter-15-0 #MINVER#
  cogl_offscreen_new_with_texture@Base 43.0
  cogl_onscreen_add_frame_callback@Base 43.0
  cogl_onscreen_add_frame_info@Base 43.0
- cogl_onscreen_count_pending_frames@Base 43.0
  cogl_onscreen_direct_scanout@Base 43.0
  cogl_onscreen_egl_get_egl_surface@Base 43.0
  cogl_onscreen_egl_get_type@Base 43.0
@@ -2381,6 +2380,7 @@ libmutter-cogl-15.so.0 libmutter-15-0 #MINVER#
  cogl_onscreen_egl_set_egl_surface@Base 43.0
  cogl_onscreen_get_buffer_age@Base 43.0
  cogl_onscreen_get_frame_counter@Base 43.0
+ cogl_onscreen_get_pending_frame_count@Base 47~beta
  cogl_onscreen_get_type@Base 43.0
  cogl_onscreen_glx_new@Base 43.0
  cogl_onscreen_peek_head_frame_info@Base 43.0
