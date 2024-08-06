@@ -1,3 +1,9 @@
+mutter (47~beta-3) UNRELEASED; urgency=medium
+
+  * debian/libmutter-15-0.symbols: Update to include new symbols
+
+ -- Marco Trevisan (Treviño) <marco@ubuntu.com>  Tue, 06 Aug 2024 00:53:01 -0600
+
 mutter (47~beta-2) experimental; urgency=medium
 
   * debian/patches: Update triple buffering patch for GNOME 47.beta
