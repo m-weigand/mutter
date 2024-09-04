@@ -1,3 +1,10 @@
+mutter (47~rc-1) UNRELEASED; urgency=medium
+
+  * New upstream release
+  * Only enable sysprof on architectures where sysprof is available
+
+ -- Jeremy Bícha <jbicha@ubuntu.com>  Wed, 04 Sep 2024 15:33:16 -0400
+
 mutter (47~beta-3) experimental; urgency=medium
 
   * debian/libmutter-15-0.symbols: Update to include new symbols
