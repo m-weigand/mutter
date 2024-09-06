@@ -132,6 +132,7 @@ Architecture: linux-any
 Depends: at-spi2-core,
          dbus-daemon,
          dmz-cursor-theme,
+         libglib2.0-bin,
          libmutter-15-0 (= ${binary:Version}),
          libmutter-test-15 (= ${binary:Version}),
          mutter (= ${binary:Version}),
