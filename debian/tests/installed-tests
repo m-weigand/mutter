@@ -15,6 +15,10 @@ if [ -z "$(ginsttest-runner -l "$namespace")" ]; then
     exit 1
 fi
 
+# copied from .gitlab-ci.yml
+# needed by xwayland
+mkdir -p -m 1777 /tmp/.X11-unix
+
 e=0
 ginsttest-runner \
     --log-directory "$AUTOPKGTEST_ARTIFACTS" \
