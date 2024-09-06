@@ -1,3 +1,11 @@
+mutter (47~rc-2) experimental; urgency=medium
+
+  * debian/*symbols: Update architectures for new cogl_trace symbols
+  * Have mutter-15-tests depend on pipewire & libglib2.0-bin (Closes: #108016)
+  * autopkgtest: create the required /tmp/.X11-unix/
+
+ -- Jeremy Bícha <jbicha@ubuntu.com>  Fri, 06 Sep 2024 19:30:25 -0400
+
 mutter (47~rc-1) experimental; urgency=medium
 
   [ Jeremy Bícha ]
