@@ -1,3 +1,10 @@
+mutter (47~rc-4) experimental; urgency=medium
+
+  * Team upload
+  * d/mutter-15-tests.postrm: Clean up gschemas.compiled created by postinst
+
+ -- Simon McVittie <smcv@debian.org>  Sat, 07 Sep 2024 21:41:22 +0100
+
 mutter (47~rc-3) experimental; urgency=medium
 
   * Team upload
