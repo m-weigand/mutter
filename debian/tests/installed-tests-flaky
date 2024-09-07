@@ -2,7 +2,7 @@
 
 set -eu
 
-namespace=mutter-15/stacking
+namespace="mutter-15/stacking mutter-15/thread.test"
 
 if [ -z "${HOME-}" ] || ! [ -w "${HOME}" ]; then
     export HOME="${AUTOPKGTEST_TMP}"
@@ -10,7 +10,9 @@ fi
 
 cd "$AUTOPKGTEST_TMP"
 
-tests="$(ginsttest-runner -l "$namespace")"
+# Intentionally word-splitting $namespace:
+# shellcheck disable=SC2086
+tests="$(ginsttest-runner -l $namespace)"
 
 if [ -z "$tests" ]; then
     echo "Error: no installed-tests found matching $namespace" >&2
@@ -22,7 +24,8 @@ fi
 mkdir -p -m 1777 /tmp/.X11-unix
 
 e=0
+# shellcheck disable=SC2086
 ginsttest-runner \
     --log-directory "$AUTOPKGTEST_ARTIFACTS" \
     --tap \
-    "$namespace"
+    $namespace

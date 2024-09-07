@@ -13,7 +13,8 @@ cd "$AUTOPKGTEST_TMP"
 tests="$(ginsttest-runner -l "$namespace" \
     | grep -v /stacking/ \
     | grep -v '/input-capture\.test' \
-)"
+    | grep -v '/thread\.test' \
+    | cut -d' ' -f1)"
 
 if [ -z "$tests" ]; then
     echo "Error: no installed-tests found matching $namespace" >&2
