@@ -1,7 +1,14 @@
+mutter (47~rc-3) UNRELEASED; urgency=medium
+
+  * Correct bug number in previous changelog entry
+
+ -- Simon McVittie <smcv@debian.org>  Sat, 07 Sep 2024 10:38:51 +0100
+
 mutter (47~rc-2) experimental; urgency=medium
 
   * debian/*symbols: Update architectures for new cogl_trace symbols
-  * Have mutter-15-tests depend on pipewire & libglib2.0-bin (Closes: #108016)
+  * Have mutter-15-tests depend on pipewire & libglib2.0-bin
+    (Closes: #1081016)
   * autopkgtest: create the required /tmp/.X11-unix/
 
  -- Jeremy Bícha <jbicha@ubuntu.com>  Fri, 06 Sep 2024 19:30:25 -0400
