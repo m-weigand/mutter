@@ -1,0 +1,28 @@
+#!/bin/sh
+
+set -eu
+
+namespace=mutter-15/stacking
+
+if [ -z "${HOME-}" ] || ! [ -w "${HOME}" ]; then
+    export HOME="${AUTOPKGTEST_TMP}"
+fi
+
+cd "$AUTOPKGTEST_TMP"
+
+tests="$(ginsttest-runner -l "$namespace")"
+
+if [ -z "$tests" ]; then
+    echo "Error: no installed-tests found matching $namespace" >&2
+    exit 1
+fi
+
+# copied from .gitlab-ci.yml
+# needed by xwayland
+mkdir -p -m 1777 /tmp/.X11-unix
+
+e=0
+ginsttest-runner \
+    --log-directory "$AUTOPKGTEST_ARTIFACTS" \
+    --tap \
+    "$namespace"
