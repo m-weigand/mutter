@@ -1,8 +1,30 @@
-mutter (47~rc-3) UNRELEASED; urgency=medium
+mutter (47~rc-3) experimental; urgency=medium
 
+  * Team upload
+  * d/p/workarounds, d/tests: Treat all stacking tests as flaky.
+    Unfortunately these don't seem to be stable enough to be used as a
+    QA gate, and there are enough of them that at least one will often
+    fail in any given buildd build or autopkgtest run
+    (Mitigates: #1077800) (Closes: #1072512, #1078359)
+  * d/tests: Also treat thread.test as flaky.
+    This doesn't seem to be reliable in autopkgtest-virt-qemu or -lxc,
+    although I can't reproduce the failure when running it separately.
+  * d/rules, d/p/workarounds: Don't run the input-capture test at all.
+    In my sbuild environment and on some buildds, it often hangs until it
+    times out after 10 minutes, which is a waste of time. We were ignoring
+    its result anyway.
+  * d/mutter-15-tests.postinst: Compile required schemas for installed-tests
+    (Closes: #1081016)
+  * d/p/tests-Add-a-utility-function-to-delete-a-directory-recurs.patch,
+    d/p/MetaContextTest-Optionally-create-and-destroy-a-temporary.patch,
+    d/p/color-management-tests-Use-a-temporary-XDG_DATA_HOME.patch,
+    d/p/color-management-profile-conflict-test-Use-a-temporary-XD.patch:
+    Add patches to fix autopkgtests when not running as root
   * Correct bug number in previous changelog entry
+  * Standards-Version: 4.7.0 (no changes required)
+  * d/source/lintian-overrides: Update for use of ${env:deb_udevdir}
 
- -- Simon McVittie <smcv@debian.org>  Sat, 07 Sep 2024 10:38:51 +0100
+ -- Simon McVittie <smcv@debian.org>  Sat, 07 Sep 2024 20:18:48 +0100
 
 mutter (47~rc-2) experimental; urgency=medium
 
