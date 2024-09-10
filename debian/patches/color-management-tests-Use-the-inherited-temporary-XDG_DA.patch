@@ -14,18 +14,19 @@ In color-management-tests, we can just delete the code that sets
 XDG_DATA_HOME.
 
 In color-management-profile-conflict-test, we also need to copy
-the conflicting vx239-calibrated.icc into the temporary XDG_DATA_HOME.
+the conflicting vx239-calibrated.icc into the temporary XDG_DATA_HOME
+to get onto the code path that this test is intended to exercise.
 
 Bug: https://gitlab.gnome.org/GNOME/mutter/-/issues/3658
 Signed-off-by: Simon McVittie <smcv@debian.org>
 Forwarded: https://gitlab.gnome.org/GNOME/mutter/-/merge_requests/4012
 ---
- src/tests/color-management-profile-conflict-test.c | 25 ++++++++++++++++------
- src/tests/color-management-tests.c                 |  8 -------
- 2 files changed, 19 insertions(+), 14 deletions(-)
+ src/tests/color-management-profile-conflict-test.c | 24 ++++++++++++++++------
+ src/tests/color-management-tests.c                 |  8 --------
+ 2 files changed, 18 insertions(+), 14 deletions(-)
 
 diff --git a/src/tests/color-management-profile-conflict-test.c b/src/tests/color-management-profile-conflict-test.c
-index 7f39b89..4a41f0a 100644
+index 7f39b89..b3b7e2d 100644
 --- a/src/tests/color-management-profile-conflict-test.c
 +++ b/src/tests/color-management-profile-conflict-test.c
 @@ -107,9 +107,14 @@ init_tests (void)
@@ -44,7 +45,7 @@ index 7f39b89..4a41f0a 100644
  
    context = meta_create_test_context (META_CONTEXT_TEST_TYPE_HEADLESS,
                                        META_CONTEXT_TEST_FLAG_NONE);
-@@ -123,11 +128,19 @@ main (int argc, char **argv)
+@@ -123,11 +128,18 @@ main (int argc, char **argv)
                                                 NULL);
    add_colord_system_profile (VX239_ICC_PROFILE_ID, system_profile_path);
  
@@ -57,7 +58,6 @@ index 7f39b89..4a41f0a 100644
 +  g_assert_nonnull (data_home_path);
 +
 +  dest_dir = g_build_filename (data_home_path,
-+                               "share",
 +                               "icc",
 +                               NULL);
 +  g_assert_no_errno (g_mkdir_with_parents (dest_dir, 0755));
