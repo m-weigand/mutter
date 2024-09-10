@@ -1,3 +1,14 @@
+mutter (47~rc-5) UNRELEASED; urgency=medium
+
+  * d/p/tests-Create-a-temporary-XDG_DATA_HOME-to-run-each-test.patch,
+    d/p/tests-Create-a-temporary-XDG_CONFIG_HOME.patch,
+    d/p/tests-Create-a-temporary-XDG_CACHE_HOME.patch,
+    d/p/color-management-tests-Use-the-inherited-temporary-XDG_DA.patch:
+    Reimplement creation of temporary XDG_DATA_HOME for tests based on
+    upstream feedback.
+
+ -- Simon McVittie <smcv@debian.org>  Tue, 10 Sep 2024 13:07:25 +0100
+
 mutter (47~rc-4) experimental; urgency=medium
 
   * Team upload
