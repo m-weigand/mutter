@@ -1,0 +1,32 @@
+From: Simon McVittie <smcv@debian.org>
+Date: Tue, 10 Sep 2024 11:09:52 +0100
+Subject: tests: Create a temporary XDG_DATA_HOME to run each test
+
+This will avoid some tests needing to write to /usr when run as
+installed-tests.
+
+Signed-off-by: Simon McVittie <smcv@debian.org>
+Forwarded: https://gitlab.gnome.org/GNOME/mutter/-/merge_requests/4012
+---
+ src/tests/mutter_dbusrunner.py | 8 +++++++-
+ 1 file changed, 7 insertions(+), 1 deletion(-)
+
+diff --git a/src/tests/mutter_dbusrunner.py b/src/tests/mutter_dbusrunner.py
+index d34da01..98aaad2 100644
+--- a/src/tests/mutter_dbusrunner.py
++++ b/src/tests/mutter_dbusrunner.py
+@@ -424,7 +424,13 @@ def meta_run(klass, extra_env=None, setup_argparse=None, handle_argparse=None):
+ 
+     with tempfile.TemporaryDirectory(prefix='mutter-testroot-',
+                                      ignore_cleanup_errors=True) as test_root:
+-        env_dirs = ['HOME', 'TMPDIR', 'XDG_RUNTIME_DIR', 'XDG_CONFIG_DIR']
++        env_dirs = [
++            'HOME',
++            'TMPDIR',
++            'XDG_CONFIG_DIR',
++            'XDG_DATA_HOME',
++            'XDG_RUNTIME_DIR',
++        ]
+         os.environ['MUTTER_DBUS_RUNNER_TEST_ROOT'] = test_root
+         print('Setup MUTTER_DBUS_RUNNER_TEST_ROOT as', test_root, file=sys.stderr)
+         for env_dir in env_dirs:

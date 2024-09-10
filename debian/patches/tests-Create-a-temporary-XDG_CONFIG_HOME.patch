@@ -1,0 +1,26 @@
+From: Simon McVittie <smcv@debian.org>
+Date: Tue, 10 Sep 2024 11:10:45 +0100
+Subject: tests: Create a temporary XDG_CONFIG_HOME
+
+XDG_CONFIG_DIR is not part of the basedirs spec. Use XDG_CONFIG_HOME
+instead, which is probably what was intended.
+
+Signed-off-by: Simon McVittie <smcv@debian.org>
+Forwarded: https://gitlab.gnome.org/GNOME/mutter/-/merge_requests/4012
+---
+ src/tests/mutter_dbusrunner.py | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/src/tests/mutter_dbusrunner.py b/src/tests/mutter_dbusrunner.py
+index 98aaad2..9251aa0 100644
+--- a/src/tests/mutter_dbusrunner.py
++++ b/src/tests/mutter_dbusrunner.py
+@@ -427,7 +427,7 @@ def meta_run(klass, extra_env=None, setup_argparse=None, handle_argparse=None):
+         env_dirs = [
+             'HOME',
+             'TMPDIR',
+-            'XDG_CONFIG_DIR',
++            'XDG_CONFIG_HOME',
+             'XDG_DATA_HOME',
+             'XDG_RUNTIME_DIR',
+         ]
