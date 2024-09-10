@@ -6,8 +6,9 @@ mutter (47~rc-5) UNRELEASED; urgency=medium
     d/p/color-management-tests-Use-the-inherited-temporary-XDG_DA.patch:
     Reimplement creation of temporary XDG_DATA_HOME for tests based on
     upstream feedback.
+  * d/patches, d/clean: Remove duplicate ICC profile from test data
 
- -- Simon McVittie <smcv@debian.org>  Tue, 10 Sep 2024 13:07:25 +0100
+ -- Simon McVittie <smcv@debian.org>  Tue, 10 Sep 2024 15:02:08 +0100
 
 mutter (47~rc-4) experimental; urgency=medium
 
