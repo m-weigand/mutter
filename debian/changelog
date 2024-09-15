@@ -1,8 +1,11 @@
-mutter (47.0-1) UNRELEASED; urgency=medium
+mutter (47.0-1) experimental; urgency=medium
 
   * New upstream release
+  * debian/libmutter-15-0.symbols: Add new symbol
+  * Bump minimum PipeWire to 1.2.0
+  * Remove patches applied in new release
 
- -- Jeremy Bícha <jbicha@ubuntu.com>  Sat, 14 Sep 2024 20:34:21 -0400
+ -- Jeremy Bícha <jbicha@ubuntu.com>  Sat, 14 Sep 2024 21:04:17 -0400
 
 mutter (47~rc-5) experimental; urgency=medium
 
