@@ -1,7 +1,3 @@
-tests-Create-a-temporary-XDG_DATA_HOME-to-run-each-test.patch
-tests-Create-a-temporary-XDG_CONFIG_HOME.patch
-tests-Create-a-temporary-XDG_CACHE_HOME.patch
-color-management-tests-Use-the-inherited-temporary-XDG_DA.patch
 workarounds/tests-Mark-view-verification-tests-as-incomplete-in-big-e.patch
 debian/tests-Do-not-run-screencast-tests.patch
 debian/Support-Dynamic-triple-double-buffering.patch
@@ -10,4 +6,3 @@ workarounds/tests-Skip-thread-priority-test.patch
 workarounds/place-Always-center-initial-setup.patch
 workarounds/Mark-several-additional-tests-as-flaky.patch
 workarounds/tests-Install-stacking-tests-into-a-subdirectory.patch
-window-xwayland-Handle-arithmetics-close-to-the-int-limit.patch
