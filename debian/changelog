@@ -1,3 +1,9 @@
+mutter (47.0-2) unstable; urgency=medium
+
+  * Release to unstable
+
+ -- Jeremy Bícha <jbicha@ubuntu.com>  Fri, 04 Oct 2024 19:12:22 -0400
+
 mutter (47.0-1) experimental; urgency=medium
 
   * New upstream release
