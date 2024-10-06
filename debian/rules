@@ -48,7 +48,7 @@ TEST_COMMAND_BASE=env \
 	GIO_USE_VOLUME_MONITOR=unix \
 	GVFS_DISABLE_FUSE=1 \
 	dbus-run-session -- \
-	xvfb-run -e /dev/stderr -s '+iglx -noreset' -a \
+	xvfb-run -e /dev/stderr -s '+iglx -noreset -screen 0 1280x1024x24' -a \
 	dh_auto_test -- -C $(BUILDDIR) --no-rebuild --verbose --timeout-multiplier 6 \
 	           --no-stdsplit --print-errorlogs
 TEST_COMMAND=$(TEST_COMMAND_BASE) --no-suite flaky --no-suite broken
