@@ -1,3 +1,24 @@
+mutter (47.0-3) unstable; urgency=medium
+
+  * Team upload
+  * d/rules: Send xvfb-run error messages to stderr, not to /dev/null.
+    This would have told us that it's crashing on armhf (#1082659).
+  * d/rules: Explicitly set a screen size for xvfb-run.
+    For some reason, this works around a regression where Xvfb crashes
+    on armhf since the update to libunwind 1.7.x.
+    (Mitigates: #1082659)
+  * d/rules, d/tests/ensure-x11-dir: Explicitly create /tmp/.X11-unix.
+    mutter's test suite requires this directory, so create it explicitly
+    instead of relying on xvfb-run to have created it. If creating
+    it fails for whatever reason, this will at least give us better
+    diagnostic information.
+    We cannot create it with its canonical ownership (root:root) because
+    the build isn't running as root, but we can at least make sure it
+    has its canonical permissions.
+    (Closes: #1084133)
+
+ -- Simon McVittie <smcv@debian.org>  Sun, 06 Oct 2024 23:51:55 +0100
+
 mutter (47.0-2) unstable; urgency=medium
 
   * Release to unstable
