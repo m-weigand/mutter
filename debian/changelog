@@ -1,8 +1,10 @@
 mutter (47.1-1) UNRELEASED; urgency=medium
 
   * New upstream release
+  * Rebase patch series
+  * d/control: Bump libgudev-1.0-dev dependency as per meson.build
 
- -- Simon McVittie <smcv@debian.org>  Wed, 30 Oct 2024 10:18:56 +0000
+ -- Simon McVittie <smcv@debian.org>  Wed, 30 Oct 2024 10:50:52 +0000
 
 mutter (47.0-3) unstable; urgency=medium
 
