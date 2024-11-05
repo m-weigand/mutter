@@ -1,0 +1,35 @@
+From: Simon McVittie <smcv@debian.org>
+Date: Tue, 5 Nov 2024 08:42:18 +0000
+Subject: tests: Don't check for missed frames during automated builds
+
+This checks for missed frame deadlines in real-time, which is fine on a
+non-loaded developer machine with a reasonably fast CPU, a real GPU and
+performance-related parameters set up to achieve low latency for a
+desktop environment.
+
+However, autobuilders are a server/embedded-style machine with no GPU,
+rendering in software, potentially sharing a CPU between multiple
+batch-processing tasks, and with performance-related parameters set up
+to achieve high throughput rather than low latency. In this environment
+we can't assume that frame deadlines will always be met.
+
+Bug-Debian: https://bugs.debian.org/1086552
+Forwarded: not-needed, workaround
+Signed-off-by: Simon McVittie <smcv@debian.org>
+---
+ src/tests/clutter/conform/timeline.c | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/src/tests/clutter/conform/timeline.c b/src/tests/clutter/conform/timeline.c
+index 5447f48..1a45016 100644
+--- a/src/tests/clutter/conform/timeline.c
++++ b/src/tests/clutter/conform/timeline.c
+@@ -128,7 +128,7 @@ check_timeline (ClutterTimeline *timeline,
+         succeeded = FALSE;
+       }
+ 
+-  if (check_missed_frames)
++  if (check_missed_frames && g_getenv ("DEB_ALLOW_FLAKY_TESTS") != NULL)
+     {
+       for (i = 0; i < FRAME_COUNT; i++)
+         if (data->frame_hit_count[i + frame_offset] < 1)
