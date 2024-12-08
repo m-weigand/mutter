@@ -1,5 +1,6 @@
-mutter (47.3-1) UNRELEASED; urgency=medium
+mutter (47.3-1) experimental; urgency=medium
 
+  * Team upload
   * New upstream release 47.2
     - Fix warping pointer after releasing pointer constraints
     - Default to high thread instead of realtime priority for KMS thread
@@ -25,8 +26,12 @@ mutter (47.3-1) UNRELEASED; urgency=medium
   * d/salsa-ci.yml: Remove for now.
     The build fails in the Salsa-CI environment, so it is not useful to have
     this CI integration until someone can investigate why.
+  * d/libmutter-15-0.symbols: Update.
+    Ignore removal of meta_thread_impl_is_realtime() and
+    cogl_scanout_set_dst_rect(), not used outside this source package
+    according to codesearch.debian.net.
 
- -- Simon McVittie <smcv@debian.org>  Sun, 08 Dec 2024 19:25:45 +0000
+ -- Simon McVittie <smcv@debian.org>  Sun, 08 Dec 2024 20:47:08 +0000
 
 mutter (47.1-4) unstable; urgency=medium
 
