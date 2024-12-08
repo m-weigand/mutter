@@ -16,6 +16,11 @@ mutter (47.3-1) UNRELEASED; urgency=medium
     - Misc. bug fixes and cleanups
     - Translation updates
   * New upstream release 47.3
+    - Fix maximized X11 when using native xwayland scaling
+    - Fix blank screen in remote headless sessions
+    - Fix touch-triggered popups being cancelled too early
+    - Fix pointer cursor during compositor grabs
+    - Fix a crash
   * Refresh patch series
   * d/salsa-ci.yml: Use recommended recipe
 
