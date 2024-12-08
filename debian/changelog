@@ -1,8 +1,9 @@
-mutter (47.1-5) UNRELEASED; urgency=medium
+mutter (47.2-1) UNRELEASED; urgency=medium
 
   * d/salsa-ci.yml: Use recommended recipe
+  * New upstream release
 
- -- Simon McVittie <smcv@debian.org>  Sun, 08 Dec 2024 17:53:30 +0000
+ -- Simon McVittie <smcv@debian.org>  Sun, 08 Dec 2024 17:55:00 +0000
 
 mutter (47.1-4) unstable; urgency=medium
 
