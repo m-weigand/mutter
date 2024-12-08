@@ -1,8 +1,10 @@
 mutter (47.1-5) UNRELEASED; urgency=medium
 
-  * d/salsa-ci.yml: Use recommended recipe
+  * d/salsa-ci.yml: Remove for now.
+    The build fails in the Salsa-CI environment, so it is not useful to have
+    this CI integration until someone can investigate why.
 
- -- Simon McVittie <smcv@debian.org>  Sun, 08 Dec 2024 17:53:30 +0000
+ -- Simon McVittie <smcv@debian.org>  Sun, 08 Dec 2024 19:25:45 +0000
 
 mutter (47.1-4) unstable; urgency=medium
 
