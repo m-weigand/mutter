@@ -1,4 +1,4 @@
-mutter (47.2-1) UNRELEASED; urgency=medium
+mutter (47.3-1) UNRELEASED; urgency=medium
 
   * New upstream release 47.2
     - Fix warping pointer after releasing pointer constraints
@@ -15,10 +15,11 @@ mutter (47.2-1) UNRELEASED; urgency=medium
     - Fix several crashes
     - Misc. bug fixes and cleanups
     - Translation updates
+  * New upstream release 47.3
   * Refresh patch series
   * d/salsa-ci.yml: Use recommended recipe
 
- -- Simon McVittie <smcv@debian.org>  Sun, 08 Dec 2024 18:03:42 +0000
+ -- Simon McVittie <smcv@debian.org>  Sun, 08 Dec 2024 18:06:35 +0000
 
 mutter (47.1-4) unstable; urgency=medium
 
