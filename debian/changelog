@@ -1,9 +1,24 @@
 mutter (47.2-1) UNRELEASED; urgency=medium
 
+  * New upstream release 47.2
+    - Fix warping pointer after releasing pointer constraints
+    - Default to high thread instead of realtime priority for KMS thread
+    - Avoid CPU stalls with NVIDIA secondary GPUs with directly-attached
+      monitors
+    - Fix updating cursor immediately when starting window drag
+    - Add pipeline hooks to user program pipelines
+    - Prefer GPUs with built-in panels connected as primary GPU
+    - Fix cursor glitches when using virtual monitors
+    - Ensure frame events are sent for cursor surfaces
+    - Allow BGRX8888 format on big endian
+    - Fix touchscreen drag-and-drop on wayland
+    - Fix several crashes
+    - Misc. bug fixes and cleanups
+    - Translation updates
+  * Refresh patch series
   * d/salsa-ci.yml: Use recommended recipe
-  * New upstream release
 
- -- Simon McVittie <smcv@debian.org>  Sun, 08 Dec 2024 17:55:00 +0000
+ -- Simon McVittie <smcv@debian.org>  Sun, 08 Dec 2024 18:03:42 +0000
 
 mutter (47.1-4) unstable; urgency=medium
 
