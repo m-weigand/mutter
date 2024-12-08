@@ -133,6 +133,7 @@ libmutter-15.so.0 libmutter-15-0 #MINVER#
  meta_context_set_gnome_wm_keybindings@Base 43.0
  meta_context_set_plugin_gtype@Base 43.0
  meta_context_set_plugin_name@Base 43.0
+ meta_context_set_plugin_options@Base 47.3
  meta_context_setup@Base 43.0
  meta_context_start@Base 43.0
  meta_context_terminate@Base 43.0
@@ -687,9 +688,9 @@ libmutter-15.so.0 libmutter-15-0 #MINVER#
  meta_thread_get_thread_type@Base 45~beta.1
  meta_thread_get_type@Base 45~beta.1
  meta_thread_impl_add_source@Base 45~beta.1
+ meta_thread_impl_get_scheduling_priority@Base 47.3
  meta_thread_impl_get_thread@Base 45~beta.1
  meta_thread_impl_get_type@Base 45~beta.1
- meta_thread_impl_is_realtime@Base 45~beta.1
  meta_thread_impl_register_fd@Base 45~beta.1
  meta_thread_is_in_impl_task@Base 45~beta.1
  meta_thread_post_impl_task@Base 45~beta.1
@@ -778,6 +779,7 @@ libmutter-15.so.0 libmutter-15-0 #MINVER#
  meta_window_foreach_transient@Base 43.0
  meta_window_frame_rect_to_client_rect@Base 43.0
  meta_window_get_buffer_rect@Base 43.0
+ meta_window_get_client_content_rect@Base 47.3
  meta_window_get_client_type@Base 43.0
  meta_window_get_compositor_private@Base 43.0
  meta_window_get_description@Base 43.0
@@ -2461,7 +2463,6 @@ libmutter-cogl-15.so.0 libmutter-15-0 #MINVER#
  cogl_scanout_get_type@Base 43.0
  cogl_scanout_new@Base 46~beta
  cogl_scanout_notify_failed@Base 44~rc
- cogl_scanout_set_dst_rect@Base 46~beta
  cogl_scanout_set_src_rect@Base 46~beta
  cogl_set_tracing_disabled_on_thread@Base 43.0
  cogl_set_tracing_enabled_on_thread@Base 43.0
