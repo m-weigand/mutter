@@ -1,3 +1,10 @@
+mutter (47.3-2+pn) UNRELEASED; urgency=medium
+
+  * Non-maintainer upload.
+  * GRD/touch stuff
+
+ -- Maximilian Weigand <mweigand@mweigand.net>  Fri, 27 Dec 2024 20:50:32 +0100
+
 mutter (47.3-2) unstable; urgency=medium
 
   * Release to unstable (LP: #2077216)
